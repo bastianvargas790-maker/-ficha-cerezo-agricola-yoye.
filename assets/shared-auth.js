@@ -2,45 +2,11 @@
 const PROJECT_URL='https://yfpjbjewehusimetwuyc.supabase.co';
 const PUBLISHABLE_KEY='sb_publishable_ApOoDOJ8XBLVb56yzExAfw_L_lDEnyd';
 const $=(s,r=document)=>r.querySelector(s);
-function screen(){
-  let el=$('#sharedAuthScreen');
-  if(el)return el;
-  el=document.createElement('section');
-  el.id='sharedAuthScreen';
-  el.className='auth-screen shared-auth';
-  el.innerHTML='<article class="auth-card"><div class="eyebrow" style="color:var(--green)">Acceso privado</div><h1 style="font-family:Georgia,serif;margin:.35em 0">Agrícola Yoye</h1><p>Inicia sesión con el correo autorizado para consultar esta ficha.</p><form id="sharedLogin"><div class="field"><label>Correo electrónico</label><input id="sharedEmail" type="email" autocomplete="username" required></div><div class="field" style="margin-top:10px"><label>Contraseña</label><input id="sharedPassword" type="password" minlength="8" autocomplete="current-password" required></div><button class="btn" style="width:100%;margin-top:14px" type="submit">Ingresar</button><p id="sharedAuthMessage" class="storage-status" role="status"></p></form><p class="mini-note">El acceso inicial se crea desde la ficha de Nogal. No compartas tu contraseña.</p></article>';
-  document.body.prepend(el);
-  return el;
-}
-function showApp(session){
-  document.documentElement.classList.remove('auth-pending');
-  const gate=screen(),main=$('main');
-  gate.hidden=!!session;
-  if(main)main.hidden=!session;
-  if(session&&!$('#sharedSignOut')){
-    const b=document.createElement('button');
-    b.id='sharedSignOut';b.className='btn secondary small';b.type='button';b.textContent='Cerrar sesión';
-    b.style.cssText='position:fixed;right:12px;top:12px;z-index:90';
-    b.onclick=async()=>{await window.yoyeSupabase.auth.signOut();location.reload()};
-    document.body.append(b);
-  }
-}
-async function init(){
-  if(!window.supabase){document.documentElement.classList.remove('auth-pending');return}
-  window.yoyeSupabase=window.yoyeSupabase||window.supabase.createClient(PROJECT_URL,PUBLISHABLE_KEY);
-  const {data}=await window.yoyeSupabase.auth.getSession();
-  showApp(data.session);
-  window.yoyeSupabase.auth.onAuthStateChange((_event,session)=>showApp(session));
-  const form=$('#sharedLogin')||screen().querySelector('#sharedLogin');
-  form.addEventListener('submit',async e=>{
-    e.preventDefault();
-    const msg=$('#sharedAuthMessage'),button=form.querySelector('button');
-    button.disabled=true;msg.textContent='Comprobando acceso…';
-    const {error}=await window.yoyeSupabase.auth.signInWithPassword({email:$('#sharedEmail').value.trim(),password:$('#sharedPassword').value});
-    button.disabled=false;
-    msg.textContent=error?'No fue posible ingresar. Revisa el correo, la contraseña y la confirmación del correo.':'Acceso correcto.';
-  });
-}
-document.documentElement.classList.add('auth-pending');
-document.readyState==='loading'?document.addEventListener('DOMContentLoaded',init):init();
+const client=window.yoyeSupabase=window.yoyeSupabase||window.supabase?.createClient(PROJECT_URL,PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+
+function gate(){let el=$('#sharedAuthScreen');if(el)return el;el=document.createElement('section');el.id='sharedAuthScreen';el.className='auth-screen shared-auth';el.innerHTML=`<article class="auth-card"><img src="${location.pathname.split('/').filter(Boolean).length>1?'../':''}assets/yoye-logo.svg" alt="Agrícola Yoye" class="auth-logo"><div class="eyebrow">Acceso privado</div><h1>Agrícola Yoye</h1><p>Acceso exclusivo para personal autorizado.</p><form id="sharedLogin"><div class="field"><label for="sharedEmail">Correo electrónico</label><input id="sharedEmail" type="email" autocomplete="username" required></div><div class="field"><label for="sharedPassword">Contraseña</label><input id="sharedPassword" type="password" minlength="8" autocomplete="current-password" required></div><button class="btn" type="submit">Ingresar</button><button class="link-button" id="forgotPassword" type="button">Olvidé mi contraseña</button><p id="sharedAuthMessage" role="status" aria-live="polite"></p></form></article>`;document.body.prepend(el);return el}
+function profileMenu(session){let h=$('#appUserHeader');if(!h){h=document.createElement('div');h.id='appUserHeader';h.className='user-header';h.innerHTML='<a class="home-link" href="'+(location.pathname.split('/').filter(Boolean).length>1?'../':'')+'" aria-label="Volver a la portada">← Inicio</a><button id="userMenuButton" class="user-button" aria-expanded="false" aria-controls="userMenu">👤 <span>Cuenta</span></button><div id="userMenu" class="user-menu" hidden><button data-profile>Mi perfil</button><button data-email>Cambiar correo</button><button data-password>Cambiar contraseña</button><button data-signout>Cerrar sesión</button></div>';document.body.append(h);const b=$('#userMenuButton'),m=$('#userMenu');b.onclick=()=>{m.hidden=!m.hidden;b.setAttribute('aria-expanded',String(!m.hidden))};m.querySelector('[data-signout]').onclick=()=>client.auth.signOut();m.querySelector('[data-profile]').onclick=()=>window.dispatchEvent(new CustomEvent('yoye:profile'));m.querySelector('[data-email]').onclick=async()=>{const email=prompt('Nuevo correo electrónico:',session.user.email);if(email){const {error}=await client.auth.updateUser({email:email.trim()});alert(error?'No fue posible solicitar el cambio: '+error.message:'Revisa ambos correos para confirmar el cambio.')}};m.querySelector('[data-password]').onclick=async()=>{const password=prompt('Nueva contraseña (mínimo 8 caracteres):');if(password){if(password.length<8)return alert('La contraseña debe tener al menos 8 caracteres.');const {error}=await client.auth.updateUser({password});alert(error?'No fue posible cambiarla: '+error.message:'Contraseña actualizada.')}}}h.hidden=false}
+function show(session){document.documentElement.classList.remove('auth-pending');const g=gate(),main=$('main');g.hidden=!!session;if(main)main.hidden=!session;if(session)profileMenu(session);else $('#appUserHeader')?.remove();window.dispatchEvent(new CustomEvent('yoye:session',{detail:session}))}
+async function init(){if(!client){document.documentElement.classList.remove('auth-pending');return}const g=gate(),form=$('#sharedLogin');form.onsubmit=async e=>{e.preventDefault();const msg=$('#sharedAuthMessage'),button=form.querySelector('.btn');button.disabled=true;msg.textContent='Comprobando acceso…';const {error}=await client.auth.signInWithPassword({email:$('#sharedEmail').value.trim(),password:$('#sharedPassword').value});button.disabled=false;msg.textContent=error?'Correo o contraseña incorrectos. Revisa los datos e inténtalo nuevamente.':'Acceso correcto.'};$('#forgotPassword').onclick=async()=>{const email=$('#sharedEmail').value.trim();if(!email)return $('#sharedAuthMessage').textContent='Escribe primero tu correo electrónico.';const redirectTo=new URL((location.pathname.split('/').filter(Boolean).length>1?'../':'')+'',location.href).href;const {error}=await client.auth.resetPasswordForEmail(email,{redirectTo});$('#sharedAuthMessage').textContent=error?'No fue posible enviar el correo: '+error.message:'Te enviamos un enlace de recuperación si la cuenta existe.'};const {data}=await client.auth.getSession();show(data.session);client.auth.onAuthStateChange((_event,session)=>setTimeout(()=>show(session),0))}
+document.documentElement.classList.add('auth-pending');document.readyState==='loading'?document.addEventListener('DOMContentLoaded',init):init();
 })();
