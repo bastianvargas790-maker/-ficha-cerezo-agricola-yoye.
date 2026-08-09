@@ -2,6 +2,13 @@
 -- Ejecutar en Supabase solo después de revisar el respaldo y la rama de prueba.
 create extension if not exists pgcrypto;
 
+-- Respaldo privado y puntual del esquema anterior. No se expone mediante la Data API.
+create schema if not exists private;
+create table if not exists private.respaldo_usuarios_autorizados_20260809
+as table public.usuarios_autorizados with data;
+create table if not exists private.respaldo_cuarteles_20260809
+as table public.cuarteles with data;
+
 create table if not exists public.organizaciones (
   id uuid primary key default gen_random_uuid(), nombre text not null unique,
   creado_en timestamptz not null default now()
@@ -65,7 +72,6 @@ create table if not exists public.historial_cambios (
   valor_anterior jsonb, valor_nuevo jsonb, fecha timestamptz not null default now()
 );
 
-create schema if not exists private;
 create or replace function private.es_miembro(org uuid) returns boolean language sql stable security definer set search_path=public,pg_temp as $$
   select exists(select 1 from public.perfiles p where p.id=(select auth.uid()) and p.organizacion_id=org and p.estado='activo')
 $$;
@@ -100,7 +106,9 @@ create policy riegos_insert on public.registros_riego for insert to authenticate
 create policy riegos_update on public.registros_riego for update to authenticated using (private.puede_editar(organizacion_id)) with check (private.puede_editar(organizacion_id));
 create policy riegos_delete on public.registros_riego for delete to authenticated using (private.es_admin(organizacion_id));
 create policy sondas_read on public.sondas for select to authenticated using (private.es_miembro(organizacion_id));
-create policy sondas_write on public.sondas for all to authenticated using (private.puede_editar(organizacion_id)) with check (private.puede_editar(organizacion_id));
+create policy sondas_insert on public.sondas for insert to authenticated with check (private.puede_editar(organizacion_id));
+create policy sondas_update on public.sondas for update to authenticated using (private.puede_editar(organizacion_id)) with check (private.puede_editar(organizacion_id));
+create policy sondas_delete on public.sondas for delete to authenticated using (private.es_admin(organizacion_id));
 create policy historial_read on public.historial_cambios for select to authenticated using (private.es_miembro(organizacion_id));
 
 create or replace function private.registrar_cambio() returns trigger language plpgsql security definer set search_path=public,pg_temp as $$
@@ -121,10 +129,19 @@ create trigger auditar_sondas after insert or update or delete on public.sondas 
 
 grant select on public.organizaciones,public.perfiles,public.cuarteles,public.registros_riego,public.sondas,public.historial_cambios to authenticated;
 grant insert,update,delete on public.cuarteles,public.registros_riego,public.sondas to authenticated;
-grant update(nombre_completo,telefono,cargo,prefiere_alertas) on public.perfiles to authenticated;
-alter publication supabase_realtime add table public.cuarteles;
-alter publication supabase_realtime add table public.registros_riego;
-alter publication supabase_realtime add table public.sondas;
+grant update(nombre_completo,telefono,cargo,prefiere_alertas,actualizado_en) on public.perfiles to authenticated;
+do $$
+begin
+  if not exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='cuarteles') then
+    alter publication supabase_realtime add table public.cuarteles;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='registros_riego') then
+    alter publication supabase_realtime add table public.registros_riego;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='sondas') then
+    alter publication supabase_realtime add table public.sondas;
+  end if;
+end $$;
 
 -- Convertir la única cuenta autorizada actual en administrador inicial.
 insert into public.perfiles(id,organizacion_id,correo,rol,estado)
