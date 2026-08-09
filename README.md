@@ -44,11 +44,18 @@ Usar este repositorio como fuente principal para próximas mejoras. Al solicitar
 4. Si el cambio debe aplicarse a una sola ficha o a todas.
 5. Fotografías, análisis, registros o manuales que sirvan como respaldo.
 
-## Próximas mejoras sugeridas
+## Arquitectura de la versión multidispositivo
 
-- Crear una portada única para elegir el cultivo.
-- Homologar navegación, estilos y estructura entre las seis fichas.
-- Guardar formularios y calendarios en el dispositivo.
-- Incorporar datos reales por cuartel, variedad y portainjerto.
-- Agregar tablas de referencia por etapa fenológica.
-- Mantener historial de cambios y fuentes técnicas.
+- Supabase Auth mantiene una sola sesión en toda la aplicación.
+- Supabase Postgres es la fuente oficial de cuarteles, riegos, sondas, perfiles e historial.
+- RLS aplica los roles Administrador, Editor y Solo lectura desde el servidor.
+- `localStorage` se consulta exclusivamente para importar registros antiguos de forma voluntaria.
+- Realtime actualiza cuarteles y riegos entre teléfonos autorizados.
+- La migración y su procedimiento están documentados en `supabase/migrations` y `docs/MIGRACION.md`.
+
+## Pendientes antes de producción
+
+- Identificar los cuatro cuarteles con sonda y sus profundidades reales.
+- Incorporar fotografías propias o con licencia comprobada para los seis cultivos.
+- Ejecutar la prueba multidispositivo con cuentas de los tres roles.
+- Trasladar el frontend a un hosting con control perimetral cuando Cloudflare esté disponible.
