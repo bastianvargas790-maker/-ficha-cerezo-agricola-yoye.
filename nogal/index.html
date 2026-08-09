@@ -12,7 +12,7 @@
 .auth-message{margin-top:12px;padding:10px;border-radius:10px;display:none}.auth-message.error{display:block;background:#fde8e8;color:#8b1e2d}.auth-message.ok{display:block;background:#e5f3e9;color:#245c35}
 .userbar{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin:14px 0}.userbar small{color:var(--muted)}
 .saved-list{margin-top:18px}.empty-state{padding:18px;text-align:center;color:var(--muted)}.save-status{margin-top:10px;min-height:1.4em}
-</style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.min.js"></script></head>
+</style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.min.js"></script><link rel="stylesheet" href="../assets/app-enhancements.css"></head>
 <body>
 <section id="authScreen" class="auth-screen"><div class="auth-card"><div class="eyebrow" style="color:var(--earth)">Acceso privado</div><h1>Fichas Agrícola Yoye</h1><p>Ingresa con un correo autorizado. La primera vez, crea tu acceso usando una contraseña elegida por ti.</p><form id="authForm"><div class="field"><label>Correo</label><input id="authEmail" type="email" autocomplete="email" required></div><div class="field" style="margin-top:10px"><label>Contraseña</label><input id="authPassword" type="password" autocomplete="current-password" minlength="8" required></div><div class="auth-actions"><button class="btn" type="submit">Iniciar sesión</button><button class="btn secondary" type="button" id="createAccess">Crear mi acceso</button></div><div id="authMessage" class="auth-message" role="status"></div></form></div></section>
 <main class="shell" id="app" hidden><div class="userbar"><div><b>Sesión protegida</b><br><small id="sessionEmail"></small></div><button class="btn secondary small" id="logoutBtn" type="button">Cerrar sesión</button></div>
@@ -65,4 +65,4 @@ async function loadQuarters(){const body=document.querySelector('#savedQuarters'
 function editQuarter(r){editingId=r.id;const a=r.ficha&&Array.isArray(r.ficha.valores)?r.ficha.valores:[];a.forEach((x,i)=>{if(fields[i])set(i,x)});document.querySelector('#saveQuarter').textContent='Actualizar cuartel';document.querySelector('#ficha').scrollIntoView({behavior:'smooth'})}
 async function deleteQuarter(id){if(!confirm('¿Eliminar definitivamente este cuartel?'))return;const {error}=await db.from('cuarteles').delete().eq('id',id);if(error){msg(saveMsg,'No fue posible eliminar: '+error.message);return}resetQuarter();await loadQuarters()}
 db.auth.onAuthStateChange((_event,session)=>setTimeout(()=>checkAccess(session),0));db.auth.getSession().then(({data})=>checkAccess(data.session));
-</script></body></html>
+</script><script defer src="../assets/app-enhancements.js"></script></body></html>
