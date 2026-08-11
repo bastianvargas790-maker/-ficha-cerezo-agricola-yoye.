@@ -1,0 +1,1 @@
+(() => { document.querySelectorAll('[data-dashboard-frame]').forEach(frame => { if (frame.dataset.dashboardFrame) frame.src = frame.dataset.dashboardFrame; }); if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('../sw.js').catch(() => {})); })();
