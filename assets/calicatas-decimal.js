@@ -21,9 +21,21 @@ function bindSmoothNavigation(){
     });
   });
 }
+function normalizeUnionSelect(){
+  const select=document.querySelector('#unionBulbos');
+  if(!select)return;
+  const map={
+    'Unidos':'unidos',
+    'Parcialmente unidos':'parcialmente_unidos',
+    'No unidos':'no_unidos',
+    'No evaluado':'no_determinado'
+  };
+  [...select.options].forEach(opt=>{if(map[opt.textContent.trim()])opt.value=map[opt.textContent.trim()]});
+}
 function init(){
   prepareAll();
   bindSmoothNavigation();
+  normalizeUnionSelect();
   const readings=document.querySelector('#readings');
   if(readings)new MutationObserver(()=>prepareAll(readings)).observe(readings,{childList:true,subtree:true});
   document.addEventListener('focusin',e=>prepare(e.target));
