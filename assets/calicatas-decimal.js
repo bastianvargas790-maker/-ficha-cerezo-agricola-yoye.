@@ -12,8 +12,18 @@ function normalize(input){
   input.value=input.value.replace(/\s/g,'').replace(',','.');
 }
 function prepareAll(root=document){root.querySelectorAll?.(DECIMAL_SELECTOR).forEach(prepare)}
+function bindSmoothNavigation(){
+  document.querySelectorAll('.action-card[data-view]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const target=document.getElementById(btn.dataset.view+'View');
+      if(!target)return;
+      setTimeout(()=>target.scrollIntoView({behavior:'smooth',block:'start'}),80);
+    });
+  });
+}
 function init(){
   prepareAll();
+  bindSmoothNavigation();
   const readings=document.querySelector('#readings');
   if(readings)new MutationObserver(()=>prepareAll(readings)).observe(readings,{childList:true,subtree:true});
   document.addEventListener('focusin',e=>prepare(e.target));
