@@ -1,0 +1,1 @@
+Pendiente de prueba funcional en iPhone antes de merge a main.
