@@ -1,0 +1,1 @@
+Rama preparada para validación funcional y posterior merge.
