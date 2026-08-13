@@ -1,0 +1,1 @@
+Módulo de Calicatas listo para prueba funcional antes de fusionar a producción.
