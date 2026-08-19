@@ -1,0 +1,16 @@
+{
+  "name": "Calicatas Campo",
+  "short_name": "Calicatas",
+  "description": "Registro de calicatas, mediciones y fotografías en terreno",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f4eb",
+  "theme_color": "#234b36",
+  "lang": "es-CL",
+  "icons": [
+    {"src":"../assets/icons/pwa-192.png","sizes":"192x192","type":"image/png"},
+    {"src":"../assets/icons/pwa-512.png","sizes":"512x512","type":"image/png"},
+    {"src":"../assets/icons/maskable-512.png","sizes":"512x512","type":"image/png","purpose":"maskable"}
+  ]
+}
