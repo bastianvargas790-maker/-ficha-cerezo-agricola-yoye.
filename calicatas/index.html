@@ -1,1 +1,93 @@
-sed: can't read calicatas/index.html: No such file or directory
+<!doctype html>
+<html lang="es" class="auth-pending">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Calicatas · Agrícola Yoye</title>
+  <meta name="theme-color" content="#234b36">
+  <link rel="icon" href="../assets/icons/favicon.svg">
+  <link rel="stylesheet" href="../assets/private-app.css?v=20260819-audit-3">
+  <link rel="stylesheet" href="../assets/calicatas.css?v=20260819-audit-3">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.min.js"></script>
+  <script defer src="../assets/shared-auth.js?v=20260819-auth-fix-2"></script>
+  <script defer src="../assets/calicatas.js?v=20260819-auth-fix-2"></script>
+  <script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('../sw.js').catch(()=>{}));</script>
+</head>
+<body>
+  <main class="cal-shell">
+    <header class="cal-top">
+      <a href="../" class="back">← Dashboard</a>
+      <img src="../assets/yoye-logo.svg" class="cal-logo" alt="Agrícola Yoye">
+      <span id="calProfile" class="profile-status">Perfil: cargando…</span>
+      <span id="calSync" class="status">Conectando…</span>
+    </header>
+    <div id="calOfflineBanner" class="offline-banner" role="status" hidden></div>
+
+    <section class="cal-hero">
+      <div class="eyebrow">Monitoreo del suelo</div>
+      <h1>Registro de calicatas</h1>
+      <p>Registra evaluaciones de terreno y consulta la trazabilidad por cuartel con humedad, CE, temperatura, raíces y fotografías.</p>
+    </section>
+
+    <nav class="cal-actions" aria-label="Acciones de calicatas">
+      <button type="button" class="action-card active" data-view="register"><span class="icon">＋</span><b>Registrar nueva calicata</b><small>Formulario móvil de terreno</small></button>
+      <button type="button" class="action-card" data-view="history"><span class="icon">▥</span><b>Ver historial</b><small>Gráficas y trazabilidad</small></button>
+    </nav>
+
+    <section id="registerView" class="view active">
+      <form id="calicataForm" class="panel">
+        <div class="section-title"><div><span class="kicker">Nueva evaluación</span><h2>Datos de terreno</h2></div><span id="formState" class="mini-status">Sin guardar</span></div>
+        <div class="form-grid">
+          <label class="field wide"><span>Cuartel *</span><select id="cuartelId" required><option value="">Cargando cuarteles…</option></select></label>
+          <label class="field"><span>Fecha *</span><input id="fecha" type="date" required></label>
+          <label class="field"><span>Hora</span><input id="hora" type="time"></label>
+          <label class="field"><span>Horas desde último riego</span><input id="horasRiego" type="number" step="0.1" min="0" inputmode="decimal"></label>
+          <label class="field"><span>Duración último riego (h)</span><input id="duracionRiego" type="number" step="0.1" min="0" inputmode="decimal"></label>
+          <label class="field"><span>Profundidad hoyo (cm)</span><input id="profHoyo" type="number" step="1" min="0" inputmode="decimal"></label>
+          <label class="field"><span>Profundidad efectiva raíces (cm)</span><input id="profRaices" type="number" step="1" min="0" inputmode="decimal"></label>
+          <label class="field wide"><span>Unión de bulbos *</span><select id="unionBulbos" required><option value="">Seleccionar…</option><option value="unidos">Unidos</option><option value="parcialmente_unidos">Parcialmente unidos</option><option value="no_unidos">No unidos</option><option value="no_determinado">No evaluado</option></select></label>
+          <label class="field wide"><span>Ubicación / referencia dentro del cuartel</span><input id="ubicacion" type="text" placeholder="Ej. centro de hilera, sector norte"></label>
+        </div>
+
+        <div class="section-title sub"><div><span class="kicker">Perfil del suelo</span><h2 id="formTitle">Mediciones por profundidad</h2></div><div class="depth-controls"><select id="additionalDepth" aria-label="Profundidad opcional"><option value="">Agregar profundidad…</option><option value="10">10 cm</option><option value="70">70 cm</option><option value="120">120 cm</option></select><button id="addDepth" type="button" class="secondary">Agregar</button><input id="customDepth" type="number" min="1" max="500" step="1" placeholder="Otra cm" aria-label="Otra profundidad en centímetros"><button id="addCustomDepth" type="button" class="secondary" aria-label="Agregar otra profundidad">＋</button></div></div>
+        <div class="readings-wrap"><div id="readings"></div><p class="measurement-note">30, 60 y 90 cm son obligatorias. Puedes agregar 10, 70, 120 cm u otra profundidad numérica. Cada bloque contiene Centro, Izquierda y Derecha; marca “No realizada” cuando no exista una lectura. El valor 0 es válido.</p></div>
+
+        <div class="section-title sub"><div><span class="kicker">Diagnóstico visual</span><h2>Raíces y observaciones</h2></div></div>
+        <div class="form-grid">
+          <label class="field"><span>Distribución de raíces</span><select id="raices"><option value="">Sin evaluar</option><option>Abundantes y uniformes</option><option>Moderadas</option><option>Escasas</option><option>Superficiales</option><option>Concentradas por sector</option></select></label>
+          <label class="field"><span>Compactación</span><select id="compactacion"><option value="">Sin evaluar</option><option>No evidente</option><option>Leve</option><option>Moderada</option><option>Alta</option></select></label>
+          <label class="field wide"><span>Observaciones generales</span><textarea id="observaciones" rows="4" placeholder="Color, estructura, raíces, humedad visual, problemas detectados…"></textarea></label>
+          <label class="field wide"><span>Fotografías</span><input id="photos" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple><small>Puedes elegir desde la galería o tomar una fotografía. Hasta 10 MB por foto; si estás offline, queda guardada en el dispositivo hasta sincronizar.</small><div id="existingPhotos" class="existing-photos"></div></label>
+        </div>
+        <div class="form-actions"><button id="saveCalicata" class="primary save" type="submit">Guardar calicata</button><button id="cancelEdit" class="secondary cancel-edit" type="button" hidden>Cancelar edición</button></div>
+        <p id="formMessage" class="message" role="status"></p>
+        <button id="retryProfile" class="retry-button" type="button" hidden>Reintentar carga de perfil y cuarteles</button>
+      </form>
+    </section>
+
+    <dialog id="deleteDialog" class="delete-dialog">
+      <h2>Eliminar calicata</h2>
+      <div id="deleteDialogText"></div>
+      <div class="dialog-actions"><button id="deleteCancel" class="secondary" type="button">Cancelar</button><button id="deleteConfirm" class="danger" type="button">Eliminar calicata</button></div>
+    </dialog>
+
+    <section id="reportCard" class="panel report-card" hidden>
+      <div class="section-title"><div><span class="kicker">WhatsApp y trazabilidad</span><h2>Resumen y análisis de la calicata</h2></div></div>
+      <div id="reportMetrics"></div>
+      <pre id="reportText" class="report-text"></pre>
+      <div class="report-actions"><button id="copyReport" class="primary" type="button">Copiar reporte</button><button id="shareReport" class="secondary" type="button">Compartir reporte</button><button id="editObservations" class="secondary" type="button">Editar observaciones</button><button id="backToCalicata" class="secondary" type="button">Volver a la calicata</button></div>
+    </section>
+
+    <section id="historyView" class="view">
+      <div class="panel">
+        <div class="section-title"><div><span class="kicker">Trazabilidad</span><h2>Historial por cuartel</h2></div></div>
+        <div class="history-filter"><label class="field"><span>Cuartel</span><select id="historyQuarter"><option value="">Selecciona un cuartel</option></select></label><label class="field"><span>Profundidad</span><select id="historyDepth"><option value="">Todas</option></select></label><label class="field"><span>Punto de medición</span><select id="historyPoint"><option value="">Todos</option><option value="punto_cero">Centro</option><option value="linea_izquierda">Izquierda</option><option value="linea_derecha">Derecha</option></select></label><label class="field"><span>Cultivo</span><input id="historyCulture" type="search" placeholder="Filtrar cultivo"></label><label class="field"><span>Variedad</span><input id="historyVariety" type="search" placeholder="Filtrar variedad"></label><label class="field"><span>Desde / hasta</span><span class="date-range"><input id="historyFrom" type="date" aria-label="Fecha desde"><input id="historyTo" type="date" aria-label="Fecha hasta"></span></label></div>
+        <div id="historyKpis" class="kpis"></div>
+        <div class="dashboard-grid"><article class="chart-card"><h3>Panel 1 · Humedad promedio por profundidad</h3><div id="depthAveragePanel" class="bar-panel"><p class="empty-note">Selecciona un cuartel</p></div></article><article class="chart-card"><h3>Panel 2 · Humedad por punto</h3><div id="pointComparisonPanel" class="point-panel"><p class="empty-note">Selecciona un cuartel</p></div></article><article class="chart-card"><h3>Panel 3 · Evolución histórica</h3><div id="chartHumidity" class="chart empty">Selecciona un cuartel</div></article><article class="chart-card"><h3>Panel 4 · Perfil vertical</h3><div id="verticalProfilePanel" class="vertical-panel"><p class="empty-note">Selecciona un cuartel</p></div></article><article class="chart-card"><h3>Conductividad eléctrica por profundidad</h3><div id="chartCE" class="chart empty">Selecciona un cuartel</div></article><article class="chart-card"><h3>Temperatura por profundidad</h3><div id="chartTemp" class="chart empty">Selecciona un cuartel</div></article></div>
+        <div class="section-title sub"><div><span class="kicker">Registros</span><h2>Evaluaciones realizadas</h2></div></div>
+        <div id="historyList" class="history-list"><p class="empty-note">Selecciona un cuartel para ver sus calicatas.</p></div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
