@@ -6,13 +6,11 @@
   <title>Calicatas · Agrícola Yoye</title>
   <meta name="theme-color" content="#234b36">
   <link rel="icon" href="../assets/icons/favicon.svg">
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="apple-touch-icon" href="../assets/icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="../assets/private-app.css?v=20260819-audit-3">
-  <link rel="stylesheet" href="../assets/calicatas.css?v=20260819-audit-3">
+  <link rel="stylesheet" href="../assets/private-app.css?v=20260819-audit-2">
+  <link rel="stylesheet" href="../assets/calicatas.css?v=20260819-audit-2">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.min.js"></script>
-  <script defer src="../assets/shared-auth.js?v=20260819-auth-fix-3"></script>
-  <script defer src="../assets/calicatas.js?v=20260819-auth-fix-3"></script>
+  <script defer src="../assets/shared-auth.js?v=20260809-4"></script>
+  <script defer src="../assets/calicatas.js?v=20260819-audit-2"></script>
   <script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('../sw.js').catch(()=>{}));</script>
 </head>
 <body>
@@ -51,7 +49,7 @@
           <label class="field wide"><span>Ubicación / referencia dentro del cuartel</span><input id="ubicacion" type="text" placeholder="Ej. centro de hilera, sector norte"></label>
         </div>
 
-        <div class="section-title sub"><div><span class="kicker">Perfil del suelo</span><h2 id="formTitle">Mediciones por profundidad</h2></div><div class="depth-controls"><select id="additionalDepth" aria-label="Profundidad opcional"><option value="">Agregar profundidad…</option><option value="10">10 cm</option><option value="70">70 cm</option><option value="120">120 cm</option></select><button id="addDepth" type="button" class="secondary">Agregar</button><input id="customDepth" type="number" min="1" max="500" step="1" placeholder="Otra cm" aria-label="Otra profundidad en centímetros"><button id="addCustomDepth" type="button" class="secondary" aria-label="Agregar otra profundidad">＋</button></div></div>
+        <div class="section-title sub"><div><span class="kicker">Perfil del suelo</span><h2>Mediciones por profundidad</h2></div><div class="depth-controls"><select id="additionalDepth" aria-label="Profundidad opcional"><option value="">Agregar profundidad…</option><option value="10">10 cm</option><option value="70">70 cm</option><option value="120">120 cm</option></select><button id="addDepth" type="button" class="secondary">Agregar</button><input id="customDepth" type="number" min="1" max="500" step="1" placeholder="Otra cm" aria-label="Otra profundidad en centímetros"><button id="addCustomDepth" type="button" class="secondary" aria-label="Agregar otra profundidad">＋</button></div></div>
         <div class="readings-wrap"><div id="readings"></div><p class="measurement-note">30, 60 y 90 cm son obligatorias. Puedes agregar 10, 70, 120 cm u otra profundidad numérica. Cada bloque contiene Centro, Izquierda y Derecha; marca “No realizada” cuando no exista una lectura. El valor 0 es válido.</p></div>
 
         <div class="section-title sub"><div><span class="kicker">Diagnóstico visual</span><h2>Raíces y observaciones</h2></div></div>
@@ -59,19 +57,13 @@
           <label class="field"><span>Distribución de raíces</span><select id="raices"><option value="">Sin evaluar</option><option>Abundantes y uniformes</option><option>Moderadas</option><option>Escasas</option><option>Superficiales</option><option>Concentradas por sector</option></select></label>
           <label class="field"><span>Compactación</span><select id="compactacion"><option value="">Sin evaluar</option><option>No evidente</option><option>Leve</option><option>Moderada</option><option>Alta</option></select></label>
           <label class="field wide"><span>Observaciones generales</span><textarea id="observaciones" rows="4" placeholder="Color, estructura, raíces, humedad visual, problemas detectados…"></textarea></label>
-          <label class="field wide"><span>Fotografías</span><input id="photos" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple><small>Puedes elegir desde la galería o tomar una fotografía. Hasta 10 MB por foto; si estás offline, queda guardada en el dispositivo hasta sincronizar.</small><div id="existingPhotos" class="existing-photos"></div></label>
+          <label class="field wide"><span>Fotografías</span><input id="photos" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple><small>Puedes elegir desde la galería o tomar una fotografía. Hasta 10 MB por foto; si estás offline, queda guardada en el dispositivo hasta sincronizar.</small></label>
         </div>
-        <div class="form-actions"><button id="saveCalicata" class="primary save" type="submit">Guardar calicata</button><button id="cancelEdit" class="secondary cancel-edit" type="button" hidden>Cancelar edición</button></div>
+        <button id="saveCalicata" class="primary save" type="submit">Guardar calicata</button>
         <p id="formMessage" class="message" role="status"></p>
         <button id="retryProfile" class="retry-button" type="button" hidden>Reintentar carga de perfil y cuarteles</button>
       </form>
     </section>
-
-    <dialog id="deleteDialog" class="delete-dialog">
-      <h2>Eliminar calicata</h2>
-      <div id="deleteDialogText"></div>
-      <div class="dialog-actions"><button id="deleteCancel" class="secondary" type="button">Cancelar</button><button id="deleteConfirm" class="danger" type="button">Eliminar calicata</button></div>
-    </dialog>
 
     <section id="reportCard" class="panel report-card" hidden>
       <div class="section-title"><div><span class="kicker">WhatsApp y trazabilidad</span><h2>Resumen y análisis de la calicata</h2></div></div>
