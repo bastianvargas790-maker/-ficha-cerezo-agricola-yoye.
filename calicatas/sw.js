@@ -1,4 +1,4 @@
-const CACHE='calicatas-campo-v21-dedicated';
+const CACHE='calicatas-campo-v22-offline-db-fix';
 const SHELL=[
   './',
   './index.html',
@@ -9,7 +9,7 @@ const SHELL=[
   '../assets/calicatas.css?v=20260819-audit-2',
   '../assets/supabase.js?v=20260821-supabase-global-1',
   '../assets/shared-auth.js?v=20260821-supabase-global-1',
-  '../assets/calicatas.js?v=20260821-dedicated-app-1',
+  '../assets/calicatas.js?v=20260821-offline-db-fix-1',
   '../assets/yoye-logo.svg',
   '../assets/icons/favicon.svg',
   '../assets/icons/pwa-192.png',
@@ -27,3 +27,4 @@ self.addEventListener('fetch',event=>{
     return response;
   }).catch(()=>caches.match(event.request).then(cached=>cached||caches.match('./registro-v16.html'))));
 });
+
