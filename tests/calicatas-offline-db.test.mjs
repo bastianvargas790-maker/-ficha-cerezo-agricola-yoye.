@@ -21,4 +21,3 @@ test('all Calicatas entry points and the offline shell request the fixed asset',
   assert.ok(serviceWorker.includes(version));
   assert.ok(serviceWorker.includes("calicatas-campo-v22-offline-db-fix"));
 });
-
