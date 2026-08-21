@@ -5,7 +5,7 @@
   const STORES={queue:'queue',drafts:'drafts',quarters:'quarters',meta:'meta'};
   const DEFAULT_DEPTHS=[30,60,90], OPTIONAL_DEPTHS=[10,70,120];
   const PROFILES=[{key:'punto_cero',label:'Centro'},{key:'linea_izquierda',label:'Izquierda'},{key:'linea_derecha',label:'Derecha'}];
-  let db,session,profile,quarters=[],historyRows=[],syncRunning=false,draftTimer,currentReport=null,authStateKey='';
+  let db,localDb,session,profile,quarters=[],historyRows=[],syncRunning=false,draftTimer,currentReport=null,authStateKey='';
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt=n=>n==null||n===''?'—':Number(n).toLocaleString('es-CL',{minimumFractionDigits:2,maximumFractionDigits:2});
   const fmtPct=n=>n==null?'No registrada':`${fmt(n)}%`;
@@ -20,9 +20,9 @@
   const isNumber=v=>v!==null&&v!==''&&Number.isFinite(Number(v));
   const readValue=(row,cls)=>{const v=row.querySelector(cls)?.value;return v===''||v==null?null:Number(v)};
   function openLocalDb(){
-    if(db)return Promise.resolve(db);
+    if(localDb)return Promise.resolve(localDb);
     if(!('indexedDB' in window))return Promise.reject(new Error('Este navegador no permite almacenamiento local.'));
-    return new Promise((resolve,reject)=>{const request=indexedDB.open(DB_NAME,DB_VERSION);request.onupgradeneeded=()=>{const d=request.result;Object.values(STORES).forEach(name=>{if(!d.objectStoreNames.contains(name))d.createObjectStore(name,{keyPath:'id'})})};request.onsuccess=()=>{db=request.result;resolve(db)};request.onerror=()=>reject(request.error||new Error('No fue posible abrir el almacenamiento local.'))});
+    return new Promise((resolve,reject)=>{const request=indexedDB.open(DB_NAME,DB_VERSION);request.onupgradeneeded=()=>{const d=request.result;Object.values(STORES).forEach(name=>{if(!d.objectStoreNames.contains(name))d.createObjectStore(name,{keyPath:'id'})})};request.onsuccess=()=>{localDb=request.result;resolve(localDb)};request.onerror=()=>reject(request.error||new Error('No fue posible abrir el almacenamiento local.'))});
   }
   async function localPut(store,value){const d=await openLocalDb();return new Promise((resolve,reject)=>{const r=d.transaction(store,'readwrite').objectStore(store).put(value);r.onsuccess=()=>resolve(value);r.onerror=()=>reject(r.error)})}
   async function localGet(store,id){const d=await openLocalDb();return new Promise((resolve,reject)=>{const r=d.transaction(store).objectStore(store).get(id);r.onsuccess=()=>resolve(r.result||null);r.onerror=()=>reject(r.error)})}
@@ -87,3 +87,4 @@
   window.yoyeCalicatasInit=detail=>initFromAuth({detail});
   document.readyState==='loading'?document.addEventListener('DOMContentLoaded',bind):bind();setTimeout(()=>{const history=document.querySelector('#historyList');if(history)new MutationObserver(()=>loadRemotePhotos()).observe(history,{childList:true})},0);addEventListener('yoye-auth-ready',initFromAuth);[0,300,1200,3000,6000,10000].forEach(ms=>setTimeout(syncAuthState,ms));
 })();
+
