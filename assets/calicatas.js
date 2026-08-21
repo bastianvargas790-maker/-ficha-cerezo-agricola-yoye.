@@ -87,4 +87,3 @@
   window.yoyeCalicatasInit=detail=>initFromAuth({detail});
   document.readyState==='loading'?document.addEventListener('DOMContentLoaded',bind):bind();setTimeout(()=>{const history=document.querySelector('#historyList');if(history)new MutationObserver(()=>loadRemotePhotos()).observe(history,{childList:true})},0);addEventListener('yoye-auth-ready',initFromAuth);[0,300,1200,3000,6000,10000].forEach(ms=>setTimeout(syncAuthState,ms));
 })();
-
