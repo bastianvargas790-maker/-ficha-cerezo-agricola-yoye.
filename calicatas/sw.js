@@ -1,4 +1,4 @@
-const CACHE='calicatas-campo-v22-offline-db-fix';
+const CACHE='calicatas-campo-v23-official-logo';
 const SHELL=[
   './',
   './index.html',
@@ -8,9 +8,9 @@ const SHELL=[
   '../assets/private-app.css?v=20260820-login-fix-1',
   '../assets/calicatas.css?v=20260819-audit-2',
   '../assets/supabase.js?v=20260821-supabase-global-1',
-  '../assets/shared-auth.js?v=20260821-supabase-global-1',
+  '../assets/shared-auth.js?v=20260821-official-logo-1',
   '../assets/calicatas.js?v=20260821-offline-db-fix-1',
-  '../assets/yoye-logo.svg',
+  '../assets/yoye-logo-official.png?v=20260821-official-logo-1',
   '../assets/icons/favicon.svg',
   '../assets/icons/pwa-192.png',
   '../assets/icons/pwa-512.png',
