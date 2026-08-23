@@ -17,5 +17,5 @@ test('the official Yoye logo is used by authentication and Calicatas', () => {
     assert.ok(page.includes('yoye-logo-official.png?v=20260821-official-logo-1'));
   }
   assert.ok(serviceWorker.includes('yoye-logo-official.png?v=20260821-official-logo-1'));
-  assert.ok(serviceWorker.includes('calicatas-campo-v23-official-logo'));
+  assert.ok(serviceWorker.includes('calicatas-campo-v24-history-management'));
 });
