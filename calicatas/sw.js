@@ -1,4 +1,4 @@
-const CACHE='calicatas-campo-v23-official-logo';
+const CACHE='calicatas-campo-v24-history-management';
 const SHELL=[
   './',
   './index.html',
@@ -6,10 +6,10 @@ const SHELL=[
   './registro-v16.html',
   './manifest.webmanifest',
   '../assets/private-app.css?v=20260820-login-fix-1',
-  '../assets/calicatas.css?v=20260819-audit-2',
+  '../assets/calicatas.css?v=20260823-history-management-1',
   '../assets/supabase.js?v=20260821-supabase-global-1',
   '../assets/shared-auth.js?v=20260821-official-logo-1',
-  '../assets/calicatas.js?v=20260821-offline-db-fix-1',
+  '../assets/calicatas.js?v=20260823-history-management-1',
   '../assets/yoye-logo-official.png?v=20260821-official-logo-1',
   '../assets/icons/favicon.svg',
   '../assets/icons/pwa-192.png',

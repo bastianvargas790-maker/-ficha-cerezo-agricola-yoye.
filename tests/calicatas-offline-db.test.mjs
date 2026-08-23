@@ -16,7 +16,7 @@ test('Supabase and IndexedDB use separate connection variables', () => {
 });
 
 test('all Calicatas entry points and the offline shell request the fixed asset', () => {
-  const version = 'calicatas.js?v=20260821-offline-db-fix-1';
+  const version = 'calicatas.js?v=20260823-history-management-1';
   for (const page of pages) assert.ok(page.includes(version));
   assert.ok(serviceWorker.includes(version));
   assert.match(serviceWorker, /calicatas-campo-v\d+-/);
