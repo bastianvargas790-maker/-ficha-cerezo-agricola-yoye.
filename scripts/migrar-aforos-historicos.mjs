@@ -11,8 +11,9 @@
 //
 // Qué hace:
 //   1. Descarga DB_Aforos completo desde el gviz público de Google Sheets.
-//   2. Excluye AF-2026-001 (prueba confirmada), 13A, 13B, 14A, 14B y 34 -- ver
-//      EXCLUIDOS abajo para el motivo exacto de cada uno.
+//   2. Excluye AF-2026-001 (prueba confirmada), 13A, 13B y 34 -- ver
+//      EXCLUIDOS abajo para el motivo exacto de cada uno. 14A y 14B migrables
+//      como cuarteles independientes (confirmado en public.cuarteles).
 //   3. Resuelve cada ID_Cuartel restante contra CUARTEL_EQUIVALENCIAS.
 //   4. Detecta automáticamente, por lectura, si el tiempo implícito por el
 //      Q_L/V_L original difiere del tiempo_medicion_s general del aforo (pasa
@@ -40,18 +41,12 @@ const GVIZ_URL = `https://docs.google.com/spreadsheets/d/${DB_APOROS_SHEET_ID}/g
 const TOLERANCIA_SEGUNDOS = 0.5; // diferencia mínima para considerar que una celda usó otro tiempo
 
 // Excluidos con motivo explícito -- ver reporte de arquitectura de datos
-// (23-08-2026, ronda de cierre). 14A/14B se movieron aquí: la variedad
-// distinta (Lapins vs Santina) y el tracking administrativo independiente en
-// Registro Aplicaciones son evidencia fuerte, pero no son una confirmación
-// directa de que existan como filas propias en public.cuarteles -- no tengo
-// acceso a esa tabla para verificarlo. Por regla explícita de Bastián, sin esa
-// confirmación quedan pendientes, no migrables.
+// (23-08-2026, ronda de cierre). 14A/14B confirmados directamente en
+// public.cuarteles como cuarteles independientes (Bastián, 2026-08-23).
 const EXCLUIDOS = {
   'AF-2026-001': 'Prueba confirmada (Observaciones: "PRUEBA CONTROLADA DE SINCRONIZACIÓN 2026")',
   'AF-2025-030': '13A: Tipo 3, sin evidencia de válvula/línea compartida como en C-40',
   'AF-2025-031': '13B: mismo motivo que 13A',
-  'AF-2025-003': '14A: variedad distinta a 14B sugiere cuartel propio, pero sin confirmar contra la tabla cuarteles real -- pendiente hasta que Bastián lo verifique directamente',
-  'AF-2025-004': '14B: mismo motivo que 14A',
   'AF-2025-032': '34: no se sabe a cuál de 34-1/34-2/34-3 corresponde',
 };
 
@@ -70,6 +65,8 @@ const CUARTEL_EQUIVALENCIAS = {
   '37': { cuartelCodigo: 'C-37' }, '38': { cuartelCodigo: 'C-38' }, '39': { cuartelCodigo: 'C-39' },
   '40 A': { cuartelCodigo: 'C-40', unidadAforo: 'A' }, // Confirmado por Bastián: C-40 es un
   '40B': { cuartelCodigo: 'C-40', unidadAforo: 'B' },  // solo cuartel, aforado por 2 válvulas.
+  '14A': { cuartelCodigo: 'C-14A' }, // Confirmado en public.cuarteles (Lapins, 1.84 ha)
+  '14B': { cuartelCodigo: 'C-14B' }, // Confirmado en public.cuarteles (Santina, 1.03 ha)
   'Isla': { cuartelCodigo: 'Isla' }, // Sin confirmar si lleva prefijo "C-" -- ver reporte, pendiente.
 };
 

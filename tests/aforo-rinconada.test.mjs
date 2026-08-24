@@ -138,21 +138,18 @@ test('the migration script recalculates from raw readings instead of trusting DB
   assert.match(migrationScript, /migracion_lote: loteId/);
 });
 
-test('the migration script excludes the confirmed test record and all 5 unresolved historical cases', () => {
+test('the migration script excludes the confirmed test record and unresolved historical cases', () => {
   assert.match(migrationScript, /'AF-2026-001':/); // prueba confirmada
-  assert.match(migrationScript, /'AF-2025-030':/); // 13A
-  assert.match(migrationScript, /'AF-2025-031':/); // 13B
-  assert.match(migrationScript, /'AF-2025-003':/); // 14A
-  assert.match(migrationScript, /'AF-2025-004':/); // 14B
-  assert.match(migrationScript, /'AF-2025-032':/); // 34
+  assert.match(migrationScript, /'AF-2025-030':/); // 13A (pendiente)
+  assert.match(migrationScript, /'AF-2025-031':/); // 13B (pendiente)
+  assert.match(migrationScript, /'AF-2025-032':/); // 34 (pendiente)
 });
 
-test('14A/14B stay pending, not migrated: variety difference alone is not accepted as proof of a separate cuartel_id', () => {
-  // No deben aparecer en CUARTEL_EQUIVALENCIAS -- si aparecieran ahí, se
-  // migrarían, contradiciendo la instrucción de no crear cuartel_id nuevos
-  // solo por inferencia de variedad sin confirmar contra la tabla cuarteles.
-  assert.doesNotMatch(migrationScript, /'14A': \{ cuartelCodigo/);
-  assert.doesNotMatch(migrationScript, /'14B': \{ cuartelCodigo/);
+test('14A/14B are now migrable as confirmed independent cuarteles in public.cuarteles', () => {
+  // Confirmado directamente por Bastián el 23-08-2026: C-14A (Lapins, 1.84 ha)
+  // y C-14B (Santina, 1.03 ha) existen como cuarteles independientes.
+  assert.match(migrationScript, /'14A': \{ cuartelCodigo: 'C-14A' \}/);
+  assert.match(migrationScript, /'14B': \{ cuartelCodigo: 'C-14B' \}/);
 });
 
 test('C-40 stays a single cuartel with two aforo units, not two separate cuarteles', () => {
