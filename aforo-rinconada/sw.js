@@ -1,13 +1,14 @@
-const CACHE='aforo-rinconada-v1';
+const CACHE='aforo-rinconada-v2';
 const SHELL=[
   './',
   './index.html',
   './manifest.webmanifest',
   '../assets/private-app.css?v=20260820-login-fix-1',
-  '../assets/aforo.css?v=20260823-1',
+  '../assets/aforo.css?v=20260823-2',
   '../assets/supabase.js?v=20260821-supabase-global-1',
   '../assets/shared-auth.js?v=20260821-official-logo-1',
-  '../assets/aforo.js?v=20260823-1',
+  '../assets/aforo-formulas.js?v=20260823-2',
+  '../assets/aforo.js?v=20260823-2',
   '../assets/yoye-logo-official.png?v=20260821-official-logo-1',
   '../assets/icons/favicon.svg',
   '../assets/icons/pwa-192.png',

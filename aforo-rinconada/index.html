@@ -10,10 +10,11 @@
   <link rel="icon" href="../assets/icons/favicon.svg">
   <link rel="apple-touch-icon" href="../assets/icons/pwa-192.png">
   <link rel="stylesheet" href="../assets/private-app.css?v=20260820-login-fix-1">
-  <link rel="stylesheet" href="../assets/aforo.css?v=20260823-1">
+  <link rel="stylesheet" href="../assets/aforo.css?v=20260823-2">
   <script src="../assets/supabase.js?v=20260821-supabase-global-1"></script>
   <script defer src="../assets/shared-auth.js?v=20260821-official-logo-1"></script>
-  <script defer src="../assets/aforo.js?v=20260823-1"></script>
+  <script defer src="../assets/aforo-formulas.js?v=20260823-2"></script>
+  <script defer src="../assets/aforo.js?v=20260823-2"></script>
   <script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./sw.js',{scope:'./'}).catch(()=>{}));</script>
 </head>
 <body>
@@ -45,6 +46,7 @@
           <div class="section-title"><h2>1 · Identificación</h2></div>
           <div class="form-grid">
             <label class="field"><span>Cuartel</span><select id="afQuarter" required><option value="">Selecciona un cuartel</option></select></label>
+            <label class="field"><span>Unidad de aforo</span><input id="afUnidad" type="text" maxlength="10" placeholder="Ej. A, B — solo si el cuartel se afora por sectores"></label>
             <label class="field"><span>Temporada</span><input id="afTemporada" type="number" min="2000" max="2100" step="1" inputmode="numeric"></label>
             <label class="field"><span>Fecha</span><input id="afFecha" type="date" required></label>
             <label class="field"><span>Equipo de riego</span><input id="afEquipo" type="text" maxlength="120" placeholder="Opcional"></label>
@@ -61,7 +63,8 @@
 
         <article class="panel">
           <div class="section-title"><h2>3 · Mediciones</h2><span class="mini-status">4 líneas × 4 posiciones = 16 mediciones</span></div>
-          <p class="mini-status">Volumen recolectado (mL) y tiempo (s) en cada emisor. El caudal se calcula solo.</p>
+          <label class="field" style="max-width:220px"><span>Tiempo de aforo (s)</span><input id="afTiempoMedicion" type="number" min="0" step="0.1" inputmode="decimal" placeholder="Ej. 36"></label>
+          <p class="mini-status">Un solo tiempo para las 16 mediciones — se cronometra una vez y se mide volumen en cada punto durante esa misma ventana. Ingresa el volumen recolectado (mL) en cada emisor; el caudal se calcula solo.</p>
           <div id="afMatrix" class="reading-matrix"></div>
         </article>
 

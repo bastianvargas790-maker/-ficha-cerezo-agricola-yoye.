@@ -6,7 +6,6 @@
   const STORES = { queue: 'queue', quarters: 'quarters', meta: 'meta' };
   const LINEAS = [1, 2, 3, 4];
   const POSICIONES = [['inicio', 'Inicio'], ['un_tercio', '1/3'], ['dos_tercios', '2/3'], ['ultimo', 'Último']];
-  const CU_ACEPTABLE = 70; // Mismo criterio que el dashboard de Aforo en Agrícola Yoye (CU >= 70%).
 
   let sb, localDb, session, profile, orgId, quarters = [], syncRunning = false;
 
@@ -45,19 +44,11 @@
   }
   async function refreshSyncLabel() { try { const q = await localAll(STORES.queue); updateSyncLabel(q.filter(x => x.status !== 'synced').length); } catch { updateSyncLabel(0); } }
 
-  // --- Cálculo: caudal por posición, caudal medio, cuarto inferior y CU (Christiansen/Merriam-Keller) ---
-  function caudalLh(volumenMl, tiempoS) { return isFinite2(volumenMl) && isFinite2(tiempoS) && tiempoS > 0 ? (volumenMl * 3.6) / tiempoS : null; }
-  function computeResultado(lecturas) {
-    const valores = lecturas.map(l => l.caudal_l_h).filter(isFinite2);
-    if (!valores.length) return { qMedio: null, q25: null, cu: null, clasificacion: 'Sin datos' };
-    const sorted = [...valores].sort((a, b) => a - b);
-    const qMedio = sorted.reduce((a, b) => a + b, 0) / sorted.length;
-    const cuartoCount = Math.max(1, Math.round(sorted.length / 4));
-    const q25 = sorted.slice(0, cuartoCount).reduce((a, b) => a + b, 0) / cuartoCount;
-    const cu = qMedio > 0 ? (q25 / qMedio) * 100 : null;
-    const clasificacion = cu === null ? 'Sin datos' : cu >= CU_ACEPTABLE ? 'Aceptable' : 'Requiere atención';
-    return { qMedio, q25, cu, clasificacion };
-  }
+  // Cálculo de caudal/CU: única implementación en aforo-formulas.js, compartida
+  // con el dashboard de Agrícola Yoye. No reimplementar acá.
+  const F = globalThis.YOYE_AFORO_FORMULAS;
+  function caudalLh(volumenMl, tiempoS) { return F.calcularCaudal(volumenMl, tiempoS); }
+  function computeResultado(lecturas) { return F.calcularResultado(lecturas); }
 
   // --- Cuarteles: cargar y cachear para uso sin conexión ---
   async function cacheQuarters(list) { await Promise.all((list || []).map(q => localPut(STORES.quarters, { id: q.id, value: q }))); }
@@ -98,7 +89,6 @@
             <div class="reading-cell" data-posicion="${key}">
               <span>${esc(label)}</span>
               <input class="vol" type="number" min="0" step="1" inputmode="decimal" placeholder="Volumen mL" aria-label="Volumen en mL, línea ${linea}, posición ${esc(label)}">
-              <input class="tiempo" type="number" min="0" step="0.1" inputmode="decimal" placeholder="Tiempo s" aria-label="Tiempo en segundos, línea ${linea}, posición ${esc(label)}">
               <div class="q-out">— L/h</div>
             </div>`).join('')}
         </div>
@@ -108,29 +98,33 @@
   function onMatrixInput(event) {
     const cell = event.target.closest('.reading-cell');
     if (!cell) return;
-    const vol = num(cell.querySelector('.vol').value), tiempo = num(cell.querySelector('.tiempo').value);
+    const vol = num(cell.querySelector('.vol').value), tiempo = num($('#afTiempoMedicion').value);
     const q = caudalLh(vol, tiempo);
     cell.querySelector('.q-out').textContent = q === null ? '— L/h' : `${fmt(q)} L/h`;
     renderResultado();
   }
   function readMatrix() {
+    // El tiempo se cronometra una sola vez por aforo, no por celda -- confirmado
+    // contra el 100% de los aforos históricos de DB_Aforos (ver reporte de
+    // arquitectura). Cada lectura hereda el mismo tiempo_medicion_s.
+    const tiempo_s = num($('#afTiempoMedicion').value);
     const lecturas = [];
     $$('.reading-line').forEach(lineEl => {
       const linea = Number(lineEl.dataset.linea);
       lineEl.querySelectorAll('.reading-cell').forEach(cell => {
-        const volumen_ml = num(cell.querySelector('.vol').value), tiempo_s = num(cell.querySelector('.tiempo').value);
+        const volumen_ml = num(cell.querySelector('.vol').value);
         lecturas.push({ linea, posicion: cell.dataset.posicion, volumen_ml, tiempo_s, caudal_l_h: caudalLh(volumen_ml, tiempo_s) });
       });
     });
     return lecturas;
   }
+  const CLASIFICACION_ESTILO = { Excelente: 'cu-excelente', Bueno: 'cu-bueno', Medio: 'cu-medio', Bajo: 'cu-bajo' };
   function renderResultado() {
     const { qMedio, q25, cu, clasificacion } = computeResultado(readMatrix());
-    const good = cu !== null && cu >= CU_ACEPTABLE;
     $('#resQMedio').textContent = fmt(qMedio); $('#resQ25').textContent = fmt(q25);
     $('#resCu').textContent = cu === null ? '—' : `${fmt(cu)}%`;
     $('#resClas').textContent = clasificacion;
-    const cuCard = $('#resCuCard'); if (cuCard) cuCard.className = `result-card ${cu === null ? '' : good ? 'cu-good' : 'cu-bad'}`;
+    const cuCard = $('#resCuCard'); if (cuCard) cuCard.className = `result-card ${CLASIFICACION_ESTILO[clasificacion] || ''}`;
   }
 
   // --- Presiones por válvula ---
@@ -166,13 +160,18 @@
     const lecturas = readMatrix();
     const { qMedio, q25, cu, clasificacion } = computeResultado(lecturas);
     const valvulas = readValves();
+    // aforo_lecturas ya no guarda tiempo_s por fila -- el tiempo es único por
+    // aforo y vive en aforos.tiempo_medicion_s (ver reporte de arquitectura).
+    const lecturasParaGuardar = lecturas.map(({ tiempo_s, ...resto }) => resto);
     const record = {
-      id: uuid(), cuartel_id: cuartelId, temporada: num($('#afTemporada').value) || seasonYear(), fecha: $('#afFecha').value,
+      id: uuid(), cuartel_id: cuartelId, unidad_aforo: $('#afUnidad')?.value.trim() || null,
+      temporada: num($('#afTemporada').value) || seasonYear(), fecha: $('#afFecha').value,
       equipo_riego: $('#afEquipo').value.trim() || null, n_valvulas: Number($('#afNValvulas').value) || 0,
+      tiempo_medicion_s: num($('#afTiempoMedicion').value),
       ...valvulas, q_medio: qMedio, q_25: q25, cu, clasificacion,
       observaciones: $('#afObservaciones').value.trim() || null, ubicacion: null,
       creado_por: session?.user?.id, actualizado_por: session?.user?.id, organizacion_id: orgId,
-      lecturas,
+      lecturas: lecturasParaGuardar,
     };
     const button = $('#saveAforo'); if (button) button.disabled = true;
     try {
@@ -198,7 +197,7 @@
           const { data, error } = await sb.from('aforos').upsert({ ...aforo }, { onConflict: 'id' }).select('id').single();
           if (error) throw error;
           const aforoId = data.id;
-          const rows = lecturas.filter(l => l.volumen_ml !== null || l.tiempo_s !== null).map(l => ({ aforo_id: aforoId, ...l }));
+          const rows = lecturas.filter(l => l.volumen_ml !== null).map(l => ({ aforo_id: aforoId, ...l }));
           if (rows.length) { const { error: lecturasError } = await sb.from('aforo_lecturas').upsert(rows, { onConflict: 'aforo_id,linea,posicion' }); if (lecturasError) throw lecturasError; }
           await localDelete(STORES.queue, item.id);
         } catch (error) { console.error('No se pudo sincronizar un aforo', error); }
@@ -226,7 +225,7 @@
       list.innerHTML = data && data.length ? data.map(row => `
         <div class="history-row">
           <div><b>${esc(row.cuarteles?.codigo || 'Sin cuartel')} · Temporada ${esc(row.temporada)}</b><small>${esc(row.fecha)}</small></div>
-          <div class="history-cu ${row.cu !== null && row.cu >= CU_ACEPTABLE ? 'good' : 'bad'}">${row.cu === null ? '—' : `${fmt(row.cu)}%`}</div>
+          <div class="history-cu ${CLASIFICACION_ESTILO[F.clasificarCU(row.cu)] || ''}">${row.cu === null ? '—' : `${fmt(row.cu)}%`}</div>
         </div>`).join('') : '<div class="empty-state">Sin aforos registrados para este filtro.</div>';
     } catch (error) {
       console.error('No se pudo cargar el historial', error);
@@ -242,6 +241,14 @@
     $$('[data-back]').forEach(btn => btn.addEventListener('click', () => go('view-inicio')));
     $('#afNValvulas')?.addEventListener('change', event => buildValves(Number(event.target.value) || 0));
     $('#afValves')?.addEventListener('input', renderResultado);
+    $('#afTiempoMedicion')?.addEventListener('input', () => {
+      const tiempo = num($('#afTiempoMedicion').value);
+      $$('.reading-cell').forEach(cell => {
+        const q = caudalLh(num(cell.querySelector('.vol').value), tiempo);
+        cell.querySelector('.q-out').textContent = q === null ? '— L/h' : `${fmt(q)} L/h`;
+      });
+      renderResultado();
+    });
     $('#aforoForm')?.addEventListener('submit', saveAforo);
     $('#historyQuarter')?.addEventListener('change', loadHistory);
     window.addEventListener('online', syncQueue);
