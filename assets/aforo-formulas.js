@@ -3,12 +3,13 @@
 // esta lógica en otro archivo — si algo cambia, cambia solo acá.
 //
 // Fórmula y umbrales verificados contra los 36 aforos reales de DB_Aforos
-// (Bastián Vargas, 23-08-2026): 33/36 coinciden exactos con el CU almacenado;
-// las 3 excepciones (AF-2025-014, AF-2025-026, AF-2025-033) tienen un error de
-// un solo dato en la celda "L2_Ult" de la planilla original -- esa celda usa un
-// tiempo de 32s en vez de los 36s declarados para el resto del aforo. No es un
-// error de esta fórmula: recalcular con el tiempo declarado (36s) reproduce
-// exactamente el resto de las 16 lecturas de esas mismas filas.
+// (Bastián Vargas, 23-08-2026). 3 de esos 36 (AF-2025-014, AF-2025-026,
+// AF-2025-033) tienen una lectura puntual ("Línea 2, Último") capturada con
+// un tiempo de 32s mientras el resto del aforo usa 36s -- un dato real de la
+// planilla original, no un error de esta fórmula. Se preserva tal cual con
+// aforo_lecturas.tiempo_s_override (ver resolverTiempoEfectivo): jamás se
+// sobrescribe el histórico para que "encaje" con un tiempo único por aforo.
+// Con el override aplicado, calcularResultado() reproduce 36/36 CU reales.
 //
 // Umbrales de clasificación (Excelente >=90, Bueno >=80, Medio >=70, Bajo <70)
 // reproducen 36/36 clasificaciones históricas -- son la única regla de corte
@@ -46,6 +47,16 @@
     return (q25 / qMedio) * 100;
   }
 
+  // El tiempo de una lectura es el general del aforo, salvo que esa lectura
+  // puntual tenga una excepción documentada (tiempo_s_override). Existe para
+  // preservar excepciones históricas (ej. un dato mal cronometrado en la
+  // planilla original) sin inventar un tiempo "correcto" que reemplace el
+  // dato real, y para correcciones manuales futuras justificadas. Los
+  // registros nuevos de Aforo Rinconada nunca la usan -- queda en NULL.
+  function resolverTiempoEfectivo(tiempoOverride, tiempoGeneral) {
+    return tiempoOverride ?? tiempoGeneral;
+  }
+
   function clasificarCU(cu) {
     if (!Number.isFinite(cu)) return 'Sin datos';
     if (cu >= CU_UMBRALES.excelente) return 'Excelente';
@@ -74,7 +85,7 @@
     return { recalculado, guardado, diffCu, coincide: diffCu !== null && diffCu < 0.01 };
   }
 
-  const api = { CU_UMBRALES, calcularCaudal, calcularQMedio, calcularQ25, calcularCU, clasificarCU, calcularResultado, recalcularYComparar };
+  const api = { CU_UMBRALES, calcularCaudal, calcularQMedio, calcularQ25, calcularCU, clasificarCU, resolverTiempoEfectivo, calcularResultado, recalcularYComparar };
   globalThis.YOYE_AFORO_FORMULAS = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

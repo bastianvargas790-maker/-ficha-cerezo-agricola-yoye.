@@ -17,6 +17,11 @@
 --     no hardcodeados acá, para poder ajustarlos sin migración).
 --   - migracion_lote identifica el lote de importación histórica para poder hacer
 --     rollback sin tocar aforos nuevos capturados por la app.
+--   - aforo_lecturas.tiempo_s_override: 3 de los 37 aforos históricos tienen una
+--     lectura puntual cronometrada distinto al resto del mismo aforo (dato real
+--     de la planilla, no error de fórmula). Se preserva con este campo en vez de
+--     alterar el histórico para que encaje con un tiempo único -- ver
+--     aforo-formulas.js resolverTiempoEfectivo().
 -- Este archivo reemplaza cualquier versión anterior de este mismo commit.
 
 create table if not exists public.aforos (
@@ -71,6 +76,12 @@ create table if not exists public.aforo_lecturas (
   posicion text not null,
   orden smallint not null default 0,
   volumen_ml numeric,
+  -- Tiempo específico de esta lectura cuando difiere del tiempo_medicion_s
+  -- general del aforo. NULL en el caso normal (99% de los casos, incluyendo
+  -- todos los aforos nuevos de la app). Existe para preservar excepciones
+  -- históricas reales sin alterar el dato original -- ver aforo-formulas.js
+  -- resolverTiempoEfectivo(). Nunca se expone en la interfaz de captura.
+  tiempo_s_override numeric,
   caudal_l_h numeric,
   unique (aforo_id, linea, posicion)
 );
