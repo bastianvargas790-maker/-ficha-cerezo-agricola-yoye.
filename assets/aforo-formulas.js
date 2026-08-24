@@ -89,3 +89,5 @@
   globalThis.YOYE_AFORO_FORMULAS = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();
+
+export default globalThis.YOYE_AFORO_FORMULAS;
