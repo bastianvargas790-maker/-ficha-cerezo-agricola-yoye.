@@ -1,1 +1,97 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Aforo Rinconada · Agrícola Yoye</title><meta name="theme-color" content="#234b36"><link rel="icon" href="../assets/icons/favicon.svg"><link rel="stylesheet" href="../assets/operations-dashboard.css?v=20260811-1"></head><body><main class="shell"><header class="top"><img class="logo" src="../assets/yoye-logo.svg" alt="Agrícola Yoye"><a class="back" href="../">← Inicio</a></header><section class="hero"><div class="eyebrow">Riego · Rinconada</div><h1>Aforo Rinconada</h1><p>Dashboard principal del sistema de riego. La vista utiliza el archivo original alojado en Drive y conserva sus datos sin alteraciones.</p><span class="status">Fuente original · solo lectura</span></section><section class="dashboard-grid"><article class="dashboard-card"><header class="card-head"><div><h2>Dashboard principal</h2><p>AFORO RINCONADA · Sistema de Riego (AppSheet)</p></div><a class="open-source" href="https://drive.google.com/file/d/1Tn2xOOBojYscgqdZV08R5AQzDE-tA0-A/view" target="_blank" rel="noopener noreferrer">Abrir fuente ↗</a></header><div class="frame-wrap"><iframe class="dashboard-frame" title="Dashboard principal de Aforo Rinconada" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" data-dashboard-frame="https://drive.google.com/file/d/1Tn2xOOBojYscgqdZV08R5AQzDE-tA0-A/preview"></iframe></div><p class="frame-note">El archivo actual es Excel. Para aislar exclusivamente una pestaña debe convertirse a Google Sheets o servirse mediante una API autorizada.</p></article></section><p class="privacy"><b>Acceso protegido:</b> esta vista respeta los permisos existentes de Drive. No publica el archivo en internet ni expone secretos en el navegador.</p><aside class="future"><strong>Preparado para Olive+:</strong> la integración futura puede añadirse como proveedor separado, con permisos propios.</aside></main><script defer src="../assets/operations-dashboard.js?v=20260811-1"></script></body></html>
+<!doctype html>
+<html lang="es" class="auth-pending">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Aforo Rinconada · Agrícola Yoye</title>
+  <meta name="description" content="Registro offline de aforos de uniformidad de riego de Agrícola Yoye">
+  <meta name="theme-color" content="#234b36">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="../assets/icons/favicon.svg">
+  <link rel="apple-touch-icon" href="../assets/icons/pwa-192.png">
+  <link rel="stylesheet" href="../assets/private-app.css?v=20260820-login-fix-1">
+  <link rel="stylesheet" href="../assets/aforo.css?v=20260823-1">
+  <script src="../assets/supabase.js?v=20260821-supabase-global-1"></script>
+  <script defer src="../assets/shared-auth.js?v=20260821-official-logo-1"></script>
+  <script defer src="../assets/aforo.js?v=20260823-1"></script>
+  <script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./sw.js',{scope:'./'}).catch(()=>{}));</script>
+</head>
+<body>
+  <main class="af-shell">
+    <header class="af-top">
+      <a class="back" href="../">‹ Agrícola Yoye</a>
+      <img class="af-logo" src="../assets/yoye-logo-official.png?v=20260821-official-logo-1" alt="Agrícola Yoye">
+      <button class="status" id="afSync" type="button">Conectando…</button>
+    </header>
+
+    <div id="afOfflineBanner" class="offline-banner" hidden></div>
+
+    <section id="view-inicio" class="view active">
+      <div class="af-hero">
+        <span class="eyebrow">Uniformidad de riego · Extensión independiente</span>
+        <h1>Aforo Rinconada</h1>
+        <p><span id="afProfile">Perfil no disponible</span> · Registra presión, 16 mediciones por cuartel y obtén el coeficiente de uniformidad al instante.</p>
+      </div>
+      <div class="af-actions">
+        <button class="action-card" id="goNuevo" type="button"><span class="icon">＋</span><b>Nuevo aforo</b><small>Presión, mediciones y cálculo de CU</small></button>
+        <button class="action-card" id="goHistorial" type="button"><span class="icon">▥</span><b>Ver historial</b><small>Aforos por cuartel y temporada</small></button>
+      </div>
+    </section>
+
+    <section id="view-nuevo" class="view">
+      <button class="secondary" data-back type="button">‹ Volver</button>
+      <form id="aforoForm" novalidate>
+        <article class="panel">
+          <div class="section-title"><h2>1 · Identificación</h2></div>
+          <div class="form-grid">
+            <label class="field"><span>Cuartel</span><select id="afQuarter" required><option value="">Selecciona un cuartel</option></select></label>
+            <label class="field"><span>Temporada</span><input id="afTemporada" type="number" min="2000" max="2100" step="1" inputmode="numeric"></label>
+            <label class="field"><span>Fecha</span><input id="afFecha" type="date" required></label>
+            <label class="field"><span>Equipo de riego</span><input id="afEquipo" type="text" maxlength="120" placeholder="Opcional"></label>
+            <label class="field"><span>N.º de válvulas medidas</span>
+              <select id="afNValvulas"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select>
+            </label>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="section-title"><h2>2 · Presiones</h2><span class="mini-status">Entrada y salida por válvula</span></div>
+          <div id="afValves"><p class="mini-status">Selecciona la cantidad de válvulas para registrar presiones.</p></div>
+        </article>
+
+        <article class="panel">
+          <div class="section-title"><h2>3 · Mediciones</h2><span class="mini-status">4 líneas × 4 posiciones = 16 mediciones</span></div>
+          <p class="mini-status">Volumen recolectado (mL) y tiempo (s) en cada emisor. El caudal se calcula solo.</p>
+          <div id="afMatrix" class="reading-matrix"></div>
+        </article>
+
+        <article class="panel">
+          <div class="section-title"><h2>4 · Resultado</h2></div>
+          <div class="result-grid">
+            <div class="result-card"><b id="resQMedio">—</b><span>Caudal medio L/h</span></div>
+            <div class="result-card"><b id="resQ25">—</b><span>Cuarto inferior L/h</span></div>
+            <div class="result-card" id="resCuCard"><b id="resCu">—</b><span>CU</span></div>
+            <div class="result-card"><b id="resClas">Sin datos</b><span>Clasificación</span></div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="section-title"><h2>5 · Hallazgos</h2></div>
+          <label class="field wide"><span>Observaciones</span><textarea id="afObservaciones" rows="4" maxlength="800" placeholder="Fugas, baja presión, filtro sucio, regulación, obstrucciones…"></textarea></label>
+          <button class="primary save" id="saveAforo" type="submit">Guardar aforo</button>
+          <p id="formMessage" class="message" role="status" aria-live="polite"></p>
+        </article>
+      </form>
+    </section>
+
+    <section id="view-historial" class="view">
+      <button class="secondary" data-back type="button">‹ Volver</button>
+      <article class="panel">
+        <div class="section-title"><h2>Historial</h2></div>
+        <label class="field wide"><span>Filtrar por cuartel</span><select id="historyQuarter"><option value="">Todos los cuarteles</option></select></label>
+        <div id="historyList" class="history-list"></div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
