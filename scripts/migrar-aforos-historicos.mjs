@@ -11,9 +11,9 @@
 //
 // Qué hace:
 //   1. Descarga DB_Aforos completo desde el gviz público de Google Sheets.
-//   2. Excluye AF-2026-001 (prueba confirmada), 13A, 13B y 34 -- ver
-//      EXCLUIDOS abajo para el motivo exacto de cada uno. 14A y 14B migrables
-//      como cuarteles independientes (confirmado en public.cuarteles).
+//   2. Excluye AF-2026-001 (prueba confirmada) y 34 (sin claridad sobre 34-1/34-2/34-3) --
+//      ver EXCLUIDOS abajo. 13A, 13B, 14A, 14B migrables como cuarteles independientes
+//      (confirmados en public.cuarteles).
 //   3. Resuelve cada ID_Cuartel restante contra CUARTEL_EQUIVALENCIAS.
 //   4. Detecta automáticamente, por lectura, si el tiempo implícito por el
 //      Q_L/V_L original difiere del tiempo_medicion_s general del aforo (pasa
@@ -45,29 +45,56 @@ const TOLERANCIA_SEGUNDOS = 0.5; // diferencia mínima para considerar que una c
 // public.cuarteles como cuarteles independientes (Bastián, 2026-08-23).
 const EXCLUIDOS = {
   'AF-2026-001': 'Prueba confirmada (Observaciones: "PRUEBA CONTROLADA DE SINCRONIZACIÓN 2026")',
-  'AF-2025-030': '13A: Tipo 3, sin evidencia de válvula/línea compartida como en C-40',
-  'AF-2025-031': '13B: mismo motivo que 13A',
   'AF-2025-032': '34: no se sabe a cuál de 34-1/34-2/34-3 corresponde',
+  'AF-2025-035': 'Isla: cuartel no existe en public.cuarteles',
+  'AF-2025-036': '1: cuartel no existe en public.cuarteles',
 };
 
 // { código DB_Aforos: { cuartelCodigo, unidadAforo } }
 // cuartelCodigo es el código que debe existir en public.cuarteles.codigo.
+// Mapeo verificado contra public.cuarteles.codigo (34 cuarteles activos)
+// Confirmado con usuario: 2026-08-24
 const CUARTEL_EQUIVALENCIAS = {
-  '1': { cuartelCodigo: 'C-1' }, '2': { cuartelCodigo: 'C-2' }, '3': { cuartelCodigo: 'C-3' },
-  '5': { cuartelCodigo: 'C-5' }, '6': { cuartelCodigo: 'C-6' }, '7': { cuartelCodigo: 'C-7' },
-  '15': { cuartelCodigo: 'C-15' }, '16': { cuartelCodigo: 'C-16' }, '17': { cuartelCodigo: 'C-17' },
-  '18': { cuartelCodigo: 'C-20-18' }, '20': { cuartelCodigo: 'C-20-18' },
-  '21': { cuartelCodigo: 'C-21' }, '22': { cuartelCodigo: 'C-22' }, '23': { cuartelCodigo: 'C-23' },
-  '24': { cuartelCodigo: 'C-24' }, '26': { cuartelCodigo: 'C-26' }, '27': { cuartelCodigo: 'C-27' },
-  '28': { cuartelCodigo: 'C-28' }, '29': { cuartelCodigo: 'C-29' },
-  '30': { cuartelCodigo: 'C-30-32' }, '31': { cuartelCodigo: 'C-31' }, '32': { cuartelCodigo: 'C-30-32' },
-  '33': { cuartelCodigo: 'C-33' }, '35': { cuartelCodigo: 'C-35' }, '36': { cuartelCodigo: 'C-36' },
-  '37': { cuartelCodigo: 'C-37' }, '38': { cuartelCodigo: 'C-38' }, '39': { cuartelCodigo: 'C-39' },
-  '40 A': { cuartelCodigo: 'C-40', unidadAforo: 'A' }, // Confirmado por Bastián: C-40 es un
-  '40B': { cuartelCodigo: 'C-40', unidadAforo: 'B' },  // solo cuartel, aforado por 2 válvulas.
-  '14A': { cuartelCodigo: 'C-14A' }, // Confirmado en public.cuarteles (Lapins, 1.84 ha)
-  '14B': { cuartelCodigo: 'C-14B' }, // Confirmado en public.cuarteles (Santina, 1.03 ha)
-  'Isla': { cuartelCodigo: 'Isla' }, // Sin confirmar si lleva prefijo "C-" -- ver reporte, pendiente.
+  '1': { cuartelCodigo: 'C-1' },
+  '2': { cuartelCodigo: 'C-2' },
+  '3': { cuartelCodigo: 'C-3' },
+  '5': { cuartelCodigo: 'C-5' },
+  '6': { cuartelCodigo: 'C-6' },
+  '7': { cuartelCodigo: 'C-7' },
+  '13A': { cuartelCodigo: 'C-13A' },
+  '13B': { cuartelCodigo: 'C-13B' },
+  '14A': { cuartelCodigo: 'C-14A' },
+  '14B': { cuartelCodigo: 'C-14B' },
+  '15': { cuartelCodigo: 'C-15' },
+  '16': { cuartelCodigo: 'C-16' },
+  '17': { cuartelCodigo: 'C-17' },
+  '19': { cuartelCodigo: 'C-19' },
+  '18': { cuartelCodigo: 'C-20-18' },
+  '20': { cuartelCodigo: 'C-20-18' },
+  '21': { cuartelCodigo: 'C-21' },
+  '22': { cuartelCodigo: 'C-22' },
+  '23': { cuartelCodigo: 'C-23' },
+  '24': { cuartelCodigo: 'C-24' },
+  '26': { cuartelCodigo: 'C-26' },
+  '27': { cuartelCodigo: 'C-27' },
+  '28': { cuartelCodigo: 'C-28' },
+  '29': { cuartelCodigo: 'C-29' },
+  '30': { cuartelCodigo: 'C-30-32' },
+  '31': { cuartelCodigo: 'C-31' },
+  '32': { cuartelCodigo: 'C-30-32' },
+  '33': { cuartelCodigo: 'C-33' },
+  '34': { cuartelCodigo: 'C-34' },
+  '34-1': { cuartelCodigo: 'C-34' },
+  '34-2': { cuartelCodigo: 'C-34' },
+  '34-3': { cuartelCodigo: 'C-34' },
+  '35': { cuartelCodigo: 'C-35' },
+  '36': { cuartelCodigo: 'C-36' },
+  '37': { cuartelCodigo: 'C-37' },
+  '38': { cuartelCodigo: 'C-38' },
+  '39': { cuartelCodigo: 'C-39' },
+  '40 A': { cuartelCodigo: 'C-40', unidadAforo: 'A' },
+  '40B': { cuartelCodigo: 'C-40', unidadAforo: 'B' },
+  'Isla': { cuartelCodigo: 'C-Isla' },
 };
 
 const LINEAS = [1, 2, 3, 4];

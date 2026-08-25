@@ -140,9 +140,9 @@ test('the migration script recalculates from raw readings instead of trusting DB
 
 test('the migration script excludes the confirmed test record and unresolved historical cases', () => {
   assert.match(migrationScript, /'AF-2026-001':/); // prueba confirmada
-  assert.match(migrationScript, /'AF-2025-030':/); // 13A (pendiente)
-  assert.match(migrationScript, /'AF-2025-031':/); // 13B (pendiente)
   assert.match(migrationScript, /'AF-2025-032':/); // 34 (pendiente)
+  assert.match(migrationScript, /'AF-2025-035':/); // Isla (no existe)
+  assert.match(migrationScript, /'AF-2025-036':/); // 1 (no existe)
 });
 
 test('14A/14B are now migrable as confirmed independent cuarteles in public.cuarteles', () => {
