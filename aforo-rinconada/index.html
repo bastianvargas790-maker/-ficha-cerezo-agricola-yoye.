@@ -30,9 +30,19 @@
     <section id="view-inicio" class="view active">
       <div class="af-hero">
         <span class="eyebrow">Uniformidad de riego · Extensión independiente</span>
-        <h1>Aforo Rinconada</h1>
+        <h1>Aforo de Campos</h1>
         <p><span id="afProfile">Perfil no disponible</span> · Registra presión, 16 mediciones por cuartel y obtén el coeficiente de uniformidad al instante.</p>
       </div>
+
+      <article class="panel">
+        <div class="section-title"><h2>Seleccionar Campo</h2></div>
+        <label class="field wide"><span>Campo</span>
+          <select id="afCampo" required>
+            <option value="">Cargando campos…</option>
+          </select>
+        </label>
+      </article>
+
       <div class="af-actions">
         <button class="action-card" id="goNuevo" type="button"><span class="icon">＋</span><b>Nuevo aforo</b><small>Presión, mediciones y cálculo de CU</small></button>
         <button class="action-card" id="goHistorial" type="button"><span class="icon">▥</span><b>Ver historial</b><small>Aforos por cuartel y temporada</small></button>
@@ -91,7 +101,7 @@
       <button class="secondary" data-back type="button">‹ Volver</button>
       <article class="panel">
         <div class="section-title"><h2>Historial</h2></div>
-        <label class="field wide"><span>Filtrar por cuartel</span><select id="historyQuarter"><option value="">Todos los cuarteles</option></select></label>
+        <label class="field wide"><span>Filtrar por cuartel</span><select id="historyQuarter"><option value="">Todos los cuarteles del campo</option></select></label>
         <div id="historyList" class="history-list"></div>
       </article>
     </section>

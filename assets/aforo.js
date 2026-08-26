@@ -7,7 +7,7 @@
   const LINEAS = [1, 2, 3, 4];
   const POSICIONES = [['inicio', 'Inicio'], ['un_tercio', '1/3'], ['dos_tercios', '2/3'], ['ultimo', 'Último']];
 
-  let sb, localDb, session, profile, orgId, quarters = [], syncRunning = false;
+  let sb, localDb, session, profile, orgId, quarters = [], campos = [], campoId = null, syncRunning = false;
 
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmt = (n, digits = 1) => n === null || n === undefined || n === '' || !Number.isFinite(Number(n)) ? '—' : Number(n).toLocaleString('es-CL', { maximumFractionDigits: digits });
@@ -50,22 +50,57 @@
   function caudalLh(volumenMl, tiempoS) { return F.calcularCaudal(volumenMl, tiempoS); }
   function computeResultado(lecturas) { return F.calcularResultado(lecturas); }
 
+  // --- Campos: cargar y filtrar cuarteles ---
+  async function loadCampos() {
+    try {
+      const { data, error } = await sb.from('campos').select('id,nombre').eq('organizacion_id', orgId).eq('activo', true).order('nombre');
+      if (error) throw error;
+      campos = data || [];
+      // Se cachean en el store meta (no requiere subir DB_VERSION) para que sin
+      // conexión siga existiendo un campo seleccionado: sin él, loadQuarters
+      // cargaría los cuarteles de todos los campos mezclados.
+      await localPut(STORES.meta, { id: 'campos', value: campos });
+    } catch (error) {
+      console.warn('No se pudo cargar campos en línea, usando caché', error);
+      const cached = (await localAll(STORES.meta)).find(x => x.id === 'campos');
+      campos = cached?.value || [];
+    }
+    // Seleccionar el primer campo por defecto, venga de la red o del caché.
+    if (campos.length > 0 && !campoId) campoId = campos[0].id;
+    const select = $('#afCampo');
+    if (select) {
+      const options = campos.map(c => `<option value="${esc(c.id)}">${esc(c.nombre)}</option>`).join('');
+      select.innerHTML = options || '<option value="">Sin campos disponibles</option>';
+      if (campoId) select.value = campoId;
+    }
+  }
+
   // --- Cuarteles: cargar y cachear para uso sin conexión ---
   async function cacheQuarters(list) { await Promise.all((list || []).map(q => localPut(STORES.quarters, { id: q.id, value: q }))); }
-  async function cachedQuarters() { return (await localAll(STORES.quarters)).map(x => x.value); }
-  async function loadQuarters() {
+  // El caché guarda cuarteles de todos los campos visitados, así que hay que
+  // filtrarlo igual que la consulta en línea -- si no, sin conexión aparecerían
+  // mezclados los cuarteles de los otros campos. Por eso campo_id viaja en el select.
+  async function cachedQuarters(filterCampoId = null) {
+    const all = (await localAll(STORES.quarters)).map(x => x.value);
+    return filterCampoId ? all.filter(q => q.campo_id === filterCampoId) : all;
+  }
+  async function loadQuarters(filterCampoId = null) {
     try {
-      const { data, error } = await sb.from('cuarteles').select('id,codigo,cultivo,caseta,equipo').eq('organizacion_id', orgId).eq('activo', true).order('codigo');
+      let query = sb.from('cuarteles').select('id,codigo,cultivo,caseta,equipo,campo_id').eq('organizacion_id', orgId).eq('activo', true);
+      if (filterCampoId) query = query.eq('campo_id', filterCampoId);
+      const { data, error } = await query.order('codigo');
       if (error) throw error;
       quarters = data || [];
       await cacheQuarters(quarters);
     } catch (error) {
       console.warn('No se pudo cargar cuarteles en línea, usando caché', error);
-      quarters = await cachedQuarters();
+      quarters = await cachedQuarters(filterCampoId);
     }
-    const options = quarters.map(q => `<option value="${esc(q.id)}">${esc(q.codigo)}${q.cultivo ? ` · ${esc(q.cultivo)}` : ''}</option>`).join('');
+    // Se muestra el equipo porque el número de cuartel se repite entre equipos
+    // de una misma caseta: sin él, "1 · ciruelos" aparecería dos veces idéntico.
+    const options = quarters.map(q => `<option value="${esc(q.id)}">${esc(q.codigo)}${q.equipo ? ` · eq. ${esc(q.equipo)}` : ''}${q.cultivo ? ` · ${esc(q.cultivo)}` : ''}</option>`).join('');
     const select = $('#afQuarter'); if (select) select.innerHTML = '<option value="">Selecciona un cuartel</option>' + options;
-    const historySelect = $('#historyQuarter'); if (historySelect) historySelect.innerHTML = '<option value="">Todos los cuarteles</option>' + options;
+    const historySelect = $('#historyQuarter'); if (historySelect) historySelect.innerHTML = '<option value="">Todos los cuarteles del campo</option>' + options;
   }
 
   // --- Perfil ---
@@ -219,7 +254,13 @@
     list.innerHTML = '<div class="empty-state">Cargando historial…</div>';
     try {
       let query = sb.from('aforos').select('id,fecha,temporada,cu,clasificacion,cuarteles(codigo)').order('fecha', { ascending: false }).limit(60);
-      if (cuartelId) query = query.eq('cuartel_id', cuartelId);
+      if (cuartelId) {
+        query = query.eq('cuartel_id', cuartelId);
+      } else {
+        // Sin cuartel elegido, el historial se acota igual al campo seleccionado:
+        // 'Todos' significa todos los de este campo, no los de la organización entera.
+        query = query.in('cuartel_id', quarters.map(q => q.id));
+      }
       const { data, error } = await query;
       if (error) throw error;
       list.innerHTML = data && data.length ? data.map(row => `
@@ -239,6 +280,10 @@
     $('#goNuevo')?.addEventListener('click', () => go('view-nuevo'));
     $('#goHistorial')?.addEventListener('click', () => go('view-historial'));
     $$('[data-back]').forEach(btn => btn.addEventListener('click', () => go('view-inicio')));
+    $('#afCampo')?.addEventListener('change', event => {
+      campoId = event.target.value;
+      loadQuarters(campoId);
+    });
     $('#afNValvulas')?.addEventListener('change', event => buildValves(Number(event.target.value) || 0));
     $('#afValves')?.addEventListener('input', renderResultado);
     $('#afTiempoMedicion')?.addEventListener('input', () => {
@@ -262,7 +307,8 @@
     buildMatrix(); buildValves(0);
     $('#afFecha').value = todayIso(); $('#afTemporada').value = seasonYear();
     await loadProfile();
-    await loadQuarters();
+    await loadCampos();
+    await loadQuarters(campoId);
     await refreshSyncLabel();
     if (navigator.onLine) syncQueue();
   }
