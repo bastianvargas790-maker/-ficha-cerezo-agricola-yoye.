@@ -25,7 +25,13 @@
 -- 3. El número de cuartel se repite entre equipos de una misma caseta. En caseta
 --    paltos, "gravedad 3" tiene los cuarteles 1,2,6,15,16 y "equipo 2012 hass 5"
 --    tiene otra vez 1,3,4,5,6. Por eso el código incluye el equipo:
---    MP-E<equipo>-<nn>. Una secuencia plana MP-001..MP-019 los fusionaría.
+--    E<equipo>-C<n>. Una secuencia plana MP-001..MP-019 los fusionaría.
+--
+-- 4. El código sigue la nomenclatura de la planilla AFORO MIRADOR PLANO.xlsx
+--    (E1-C1 .. E3-C6), que es la que el jefe de campo tiene en la mano en
+--    terreno. Se cargó primero como MP-E1-01.. y se renombró el 26-08-2026;
+--    los aforos apuntan a cuartel_id, no al código, así que no se desengancha
+--    nada al renombrar.
 -- ---------------------------------------------------------------------------
 
 -- ===========================================================================
@@ -131,25 +137,25 @@ begin
   select org_id, mp_id, yo_id, v.codigo, v.cuartel, 'mirador plano', v.equipo, v.cultivo, v.variedad,
          yo_id, yo_id, true
   from (values
-    ('MP-E1-01','1','1','nogales',   'chandler'),
-    ('MP-E1-02','2','1','nogales',   'chandler'),
-    ('MP-E1-03','3','1','cerezos',   'sweet aryana'),
-    ('MP-E1-04','4','1','cerezos',   'lapins /santina'),
-    ('MP-E1-05','5','1','nogales',   'chandler'),
-    ('MP-E1-06','6','1','nogales',   'chandler'),
-    ('MP-E2-01','1','2','ciruelos',  'D''agen'),
-    ('MP-E2-02','2','2','ciruelos',  'D''agen'),
-    ('MP-E2-03','3','2','ciruelos',  'D''agen'),
-    ('MP-E2-04','4','2','ciruelos',  'D''agen'),
-    ('MP-E2-05','5','2','ciruelos',  'D''agen'),
-    ('MP-E2-06','6','2','cerezos',   'santina'),
-    ('MP-E2-07','7','2','cerezos',   'lapins /santina'),
-    ('MP-E3-01','1','3','ciruelos',  'D''agen'),
-    ('MP-E3-02','2','3','ciruelos',  'D''agen'),
-    ('MP-E3-03','3','3','ciruelos',  'D''agen'),
-    ('MP-E3-04','4','3','nectarines','Sweet giant'),
-    ('MP-E3-05','5','3','ciruelos',  'D''agen'),
-    ('MP-E3-06','6','3','ciruelos',  'D''agen')
+    ('E1-C1'    ,'1','1','nogales',   'chandler'),
+    ('E1-C2'    ,'2','1','nogales',   'chandler'),
+    ('E1-C3'    ,'3','1','cerezos',   'sweet aryana'),
+    ('E1-C4'    ,'4','1','cerezos',   'lapins /santina'),
+    ('E1-C5'    ,'5','1','nogales',   'chandler'),
+    ('E1-C6'    ,'6','1','nogales',   'chandler'),
+    ('E2-C1'    ,'1','2','ciruelos',  'D''agen'),
+    ('E2-C2'    ,'2','2','ciruelos',  'D''agen'),
+    ('E2-C3'    ,'3','2','ciruelos',  'D''agen'),
+    ('E2-C4'    ,'4','2','ciruelos',  'D''agen'),
+    ('E2-C5'    ,'5','2','ciruelos',  'D''agen'),
+    ('E2-C6'    ,'6','2','cerezos',   'santina'),
+    ('E2-C7'    ,'7','2','cerezos',   'lapins /santina'),
+    ('E3-C1'    ,'1','3','ciruelos',  'D''agen'),
+    ('E3-C2'    ,'2','3','ciruelos',  'D''agen'),
+    ('E3-C3'    ,'3','3','ciruelos',  'D''agen'),
+    ('E3-C4'    ,'4','3','nectarines','Sweet giant'),
+    ('E3-C5'    ,'5','3','ciruelos',  'D''agen'),
+    ('E3-C6'    ,'6','3','ciruelos',  'D''agen')
   ) as v(codigo, cuartel, equipo, cultivo, variedad)
   on conflict (organizacion_id, codigo) do nothing;
 
