@@ -1,0 +1,172 @@
+/* Shell multipredio — bienvenida, selector de campo, nav inferior, hojas.
+   Todo bajo .yoye-shell para que los tokens de marca no queden pisados por
+   los :root locales de cada ficha (ver assets/yoye-theme.css). */
+.yoye-shell,.yoye-shell *{box-sizing:border-box}
+.yoye-shell{
+  --ink:#17352c;--green:#315c3b;--green-soft:#25543f;
+  --cream:#f5ead8;--paper:#fffdf8;--surface-alt:#f9f4ed;--line:#e2dbc8;
+  --text:#201e1d;--text-secondary:#645c50;--text-tertiary:#82796a;
+  --neutral-200:#eee7db;--neutral-300:#dcd3c4;
+  --terracota-100:#fff2eb;--terracota-200:#ffe1d0;--terracota-300:#ffc6a5;--terracota:#c67139;--terracota-700:#8c491a;
+  --sage-100:#f0fae1;--sage-200:#e1eecc;--sage-300:#ccdbb2;--sage-400:#aebf92;--sage-500:#8fa073;--sage:#7a8a5e;--sage-600:#728157;--sage-700:#56633f;--sage-800:#3d472b;
+  --data-1:#56633f;--data-2:#728157;--data-3:#8fa073;--data-4:#aebf92;--data-5:#ccdbb2;
+  --font-heading:"Newsreader",Georgia,serif;--font-body:"Figtree",Inter,system-ui,sans-serif;
+  --radius-sm:8px;--radius-md:16px;--radius-lg:28px;
+  --shadow-md:0 3px 10px rgba(46,43,37,.16);--shadow-lg:0 12px 32px rgba(46,43,37,.22);
+  font-family:var(--font-body);
+}
+.yoye-shell button{font-family:inherit}
+
+/* ===== Bienvenida ===== */
+@keyframes yoyeIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes yoyeGlow{from{opacity:.5;transform:scale(.96)}to{opacity:.9;transform:scale(1)}}
+html.yoye-gate-open,html.yoye-gate-open body{overflow:hidden}
+.yoye-bienvenida{
+  position:fixed;inset:0;z-index:9999;overflow-y:auto;
+  padding:max(26px,env(safe-area-inset-top)) 18px 30px;
+  background:
+    radial-gradient(120% 70% at 12% -6%,#25543f 0%,rgba(37,84,63,0) 62%),
+    radial-gradient(90% 55% at 108% 34%,rgba(198,113,57,.34) 0%,rgba(198,113,57,0) 60%),
+    var(--ink);
+}
+.yb-glow{position:absolute;top:-120px;right:-110px;width:300px;height:300px;border-radius:999px;background:rgba(143,160,115,.16);animation:yoyeGlow 1.4s ease-out both;pointer-events:none}
+.yb-inner{position:relative;max-width:420px;margin:0 auto}
+.yb-logo-chip{display:inline-flex;align-items:center;background:var(--cream);border-radius:999px;padding:9px 18px;margin-bottom:24px;box-shadow:var(--shadow-lg);animation:yoyeIn .5s ease-out both}
+.yb-logo-chip img{height:34px;width:auto;display:block}
+.yb-title{font-family:var(--font-heading);font-size:52px;font-weight:700;line-height:.98;letter-spacing:-.02em;margin:0 0 12px;color:var(--cream);animation:yoyeIn .55s ease-out .08s both}
+.yb-copy{font-size:14px;line-height:1.55;color:rgba(245,234,216,.72);margin:0 0 28px;max-width:290px;animation:yoyeIn .55s ease-out .16s both}
+.yb-heading-row{display:flex;align-items:center;gap:9px;margin-bottom:12px;animation:yoyeIn .55s ease-out .22s both}
+.yb-eyebrow{font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--sage-300)}
+.yb-rule{flex:1;height:1px;background:rgba(245,234,216,.22)}
+.yb-count{font-size:11.5px;font-weight:700;color:rgba(245,234,216,.6)}
+.yb-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;animation:yoyeIn .5s ease-out .26s both}
+.yb-card{display:block;width:100%;text-align:left;border:0;background:var(--cream);border-radius:var(--radius-lg);padding:0;overflow:hidden;cursor:pointer;box-shadow:var(--shadow-md);transition:transform .18s ease,box-shadow .18s ease;animation:yoyeIn .5s ease-out both}
+.yb-card:hover,.yb-card:focus-visible{transform:translateY(-3px);box-shadow:var(--shadow-lg)}
+.yb-photo{position:relative;display:block;width:100%;aspect-ratio:4/3;background:var(--neutral-300);overflow:hidden}
+.yb-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.yb-card-body{display:block;padding:11px 12px 13px}
+.yb-card-name{display:block;font-family:var(--font-heading);font-size:16.5px;font-weight:700;color:var(--ink);line-height:1.15}
+.yb-card-summary{display:block;font-size:11.5px;color:var(--text-secondary);margin-top:3px}
+.yb-pill{display:inline-block;margin-top:9px;padding:4px 9px;border-radius:999px;background:var(--sage-200);font-size:10.5px;font-weight:700;color:var(--sage-800)}
+.yb-foot{margin-top:20px;font-size:12px;line-height:1.5;color:rgba(245,234,216,.55)}
+
+/* ===== Header: selector de campo + conexión ===== */
+.yoye-header-injected{flex-wrap:wrap;row-gap:8px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.yoye-campo-pill{display:inline-flex;align-items:center;gap:7px;min-width:0;flex:1 1 160px;background:var(--surface-alt);border:1px solid var(--line);border-radius:999px;padding:6px 11px;cursor:pointer;text-align:left;min-height:33px}
+.yoye-dot{width:8px;height:8px;border-radius:999px;background:var(--sage-600);flex:none}
+.yoye-campo-nombre{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:13px;font-weight:700;color:var(--ink)}
+.yoye-caret{font-size:9px;color:var(--text-secondary)}
+.yoye-conn-btn{flex:none;width:33px;height:33px;border-radius:999px;border:1px solid var(--line);background:var(--sage-100);cursor:pointer;font-size:12px;font-weight:700;color:var(--ink)}
+.yoye-conn-btn.is-offline{background:var(--terracota-200)}
+
+/* ===== Hojas (bottom sheets) ===== */
+#yoyeSheetHost{position:fixed;inset:0;z-index:9998;display:none}
+#yoyeSheetHost.is-open{display:block}
+.yoye-sheet-backdrop{position:absolute;inset:0;background:rgba(23,53,44,.45);display:flex;flex-direction:column;justify-content:flex-end}
+.yoye-sheet{background:var(--cream);border-radius:var(--radius-lg) var(--radius-lg) 0 0;padding:20px 16px calc(26px + env(safe-area-inset-bottom));max-height:82vh;overflow-y:auto}
+.yoye-sheet-handle{display:block;width:44px;height:4px;border-radius:999px;background:var(--neutral-300);margin:0 auto 16px}
+.yoye-sheet-title{font-family:var(--font-heading);font-size:22px;margin:0 0 4px;color:var(--ink)}
+.yoye-sheet-copy{font-size:12.5px;line-height:1.5;color:var(--text-secondary);margin:0 0 14px}
+.yoye-sheet-grid{gap:11px}
+.yoye-campo-card{border:2px solid var(--line);background:var(--paper);border-radius:var(--radius-lg);padding:9px;position:relative}
+.yoye-campo-card.is-active{border-color:var(--sage-500);background:var(--sage-100)}
+.yoye-campo-card .yb-photo{aspect-ratio:1/1;border-radius:var(--radius-md)}
+.yoye-campo-card-body{display:block;width:100%;text-align:left;border:0;background:transparent;padding:10px 4px 2px;cursor:pointer}
+.yoye-campo-card-head{display:flex;align-items:baseline;gap:6px}
+.yoye-campo-card-head .yb-card-name{margin-left:0}
+.yoye-check{font-size:13px;color:var(--sage-700);margin-left:auto}
+.yoye-campo-modulos{display:block;font-size:11px;font-weight:700;color:var(--sage-700);margin-top:6px;line-height:1.35}
+
+.yoye-registro-list{display:flex;flex-direction:column;gap:9px}
+.yoye-registro-item{display:grid;grid-template-columns:38px 1fr;gap:12px;align-items:center;width:100%;text-align:left;border:1px solid var(--line);background:var(--paper);border-radius:var(--radius-md);padding:13px 15px;cursor:pointer}
+.yoye-registro-icon{width:38px;height:38px;border-radius:999px;background:var(--sage-200);color:var(--sage-800);display:grid;place-items:center;font-size:16px}
+.yoye-registro-title{display:block;font-size:15px;font-weight:700;color:var(--ink)}
+.yoye-registro-desc{display:block;font-size:12px;color:var(--text-secondary);margin-top:2px}
+
+/* ===== Modal simple (wizard Aforo) ===== */
+.yoye-modal-backdrop{position:fixed;inset:0;z-index:9998;background:rgba(23,53,44,.45);display:grid;place-items:center;padding:16px}
+.yoye-modal{width:min(420px,100%);max-height:88vh;overflow-y:auto;background:var(--cream);border-radius:var(--radius-lg);padding:20px}
+.yoye-modal-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:6px}
+.yoye-modal-head h3{font-family:var(--font-heading);font-size:20px;margin:0;color:var(--ink)}
+.yoye-modal-close{border:0;background:transparent;font-size:16px;cursor:pointer;color:var(--text-secondary);min-width:32px;min-height:32px}
+.yoye-form-card{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-lg);padding:16px 15px;display:flex;flex-direction:column;gap:14px;margin:14px 0}
+.yoye-field label{display:block;font-size:12px;font-weight:700;color:var(--text-secondary);margin-bottom:6px}
+.yoye-input{display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:999px;padding:11px 15px;background:var(--cream)}
+.yoye-input input{flex:1;min-width:0;border:0;background:transparent;font-size:14px;color:var(--ink);outline:none}
+.yoye-input span:not(.yoye-unit){flex:1;min-width:0;font-size:14px;color:var(--text)}
+.yoye-unit{font-size:11.5px;font-weight:700;color:var(--text-secondary)}
+.yoye-hint{font-size:11px;color:var(--text-secondary);margin-top:5px}
+.yoye-modal-actions{display:flex;gap:9px;margin-top:6px}
+.yoye-modal-actions .btn-secondary,.yoye-modal-actions .btn-primary{flex:1;text-align:center;border-radius:999px;padding:12px;font-size:13.5px;font-weight:700;text-decoration:none;cursor:pointer;border:0}
+.yoye-modal-actions .btn-secondary{border:1px solid var(--line);background:var(--paper);color:var(--ink)}
+.yoye-modal-actions .btn-primary{background:var(--ink);color:var(--cream)}
+.yoye-modal-actions .btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.yoye-input select{flex:1;min-width:0;border:0;background:transparent;font-size:14px;color:var(--ink);outline:none;appearance:none}
+.yoye-input textarea{flex:1;min-width:0;border:0;background:transparent;font-size:14px;color:var(--ink);outline:none;resize:vertical;min-height:60px;font-family:inherit;padding:9px 0}
+
+/* ===== Wizard: progreso ===== */
+.yoye-wizard-progress{display:flex;gap:5px;margin:2px 0 4px}
+.yoye-wizard-seg{flex:1;height:5px;border-radius:999px;background:var(--neutral-300,#dcd3c4)}
+.yoye-wizard-seg.is-done{background:var(--sage-600)}
+.yoye-wizard-status{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--text-secondary);margin-bottom:10px}
+.yoye-wizard-status b{color:var(--ink)}
+
+/* ===== Emisores (16 posiciones) ===== */
+.yoye-emisores-grid{display:flex;flex-direction:column;gap:8px}
+.yoye-emisor-linea-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--sage-700);margin:8px 0 2px}
+.yoye-emisor-row{display:grid;grid-template-columns:64px 1fr 1fr 60px;gap:7px;align-items:center}
+.yoye-emisor-row span.yoye-emisor-pos{font-size:11.5px;font-weight:700;color:var(--text-secondary)}
+.yoye-emisor-row input{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;padding:8px 8px;font-size:13px;background:var(--paper);color:var(--ink)}
+.yoye-emisor-row .yoye-emisor-caudal{font-size:11.5px;font-weight:700;color:var(--sage-700);text-align:right}
+
+/* ===== Resultado ===== */
+.yoye-resultado-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.yoye-resultado-kpi{background:var(--paper);border:1px solid var(--line);border-top:3px solid var(--sage-600);border-radius:var(--radius-md);padding:11px 12px}
+.yoye-resultado-kpi span{display:block;font-size:11px;color:var(--text-secondary);margin-bottom:4px}
+.yoye-resultado-kpi strong{font-family:var(--font-heading);font-size:20px;color:var(--ink)}
+.yoye-resultado-kpi.clasificacion-bajo{border-top-color:var(--terracota)}
+.yoye-resultado-kpi.clasificacion-medio{border-top-color:#d7a62f}
+
+/* ===== Estado de guardado / cola offline ===== */
+.yoye-pending-badge{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--sage-100);color:var(--sage-800)}
+.yoye-pending-badge.is-error{background:var(--terracota-200);color:var(--terracota-700)}
+.yoye-aforo-history{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.yoye-aforo-history-item{border:1px solid var(--line);border-radius:var(--radius-md);padding:10px 12px;background:var(--paper);font-size:12.5px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+
+/* ===== Nav inferior ===== */
+html.yoye-has-bottom-nav body{padding-bottom:calc(78px + env(safe-area-inset-bottom))}
+.yoye-bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:200;display:flex;align-items:flex-end;justify-content:space-around;gap:2px;padding:9px 8px calc(16px + env(safe-area-inset-bottom));background:var(--surface-alt);border-top:1px solid var(--line)}
+.yoye-nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;border:0;background:transparent;border-radius:var(--radius-md);padding:7px 2px;cursor:pointer;min-height:52px;justify-content:center;color:var(--text-secondary)}
+.yoye-nav-item.is-active{background:var(--sage-200);color:var(--ink)}
+.yoye-nav-icon{width:34px;height:34px;border-radius:999px;display:grid;place-items:center;font-size:16px}
+.yoye-nav-item.is-active .yoye-nav-icon{color:var(--ink)}
+.yoye-nav-item.is-center .yoye-nav-icon{background:var(--ink);color:var(--cream)}
+.yoye-nav-label{font-size:10.5px;font-weight:700}
+
+/* ===== Saludo (Inicio) ===== */
+.yoye-saludo{padding:4px 0 6px}
+.yoye-saludo-title{font-family:var(--font-heading);font-size:30px;line-height:1.1;margin:0 0 4px;color:var(--text)}
+.yoye-saludo-nombre{color:var(--green)}
+.yoye-saludo-sub{font-size:13px;color:var(--text-secondary);margin:0 0 13px}
+.yoye-sync-chip{display:inline-flex;align-items:center;gap:8px;padding:7px 13px;border-radius:999px;background:var(--sage-100);font-size:12px;font-weight:700;color:var(--ink)}
+.yoye-sync-chip.is-offline{background:var(--terracota-200)}
+
+/* ===== Paneles (tarjetas verdes) ===== */
+.yoye-panel-item{display:grid;grid-template-columns:44px 1fr 16px;gap:13px;align-items:center;width:100%;text-align:left;background:var(--green);border:1px solid var(--ink);border-radius:var(--radius-lg);padding:15px;cursor:pointer;text-decoration:none}
+.yoye-panel-icon{width:44px;height:44px;border-radius:999px;background:rgba(245,234,216,.16);display:grid;place-items:center;font-size:20px}
+.yoye-panel-kicker{font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--sage-300)}
+.yoye-panel-title{font-family:var(--font-heading);font-size:19px;font-weight:700;color:var(--cream);margin:3px 0 2px}
+.yoye-panel-desc{font-size:12.5px;color:rgba(245,234,216,.78)}
+.yoye-panel-chevron{color:var(--sage-300)}
+.yoye-panel-note{margin-top:16px;padding:14px 16px;border-radius:var(--radius-md);border:1px dashed var(--sage-400);background:var(--sage-100);font-size:12.5px;line-height:1.55;color:var(--sage-800)}
+
+/* ===== Menú adaptativo: campos sin riego ===== */
+html.yoye-campo-reducido .tab[data-tab="riego"],
+html.yoye-campo-reducido #riego.panel,
+html.yoye-campo-reducido #irrigationStrategies,
+html.yoye-campo-reducido a[href$="#riego"]{display:none!important}
+
+@media(max-width:420px){
+  .yb-title{font-size:44px}
+  .yoye-nav-label{font-size:9.5px}
+}

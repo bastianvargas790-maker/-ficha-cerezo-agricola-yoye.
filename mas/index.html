@@ -1,0 +1,106 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Más · Agrícola Yoye</title><meta name="theme-color" content="#234b36"><link rel="manifest" href="../manifest.webmanifest"><link rel="icon" href="../assets/icons/favicon.svg"><link rel="apple-touch-icon" href="../assets/icons/apple-touch-icon.png">
+<link rel="stylesheet" href="../assets/yoye-theme.css?v=20260827-1">
+<style>:root{--ink:#17352c;--muted:#607169;--cream:#f7f4eb;--paper:#fffdf8;--green:#315c3b;--line:#dfe5d8;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);background:var(--cream)}*{box-sizing:border-box}body{margin:0}button,a{font:inherit}.shell{max-width:640px;margin:auto;padding:max(18px,env(safe-area-inset-top)) 18px 40px}.top{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:10px 0}.logo{width:min(200px,46vw)}.back{color:var(--muted);text-decoration:none;font-size:.85rem}.hero{padding:18px 0 10px}.eyebrow{color:#7d5838;font-weight:850;letter-spacing:.1em;text-transform:uppercase;font-size:.75rem}.hero h1{font:800 clamp(1.9rem,7vw,2.5rem) Georgia,serif;margin:.15em 0}
+.mas-card{background:var(--paper);border:1px solid var(--line);border-radius:20px;padding:16px 17px;margin-bottom:14px}
+.mas-card h2{font:800 16px Georgia,serif;margin:0 0 4px;color:var(--ink)}
+.mas-card p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+.mas-profile{display:flex;align-items:center;gap:12px}
+.mas-avatar{width:48px;height:48px;border-radius:999px;background:var(--green);color:#f5ead8;display:grid;place-items:center;font:800 16px Georgia,serif;flex:none}
+.mas-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+.mas-row:first-of-type{border-top:0}
+.mas-row span:first-child{font-size:13px;color:var(--muted)}
+.mas-row strong{font-size:13px;color:var(--ink)}
+.mas-badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;background:#f0fae1;color:#3d472b}
+.mas-badge.is-warn{background:#ffe1d0;color:#8c491a}
+.mas-btn{display:block;width:100%;text-align:center;padding:13px;border-radius:999px;border:1px solid var(--line);background:var(--paper);color:var(--ink);font-weight:700;font-size:14px;cursor:pointer;margin-top:8px;text-decoration:none}
+.mas-btn.danger{border-color:#c67139;color:#8c491a}
+</style>
+<link rel="stylesheet" href="../assets/campos.css?v=20260827-1">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.min.js"></script><script defer src="../assets/shared-auth.js?v=20260827-1"></script><script defer src="../assets/campos.js?v=20260827-1"></script><script defer src="../assets/aforo.js?v=20260827-1"></script>
+</head><body><main class="shell">
+<header class="top"><img class="logo" src="../assets/yoye-logo.svg" alt="Agrícola Yoye"><a class="back" href="../">← Inicio</a></header>
+<section class="hero"><div class="eyebrow">Cuenta y sincronización</div><h1>Más</h1></section>
+
+<section class="mas-card mas-profile">
+  <span class="mas-avatar" id="masIniciales">•</span>
+  <div><h2 id="masNombre">Cargando…</h2><p id="masCargo"></p></div>
+</section>
+
+<section class="mas-card">
+  <h2>Campo activo</h2>
+  <p id="masCampoResumen">—</p>
+  <button type="button" class="mas-btn" id="masCambiarCampo">Cambiar de campo</button>
+</section>
+
+<section class="mas-card">
+  <h2>Estado de sincronización</h2>
+  <div class="mas-row"><span>Conexión</span><strong id="masConexion">—</strong></div>
+  <div class="mas-row"><span>Calicatas pendientes</span><strong id="masColaCalicatas">—</strong></div>
+  <div class="mas-row"><span>Aforos pendientes</span><strong id="masColaAforos">—</strong></div>
+  <div class="mas-row"><span>Última revisión</span><strong id="masUltimaRevision">—</strong></div>
+</section>
+
+<button type="button" class="mas-btn danger" id="masCerrarSesion">Cerrar sesión</button>
+
+<script>
+(()=>{
+  const $=s=>document.querySelector(s);
+  function pintarPerfil(){
+    const campo=window.yoyeActiveCampo?.();
+    if(!campo)return;
+    $('#masIniciales').textContent=campo.encargado_iniciales||'•';
+    $('#masNombre').textContent=campo.encargado_nombre||'Sin nombre';
+    $('#masCargo').textContent=campo.encargado_cargo||'';
+    $('#masCampoResumen').textContent=`${campo.nombre} · ${campo.superficie_ha??'—'} ha · ${(campo.alcance||[]).length} módulo(s) habilitados`;
+  }
+  $('#masCambiarCampo').onclick=()=>{
+    const evt=new Event('click');
+    document.querySelector('#yoyeCampoPill')?.dispatchEvent(evt);
+  };
+  $('#masCerrarSesion').onclick=async()=>{
+    if(!window.yoyeSupabase)return;
+    if(!confirm('¿Cerrar sesión en este dispositivo?'))return;
+    await window.yoyeSupabase.auth.signOut();
+    location.href='../';
+  };
+  function pintarConexion(){
+    $('#masConexion').textContent=navigator.onLine?'✓ En línea':'◴ Sin conexión';
+  }
+  function abrirCola(nombre){
+    return new Promise(resolve=>{
+      if(!('indexedDB' in window))return resolve(null);
+      const req=indexedDB.open(nombre);
+      req.onsuccess=()=>{
+        const db=req.result;
+        if(!db.objectStoreNames.contains('queue')){db.close();return resolve(null)}
+        const r=db.transaction('queue').objectStore('queue').getAll();
+        r.onsuccess=()=>{resolve(r.result||[]);db.close()};
+        r.onerror=()=>{resolve(null);db.close()};
+      };
+      req.onerror=()=>resolve(null);
+      req.onupgradeneeded=()=>{req.transaction.abort()};
+    });
+  }
+  async function pintarColas(){
+    const [cal,afo]=await Promise.all([abrirCola('yoye-calicatas-offline-v1'),abrirCola('yoye-aforo-offline-v1')]);
+    const resumen=list=>{
+      if(list==null)return 'Sin datos locales';
+      const pend=list.filter(x=>x.status!=='synced').length;
+      const err=list.filter(x=>x.status==='error').length;
+      if(!list.length)return 'Sin registros';
+      return err?`${pend} pendiente(s) · ${err} con error`:pend?`${pend} pendiente(s)`:'Todo sincronizado';
+    };
+    $('#masColaCalicatas').textContent=resumen(cal);
+    $('#masColaAforos').textContent=resumen(afo);
+    $('#masColaCalicatas').parentElement.querySelector('strong').classList.toggle('mas-badge',false);
+    $('#masUltimaRevision').textContent=new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+  }
+  pintarConexion();pintarColas();
+  addEventListener('online',pintarConexion);addEventListener('offline',pintarConexion);
+  document.addEventListener('yoye-campo-ready',pintarPerfil);
+  document.addEventListener('yoye-campo-changed',pintarPerfil);
+  setTimeout(pintarPerfil,50);
+  setInterval(pintarColas,15000);
+})();
+</script>
+</main></body></html>

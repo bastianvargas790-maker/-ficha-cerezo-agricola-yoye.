@@ -1,0 +1,87 @@
+/* Tokens de marca unificados — Agrícola Yoye multipredio.
+   Fuente única de verdad para color, tipografía, radios y sombras.
+   Reemplaza los bloques :root duplicados en cada página; las páginas
+   solo deben definir localmente su acento de cultivo si lo necesitan. */
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600;6..72,700&family=Figtree:wght@400..800&display=swap');
+
+:root{
+  /* Marca */
+  --ink:#17352c;
+  --green:#315c3b;
+  --green-soft:#25543f;
+
+  /* Superficies */
+  --cream:#f5ead8;
+  --paper:#fffdf8;
+  --surface-alt:#f9f4ed;
+  --line:#e2dbc8;
+
+  /* Texto */
+  --text:#201e1d;
+  --text-secondary:#645c50;
+  --text-tertiary:#82796a;
+
+  /* Neutros (rieles, barras vacías) */
+  --neutral-100:#f9f4ed;
+  --neutral-200:#eee7db;
+  --neutral-300:#dcd3c4;
+  --neutral-400:#c0b6a5;
+  --neutral-500:#a19786;
+  --neutral-600:#82796a;
+  --neutral-700:#645c50;
+
+  /* Terracota (acento cálido) */
+  --terracota-100:#fff2eb;
+  --terracota-200:#ffe1d0;
+  --terracota-300:#ffc6a5;
+  --terracota-400:#f6a06b;
+  --terracota-500:#d67f48;
+  --terracota:#c67139;
+  --terracota-600:#b2622d;
+  --terracota-700:#8c491a;
+  --terracota-800:#643312;
+
+  /* Sage / escala verde de datos (oscuro → claro) */
+  --sage-100:#f0fae1;
+  --sage-200:#e1eecc;
+  --sage-300:#ccdbb2;
+  --sage-400:#aebf92;
+  --sage-500:#8fa073;
+  --sage:#7a8a5e;
+  --sage-600:#728157;
+  --sage-700:#56633f;
+  --sage-800:#3d472b;
+  --sage-900:#272e1b;
+  --data-1:#56633f;
+  --data-2:#728157;
+  --data-3:#8fa073;
+  --data-4:#aebf92;
+  --data-5:#ccdbb2;
+
+  /* Tipografía */
+  --font-heading:"Newsreader",Georgia,serif;
+  --font-heading-weight:700;
+  --font-body:"Figtree",Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
+
+  /* Espaciado (escala del design system) */
+  --space-1:4.4px;
+  --space-2:8.8px;
+  --space-3:13.2px;
+  --space-4:17.6px;
+  --space-6:26.4px;
+  --space-8:35.2px;
+
+  /* Radios */
+  --radius-sm:8px;
+  --radius-md:16px;
+  --radius-lg:28px;
+
+  /* Sombras */
+  --shadow-sm:0 1px 2px rgba(46,43,37,.14);
+  --shadow-md:0 3px 10px rgba(46,43,37,.16);
+  --shadow-lg:0 12px 32px rgba(46,43,37,.22);
+
+  /* Compatibilidad: nombres usados por el código existente */
+  --muted:var(--text-secondary);
+  --shadow:var(--shadow-md);
+}
