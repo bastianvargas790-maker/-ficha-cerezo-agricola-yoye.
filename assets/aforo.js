@@ -86,7 +86,7 @@
   }
   async function loadQuarters(filterCampoId = null) {
     try {
-      let query = sb.from('cuarteles').select('id,codigo,cultivo,caseta,equipo,campo_id').eq('organizacion_id', orgId).eq('activo', true);
+      let query = sb.from('cuarteles').select('id,codigo,cultivo,caseta,equipo,campo_id,unidades_aforo').eq('organizacion_id', orgId).eq('activo', true);
       if (filterCampoId) query = query.eq('campo_id', filterCampoId);
       const { data, error } = await query.order('codigo');
       if (error) throw error;
@@ -101,6 +101,25 @@
     const options = quarters.map(q => `<option value="${esc(q.id)}">${esc(q.codigo)}${q.equipo ? ` · eq. ${esc(q.equipo)}` : ''}${q.cultivo ? ` · ${esc(q.cultivo)}` : ''}</option>`).join('');
     const select = $('#afQuarter'); if (select) select.innerHTML = '<option value="">Selecciona un cuartel</option>' + options;
     const historySelect = $('#historyQuarter'); if (historySelect) historySelect.innerHTML = '<option value="">Todos los cuarteles del campo</option>' + options;
+  }
+
+  // --- Unidad de aforo ---
+  // Un cuartel puede tener extensiones con válvula y sistema propio que se aforan
+  // por separado, aunque compartan presión y volumen de riego con el cuartel
+  // madre (C-37 tiene la Isla; C-40 tiene las válvulas A y B). No son cuarteles
+  // aparte -- comparten cuartel_id y se distinguen por aforos.unidad_aforo.
+  // El desplegable se arma desde cuarteles.unidades_aforo en vez de dejarlo como
+  // texto libre: escrito a mano, 'Isla' e 'isla' quedan como dos unidades
+  // distintas y rompen la comparación histórica de CU sin dar ningún error.
+  function updateUnidadField() {
+    const field = $('#afUnidadField'), select = $('#afUnidad');
+    if (!field || !select) return;
+    const cuartel = quarters.find(q => q.id === $('#afQuarter')?.value);
+    const unidades = cuartel?.unidades_aforo || [];
+    field.hidden = unidades.length === 0;
+    select.innerHTML = unidades.length
+      ? '<option value="">Cuartel completo</option>' + unidades.map(u => `<option value="${esc(u)}">${esc(u)}</option>`).join('')
+      : '';
   }
 
   // --- Perfil ---
@@ -244,6 +263,7 @@
     const form = $('#aforoForm'); if (form) form.reset();
     $('#afFecha').value = todayIso(); $('#afTemporada').value = seasonYear();
     buildValves(0); buildMatrix();
+    updateUnidadField();
     renderResultado();
   }
 
@@ -284,6 +304,7 @@
       campoId = event.target.value;
       loadQuarters(campoId);
     });
+    $('#afQuarter')?.addEventListener('change', updateUnidadField);
     $('#afNValvulas')?.addEventListener('change', event => buildValves(Number(event.target.value) || 0));
     $('#afValves')?.addEventListener('input', renderResultado);
     $('#afTiempoMedicion')?.addEventListener('input', () => {

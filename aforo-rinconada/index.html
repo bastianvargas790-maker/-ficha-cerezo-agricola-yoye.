@@ -56,7 +56,7 @@
           <div class="section-title"><h2>1 · Identificación</h2></div>
           <div class="form-grid">
             <label class="field"><span>Cuartel</span><select id="afQuarter" required><option value="">Selecciona un cuartel</option></select></label>
-            <label class="field"><span>Unidad de aforo</span><input id="afUnidad" type="text" maxlength="10" placeholder="Ej. A, B — solo si el cuartel se afora por sectores"></label>
+            <label class="field" id="afUnidadField" hidden><span>Unidad de aforo</span><select id="afUnidad"></select></label>
             <label class="field"><span>Temporada</span><input id="afTemporada" type="number" min="2000" max="2100" step="1" inputmode="numeric"></label>
             <label class="field"><span>Fecha</span><input id="afFecha" type="date" required></label>
             <label class="field"><span>Equipo de riego</span><input id="afEquipo" type="text" maxlength="120" placeholder="Opcional"></label>
