@@ -75,7 +75,12 @@
   }
 
   addEventListener('yoye-auth-ready', event => refresh(event.detail.client, event.detail.session));
-  // Al cambiar de campo hay que recontar: si no, los tiles siguen mostrando
-  // las cifras del campo anterior.
+  // campos.js carga los campos de forma asincrona y recien entonces
+  // yoyeActiveCampo() devuelve algo. Como este modulo tambien arranca en
+  // yoye-auth-ready, el primer refresh corre antes de que exista campo activo y
+  // la consulta sale sin filtro: por eso el primer render de cada sesion
+  // mostraba los 53 cuarteles y solo se corregia si alguien cambiaba de campo
+  // a mano. Hay que recontar tambien cuando los campos quedan listos.
+  document.addEventListener('yoye-campo-ready', () => refresh(lastClient, lastSession));
   document.addEventListener('yoye-campo-changed', () => refresh(lastClient, lastSession));
 })();

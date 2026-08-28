@@ -105,13 +105,17 @@ async function cacheQuarters(list,orgId){const scope=alcanceKey(orgId);await Pro
   async function syncAuthState(){const state=globalThis.yoyeAuthState;if(state?.session&&state.client)await initFromAuth({detail:state});if(navigator.onLine&&!quarters.length)await directQuarterBootstrap()}
   window.yoyeCalicatasInit=detail=>initFromAuth({detail});
   document.readyState==='loading'?document.addEventListener('DOMContentLoaded',bind):bind();setTimeout(()=>{const history=document.querySelector('#historyList');if(history)new MutationObserver(()=>loadRemotePhotos()).observe(history,{childList:true})},0);addEventListener('yoye-auth-ready',initFromAuth);
-  // Al cambiar de campo hay que recargar: si no, el desplegable sigue mostrando
-  // los cuarteles del campo anterior. Se parte del caché de ESE campo para que
-  // funcione sin conexión, y se refresca desde la base si hay señal.
-  document.addEventListener('yoye-campo-changed',async()=>{
+  // Recarga al cambiar de campo y tambien cuando los campos terminan de cargar.
+  // Este modulo arranca en yoye-auth-ready igual que campos.js, asi que el
+  // primer loadProfile() corre con yoyeActiveCampo() todavia vacio y la consulta
+  // sale sin filtro por campo. Sin el evento 'ready', el primer render de cada
+  // sesion mostraria los cuarteles de todos los campos.
+  async function recargarPorCampo(){
     if(!db||!session)return;
     quarters=profile?await cachedQuarters(profile.organizacion_id):[];
     fillQuarters();
     if(navigator.onLine)await loadProfile();
-  });[0,300,1200,3000,6000,10000].forEach(ms=>setTimeout(syncAuthState,ms));
+  }
+  document.addEventListener('yoye-campo-ready',recargarPorCampo);
+  document.addEventListener('yoye-campo-changed',recargarPorCampo);[0,300,1200,3000,6000,10000].forEach(ms=>setTimeout(syncAuthState,ms));
 })();
