@@ -4,7 +4,7 @@
   const $ = selector => document.querySelector(selector);
   const formatHa = value => Number(value).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ha';
   const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
-  let channel;
+  let channel, lastClient, lastSession;
 
   function set(selector, value) {
     const element = $(selector);
@@ -19,8 +19,16 @@
 
   async function refresh(client, session) {
     if (!client || !session) return;
+    lastClient = client; lastSession = session;
+    // Los tiles cuentan lo del campo activo, no lo de toda la organización.
+    // Con Mirador Cerro seleccionado, "Cuarteles activos" mostraba 53 y
+    // "Superficie registrada" las 78,44 ha de Rinconada Plano, mientras el
+    // resto de la pantalla decía Mirador Cerro.
+    const campo = window.yoyeActiveCampo?.() || null;
+    let quartersQuery = client.from('cuarteles').select('id,cultivo,superficie_ha,caseta,equipo').eq('activo', true);
+    if (campo?.id) quartersQuery = quartersQuery.eq('campo_id', campo.id);
     const [quarters, irrigations, probes, profile] = await Promise.all([
-      client.from('cuarteles').select('id,cultivo,superficie_ha,caseta,equipo').eq('activo', true),
+      quartersQuery,
       client.from('registros_riego').select('id', { count: 'exact', head: true }).eq('activo', true),
       client.from('sondas').select('id', { count: 'exact', head: true }),
       client.from('perfiles').select('rol,estado').eq('id', session.user.id).maybeSingle()
@@ -52,7 +60,7 @@
     $('#surfaceCard').onclick = () => {
       const crops = {};
       known.forEach(quarter => { crops[quarter.cultivo || 'Sin información'] = (crops[quarter.cultivo || 'Sin información'] || 0) + Number(quarter.superficie_ha); });
-      title.textContent = 'Superficie del Fundo La Rinconada';
+      title.textContent = 'Superficie de ' + (campo?.nombre || 'los cuarteles');
       body.innerHTML = `${fieldMapMarkup(map)}<div class="surface-kpis"><article><span>Superficie registrada en cuarteles</span><strong>${known.length ? formatHa(registered) : 'Sin información'}</strong></article><article><span>Cuarteles con superficie registrada</span><strong>${known.length}</strong></article></div><p class="technical-note">El mapa KMZ se conserva únicamente como referencia visual del deslinde y los cuarteles. La superficie oficial mostrada se obtiene de los cuarteles guardados en la base compartida.</p><h3>Superficie registrada por cultivo</h3><ul>${Object.entries(crops).sort().map(([crop, value]) => `<li>${escapeHtml(crop)}: ${formatHa(value)}</li>`).join('')}</ul>`;
       dialog.showModal();
     };
@@ -67,4 +75,7 @@
   }
 
   addEventListener('yoye-auth-ready', event => refresh(event.detail.client, event.detail.session));
+  // Al cambiar de campo hay que recontar: si no, los tiles siguen mostrando
+  // las cifras del campo anterior.
+  document.addEventListener('yoye-campo-changed', () => refresh(lastClient, lastSession));
 })();

@@ -351,19 +351,32 @@ function ocultarOperacionesHome(campo){
   if(calGrid)calGrid.hidden=true;
 }
 
-/* ---------- Perfil: iniciales y responsable ---------- */
+/* ---------- Perfil: iniciales y responsable ----------
+   La identidad mostrada es SIEMPRE la de quien inició sesión, nunca la del
+   encargado del campo. Antes se caía a campo.encargado_nombre cuando el perfil
+   no traía nombre, así que la pantalla saludaba a Eladio León mientras el
+   usuario autenticado era otro. En data-yoye-responsable era peor: ese valor
+   se guarda, y el registro quedaba firmado por alguien que no lo hizo.
+   El encargado del campo es un dato del campo y vive en su tarjeta. */
+const ROLES={administrador:'Jefe de riego',editor:'Editor',solo_lectura:'Solo lectura'};
+function usuarioNombre(){return profile?.nombre_completo||session?.user?.email||''}
+function usuarioCargo(){return profile?.cargo||ROLES[profile?.rol]||'Equipo de campo'}
+function usuarioIniciales(){
+  const n=profile?.nombre_completo?.trim();
+  if(n)return n.split(/\s+/).slice(0,2).map(p=>p[0]).join('').toUpperCase();
+  const correo=session?.user?.email;
+  return correo?correo[0].toUpperCase():'•';
+}
 function aplicarPerfil(){
-  const campo=activeCampo();
-  $$('.profile-icon').forEach(el=>{el.textContent=campo.encargado_iniciales||'•'});
-  $$('[data-yoye-responsable]').forEach(el=>{el.value=profile?.nombre_completo||campo.encargado_nombre||''});
+  $$('.profile-icon').forEach(el=>{el.textContent=usuarioIniciales()});
+  $$('[data-yoye-responsable]').forEach(el=>{el.value=usuarioNombre()});
 }
 
 /* ---------- Saludo (Inicio) ---------- */
 function aplicarSaludoInicio(){
   if(!isRoot())return;
   const campo=activeCampo();
-  const nombre=profile?.nombre_completo||campo.encargado_nombre||'';
-  const primerNombre=nombre.split(' ').slice(0,2).join(' ');
+  const primerNombre=usuarioNombre().split(' ').slice(0,2).join(' ');
   let host=$('#yoyeSaludo');
   const intro=$('main.shell > .intro');
   if(!host&&intro){
@@ -374,7 +387,7 @@ function aplicarSaludoInicio(){
   }
   if(!host)return;
   host.innerHTML=`<h2 class="yoye-saludo-title">${esc(saludoSantiago())},<br><span class="yoye-saludo-nombre">${esc(primerNombre||campo.nombre)}.</span></h2>
-    <p class="yoye-saludo-sub">${esc(campo.encargado_cargo||'Equipo de campo')} · ${esc(campo.nombre)}</p>
+    <p class="yoye-saludo-sub">${esc(usuarioCargo())} · ${esc(campo.nombre)}</p>
     <span class="yoye-sync-chip"></span>`;
   renderConn();
 }
