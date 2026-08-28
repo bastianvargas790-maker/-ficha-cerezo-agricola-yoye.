@@ -57,6 +57,30 @@ async function loadCampos(){
     foto_url:c.foto_url,orden:c.orden
   }));
   window.yoyeCampos=campos;
+  await contarCuarteles();
+}
+
+/* cuarteles_referencia es la cifra de la ficha del campo, no un conteo: Rinconada
+   Cerro trae 18 y Mirador Cerro 14, pero ninguno tiene cuarteles cargados todavía.
+   La tarjeta prometía cuarteles que el desplegable de aforo no puede ofrecer, así
+   que se muestra lo realmente cargado y la cifra de terreno queda como referencia
+   solo cuando ambas difieren. */
+async function contarCuarteles(){
+  if(!db)return;
+  const {data,error}=await db.from('cuarteles').select('campo_id').eq('activo',true);
+  if(error||!Array.isArray(data))return;
+  const porCampo={};
+  data.forEach(r=>{if(r.campo_id)porCampo[r.campo_id]=(porCampo[r.campo_id]||0)+1});
+  campos.forEach(c=>{c.cuarteles_cargados=c.id?(porCampo[c.id]||0):null});
+  window.yoyeCampos=campos;
+  if($('#yoyeBienvenidaGrid'))renderBienvenidaGrid();
+}
+function resumenCuarteles(c){
+  const ref=c.cuarteles_referencia,n=c.cuarteles_cargados;
+  if(n==null)return `${ref??'—'} cuarteles`;
+  if(n===0)return ref?`sin cuarteles cargados · ${ref} en terreno`:'sin cuarteles cargados';
+  if(ref!=null&&ref!==n)return `${n} de ${ref} cuarteles`;
+  return `${n} cuarteles`;
 }
 
 function saludoSantiago(){
@@ -97,7 +121,7 @@ function renderBienvenidaGrid(){
       <span class="yb-photo">${c.foto_url?`<img src="${root()}${esc(c.foto_url)}" alt="${esc(c.nombre)}" loading="lazy">`:''}</span>
       <span class="yb-card-body">
         <span class="yb-card-name">${esc(c.nombre)}</span>
-        <span class="yb-card-summary">${fmtHa(c.superficie_ha)} ha · ${c.cuarteles_referencia??'—'} cuarteles</span>
+        <span class="yb-card-summary">${fmtHa(c.superficie_ha)} ha · ${resumenCuarteles(c)}</span>
         <span class="yb-pill">${esCompleto(c)?'Alcance completo':'Aforos · Calicatas'}</span>
       </span>
     </button>`).join('');
@@ -204,7 +228,7 @@ function hojaCamposHtml(){
         <span class="yb-photo">${c.foto_url?`<img src="${root()}${esc(c.foto_url)}" alt="${esc(c.nombre)}" loading="lazy">`:''}</span>
         <button type="button" class="yoye-campo-card-body" data-slug="${esc(c.slug)}">
           <span class="yoye-campo-card-head"><span class="yb-card-name">${esc(c.nombre)}</span>${c.slug===activo.slug?'<span class="yoye-check">✓</span>':''}</span>
-          <span class="yb-card-summary">${fmtHa(c.superficie_ha)} ha · ${c.cuarteles_referencia??'—'} cuarteles</span>
+          <span class="yb-card-summary">${fmtHa(c.superficie_ha)} ha · ${resumenCuarteles(c)}</span>
           <span class="yoye-campo-modulos">${(c.alcance||[]).map(m=>MODULO_LABEL[m]||m).join(' · ')}</span>
         </button>
       </div>`).join('')}</div>
