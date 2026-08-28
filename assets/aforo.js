@@ -11,20 +11,29 @@ const uuid=()=>globalThis.crypto?.randomUUID?crypto.randomUUID():'xxxxxxxx-xxxx-
 const localDate=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
 const isNum=v=>v!==null&&v!==''&&v!==undefined&&Number.isFinite(Number(v));
 
-const DB_NAME='yoye-aforo-offline-v1',DB_VERSION=1,STORE='queue';
+/* DB_VERSION 2: se agrega el store 'cuarteles' para la copia local por campo.
+   Va en un store aparte y NO en 'queue' a propósito: syncQueue() recorre queue
+   filtrando por status, y un registro sin status entraría a la cola de sincronización
+   y haría fallar syncItem() al no tener .aforo. */
+const DB_NAME='yoye-aforo-offline-v1',DB_VERSION=2,STORE='queue',STORE_CUARTELES='cuarteles';
 let localDb;
 function openLocalDb(){
   if(localDb)return Promise.resolve(localDb);
   if(!('indexedDB' in window))return Promise.reject(new Error('offline no disponible'));
   return new Promise((resolve,reject)=>{
     const req=indexedDB.open(DB_NAME,DB_VERSION);
-    req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(STORE))req.result.createObjectStore(STORE,{keyPath:'id'})};
+    req.onupgradeneeded=()=>{
+      const d=req.result;
+      if(!d.objectStoreNames.contains(STORE))d.createObjectStore(STORE,{keyPath:'id'});
+      if(!d.objectStoreNames.contains(STORE_CUARTELES))d.createObjectStore(STORE_CUARTELES,{keyPath:'id'});
+    };
     req.onsuccess=()=>{localDb=req.result;resolve(localDb)};
     req.onerror=()=>reject(req.error);
   });
 }
-async function localPut(v){const d=await openLocalDb();return new Promise((res,rej)=>{const r=d.transaction(STORE,'readwrite').objectStore(STORE).put(v);r.onsuccess=()=>res(v);r.onerror=()=>rej(r.error)})}
-async function localAll(){const d=await openLocalDb();return new Promise((res,rej)=>{const r=d.transaction(STORE).objectStore(STORE).getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error)})}
+async function localPut(v,store=STORE){const d=await openLocalDb();return new Promise((res,rej)=>{const r=d.transaction(store,'readwrite').objectStore(store).put(v);r.onsuccess=()=>res(v);r.onerror=()=>rej(r.error)})}
+async function localAll(store=STORE){const d=await openLocalDb();return new Promise((res,rej)=>{const r=d.transaction(store).objectStore(store).getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error)})}
+async function localGet(id,store=STORE){const d=await openLocalDb();return new Promise((res,rej)=>{const r=d.transaction(store).objectStore(store).get(id);r.onsuccess=()=>res(r.result||null);r.onerror=()=>rej(r.error)})}
 
 const POSICIONES=['Inicio','1/3','2/3','Último'];
 const LINEAS=['1ª línea','1/3 línea','2/3 línea','Última línea'];
@@ -51,21 +60,34 @@ let db,session,profile;
 let cuartelesCache={};
 let syncRunning=false;
 
+/* Cuarteles del campo activo.
+   Nunca se cae a "todos los cuarteles de la organización": ese respaldo mezclaba
+   los cuarteles de los otros campos cada vez que el campo activo no devolvía
+   filas -- por ejemplo Mirador Cerro y Rinconada Cerro, que hoy existen como
+   campo pero todavía no tienen cuarteles cargados. La separación por campo es
+   el punto del modelo multipredio, así que un campo sin cuarteles muestra la
+   lista vacía y su aviso, no los cuarteles de otro.
+   Sin conexión se usa la copia local de ESE campo, guardada por slug. */
 async function cuartelesDeCampo(campo){
-  const key=campo.slug;
+  const key=campo.slug||campo.id;
+  if(!key)return [];
   if(cuartelesCache[key])return cuartelesCache[key];
-  if(!db)return [];
   let list=[];
-  try{
-    if(campo.id){
-      const r=await db.from('cuarteles').select('id,codigo,cuartel').eq('activo',true).eq('campo_id',campo.id).order('codigo');
-      if(!r.error&&Array.isArray(r.data))list=r.data;
-    }
-    if(!list.length&&profile?.organizacion_id){
-      const r=await db.from('cuarteles').select('id,codigo,cuartel').eq('activo',true).eq('organizacion_id',profile.organizacion_id).order('codigo');
-      if(!r.error&&Array.isArray(r.data))list=r.data;
-    }
-  }catch{}
+  if(db&&campo.id){
+    try{
+      // unidades_aforo puede no existir todavía en la base; si falta, la consulta
+      // completa falla, así que se reintenta sin esa columna.
+      let r=await db.from('cuarteles').select('id,codigo,cuartel,unidades_aforo').eq('activo',true).eq('campo_id',campo.id).order('codigo');
+      if(r.error)r=await db.from('cuarteles').select('id,codigo,cuartel').eq('activo',true).eq('campo_id',campo.id).order('codigo');
+      if(!r.error&&Array.isArray(r.data)){
+        list=r.data;
+        try{await localPut({id:key,list},STORE_CUARTELES)}catch{}
+      }
+    }catch{}
+  }
+  if(!list.length){
+    try{const cached=await localGet(key,STORE_CUARTELES);if(cached?.list?.length)list=cached.list}catch{}
+  }
   cuartelesCache[key]=list;
   return list;
 }
@@ -97,14 +119,33 @@ function readStepInputs(host){
   });
 }
 
+/* Un cuartel puede tener extensiones con válvula y sistema propio que se aforan
+   por separado, aunque compartan presión y volumen de riego con el cuartel madre
+   (C-37 tiene la Isla; C-40 tiene las válvulas A y B). No son cuarteles aparte:
+   comparten cuartel_id y se distinguen por el sector del aforo.
+   Cuando el cuartel declara unidades en cuarteles.unidades_aforo se ofrecen como
+   lista cerrada -- escrito a mano, 'Isla' e 'isla' quedan como dos sectores
+   distintos y rompen la comparación histórica de CU sin dar ningún error.
+   Si el cuartel no declara unidades, el campo sigue siendo texto libre. */
+function campoSector(cuarteles){
+  const sel=cuarteles.find(c=>c.id===state.cuartel_id);
+  const unidades=Array.isArray(sel?.unidades_aforo)?sel.unidades_aforo:[];
+  if(!unidades.length)
+    return `<div class="yoye-field"><label>Sector</label><div class="yoye-input"><input data-f="sector" type="text" placeholder="Ej. norte" value="${esc(state.sector)}"></div></div>`;
+  return `<div class="yoye-field"><label>Sector de aforo</label><div class="yoye-input"><select data-f="sector">
+    <option value="">Cuartel completo</option>
+    ${unidades.map(u=>`<option value="${esc(u)}" ${state.sector===u?'selected':''}>${esc(u)}</option>`).join('')}
+  </select></div></div>`;
+}
+
 function pasoIdentificacion(campo,cuarteles){
   return `
     <div class="yoye-form-card">
       <div class="yoye-field"><label>Cuartel *</label><div class="yoye-input"><select data-f="cuartel_id">
         <option value="">Selecciona un cuartel de ${esc(campo.nombre)}</option>
         ${cuarteles.map(c=>`<option value="${esc(c.id)}" ${state.cuartel_id===c.id?'selected':''}>${esc(c.codigo||c.cuartel)}</option>`).join('')}
-      </select></div>${!cuarteles.length?'<p class="yoye-hint">Este campo aún no tiene cuarteles cargados en la base.</p>':''}</div>
-      <div class="yoye-field"><label>Sector</label><div class="yoye-input"><input data-f="sector" type="text" placeholder="Ej. norte" value="${esc(state.sector)}"></div></div>
+      </select></div>${!cuarteles.length?`<p class="yoye-hint">${navigator.onLine?'Este campo aún no tiene cuarteles cargados en la base.':'Sin conexión y sin copia local de este campo. Ábrelo una vez con señal para poder aforarlo después sin conexión.'}</p>`:''}</div>
+      ${campoSector(cuarteles)}
       <div class="yoye-field"><label>Equipo de riego</label><div class="yoye-input"><input data-f="equipo_riego" type="text" placeholder="Ej. equipo 3" value="${esc(state.equipo_riego)}"></div></div>
       <div class="yoye-field"><label>Caseta</label><div class="yoye-input"><input data-f="caseta" type="text" placeholder="Opcional" value="${esc(state.caseta)}"></div></div>
       <div class="yoye-field"><label>Fecha de evaluación *</label><div class="yoye-input"><input data-f="fecha_evaluacion" type="date" value="${esc(state.fecha_evaluacion)}"></div></div>
@@ -167,6 +208,13 @@ function renderCuerpo(host,campo){
   const body=$('#yoyeAforoBody',host);
   if(!body)return;
   body.innerHTML=[pasoIdentificacion(campo,cuartelesActuales),pasoPresiones(),pasoEmisores(),pasoResultado()][state.step];
+  // El sector depende del cuartel elegido, así que el paso 1 se vuelve a dibujar
+  // al cambiarlo. Se limpia el sector anterior: pertenecía al cuartel previo.
+  if(state.step===0)$('[data-f="cuartel_id"]',body)?.addEventListener('change',()=>{
+    readStepInputs(host);
+    state.sector='';
+    renderCuerpo(host,campo);
+  });
   $('#yoyeAforoProgress',host).innerHTML=progresoHtml();
   const btnBack=$('#yoyeAforoBack',host),btnNext=$('#yoyeAforoNext',host);
   btnBack.disabled=state.step===0;
