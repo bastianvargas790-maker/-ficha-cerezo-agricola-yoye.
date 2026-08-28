@@ -75,10 +75,7 @@ async function cuartelesDeCampo(campo){
   let list=[];
   if(db&&campo.id){
     try{
-      // unidades_aforo puede no existir todavía en la base; si falta, la consulta
-      // completa falla, así que se reintenta sin esa columna.
-      let r=await db.from('cuarteles').select('id,codigo,cuartel,unidades_aforo').eq('activo',true).eq('campo_id',campo.id).order('codigo');
-      if(r.error)r=await db.from('cuarteles').select('id,codigo,cuartel').eq('activo',true).eq('campo_id',campo.id).order('codigo');
+      const r=await db.from('cuarteles').select('id,codigo,cuartel,unidades_aforo').eq('activo',true).eq('campo_id',campo.id).order('codigo');
       if(!r.error&&Array.isArray(r.data)){
         list=r.data;
         try{await localPut({id:key,list},STORE_CUARTELES)}catch{}
