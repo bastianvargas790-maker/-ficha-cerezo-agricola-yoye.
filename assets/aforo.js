@@ -271,6 +271,11 @@ async function syncItem(item){
   if(r.error)throw r.error;
   r=await db.from('mediciones_aforo').upsert(item.mediciones,{onConflict:'id'});
   if(r.error)throw r.error;
+  try{
+    await db.functions.invoke('sync-aforo-rinconada',{body:{aforo_id:item.aforo.id}});
+  }catch(sheetsError){
+    console.warn('No se pudo sincronizar con Google Sheets (el aforo ya quedó guardado en Supabase)',sheetsError);
+  }
 }
 async function syncQueue(host){
   if(syncRunning||!navigator.onLine||!db||!session)return;
