@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="es" class="auth-pending">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Aforo · Agrícola Yoye</title>
+  <meta name="description" content="Registro offline de aforos de Agrícola Yoye">
+  <meta name="theme-color" content="#234b36">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="../assets/icons/favicon.svg">
+  <link rel="apple-touch-icon" href="../assets/icons/pwa-192.png">
+  <link rel="stylesheet" href="../assets/yoye-theme.css?v=20260827-1">
+  <link rel="stylesheet" href="../assets/private-app.css?v=20260820-login-fix-1">
+  <link rel="stylesheet" href="../assets/campos.css?v=20260827-1">
+  <script src="../assets/supabase.js?v=20260821-supabase-global-1"></script>
+  <script defer src="../assets/shared-auth.js?v=20260901-password-login"></script>
+  <script defer src="../assets/campos.js?v=20260828-1"></script>
+  <script defer src="../assets/aforo.js?v=20260901-sheets-sync"></script>
+  <script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./sw.js',{scope:'./'}).catch(()=>{}));</script>
+  <style>
+    .af-shell{max-width:640px;margin:0 auto;padding:18px 16px 96px;font-family:var(--font-body,system-ui,sans-serif)}
+    .af-top{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+    .af-top .back{font-size:13px;font-weight:700;color:var(--ink,#17352c);text-decoration:none}
+    .af-top img{height:30px;margin-left:auto}
+    .af-title{font-family:var(--font-heading,Georgia,serif);font-size:26px;margin:0 0 4px;color:var(--ink,#17352c)}
+    .af-sub{font-size:13.5px;color:var(--text-secondary,#645c50);margin:0 0 18px;line-height:1.5}
+    .af-card{background:var(--paper,#fffdf8);border:1px solid var(--line,#e2dbc8);border-radius:16px;padding:16px;margin-bottom:12px}
+    .af-card h2{font-family:var(--font-heading,Georgia,serif);font-size:16px;margin:0 0 8px;color:var(--ink,#17352c)}
+    .af-card p{font-size:13px;line-height:1.55;color:var(--text-secondary,#645c50);margin:0 0 8px}
+    .af-card ol{font-size:13px;line-height:1.6;color:var(--text-secondary,#645c50);margin:0;padding-left:18px}
+    .af-cta{display:block;width:100%;border:0;border-radius:999px;background:var(--ink,#17352c);color:#f5ead8;font-size:15.5px;font-weight:700;padding:15px 18px;cursor:pointer}
+    .af-cta[disabled]{opacity:.55;cursor:default}
+    .af-note{font-size:12px;color:var(--text-tertiary,#82796a);margin-top:10px;line-height:1.5}
+    .af-link{display:inline-block;margin-top:6px;font-size:13px;font-weight:700;color:var(--green,#315c3b)}
+  </style>
+</head>
+<body>
+  <main class="af-shell">
+    <header class="af-top">
+      <a href="../" class="back">← Agrícola Yoye</a>
+      <img src="../assets/yoye-logo.svg" alt="Agrícola Yoye">
+    </header>
+
+    <h1 class="af-title">Aforo</h1>
+    <p class="af-sub">Registro de aforos en terreno. Funciona sin señal: el aforo queda guardado en el teléfono y se envía solo cuando vuelve la conexión.</p>
+
+    <div class="af-card">
+      <button type="button" class="af-cta" id="btnAforo" disabled>Cargando tu campo…</button>
+      <p class="af-note" id="afEstado">Se registra en el campo que tengas seleccionado. Para cambiarlo, usa el selector de campo de la aplicación.</p>
+    </div>
+
+    <div class="af-card">
+      <h2>Qué necesitas medir</h2>
+      <ol>
+        <li>Cuartel o sector a evaluar.</li>
+        <li>Presión de entrada y de salida del sector.</li>
+        <li>Dieciséis mediciones de volumen y tiempo, repartidas en el sector.</li>
+      </ol>
+      <p class="af-note">Con eso el sistema calcula el caudal por emisor y el coeficiente de uniformidad, y guarda el registro en la base central del campo.</p>
+    </div>
+
+    <div class="af-card">
+      <h2>Panel de aforos</h2>
+      <p>Revisa los aforos ya registrados y el resumen del campo.</p>
+      <a class="af-link" href="../aforo-rinconada/">Abrir panel de aforos →</a>
+    </div>
+  </main>
+
+  <script>
+    (function(){
+      var btn=document.getElementById('btnAforo'), estado=document.getElementById('afEstado');
+      function listo(){
+        var campo=(typeof window.yoyeActiveCampo==='function')?window.yoyeActiveCampo():null;
+        if(!campo){return}
+        btn.disabled=false;
+        btn.textContent='Registrar aforo · '+campo.nombre;
+      }
+      btn.addEventListener('click',function(){
+        if(typeof window.yoyeAbrirAforo==='function')window.yoyeAbrirAforo();
+      });
+      document.addEventListener('yoye-campo-ready',listo);
+      document.addEventListener('yoye-campo-changed',listo);
+      addEventListener('load',function(){setTimeout(listo,400)});
+      function red(){estado.textContent=navigator.onLine?'Conectado: los aforos se envían de inmediato.':'Sin conexión: el aforo se guarda en el teléfono y se envía solo cuando vuelva la señal.'}
+      addEventListener('online',red); addEventListener('offline',red); red();
+    })();
+  </script>
+</body>
+</html>
