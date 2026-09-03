@@ -1,15 +1,15 @@
-const CACHE='aforo-campo-v1';
+const CACHE='aforo-campo-v20260903-entrega';
 const SHELL=[
   './',
   './index.html',
   './manifest.webmanifest',
-  '../assets/yoye-theme.css?v=20260827-1',
-  '../assets/private-app.css?v=20260820-login-fix-1',
-  '../assets/campos.css?v=20260827-1',
-  '../assets/supabase.js?v=20260821-supabase-global-1',
-  '../assets/shared-auth.js?v=20260901-password-login',
-  '../assets/campos.js?v=20260828-1',
-  '../assets/aforo.js?v=20260901-sheets-sync',
+  '../assets/yoye-theme.css?v=20260903-entrega',
+  '../assets/private-app.css?v=20260903-entrega',
+  '../assets/campos.css?v=20260903-entrega',
+  '../assets/supabase.js?v=20260903-entrega',
+  '../assets/shared-auth.js?v=20260903-entrega',
+  '../assets/campos.js?v=20260903-entrega',
+  '../assets/aforo.js?v=20260903-entrega',
   '../assets/yoye-logo.svg',
   '../assets/icons/favicon.svg',
   '../assets/icons/pwa-192.png',

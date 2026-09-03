@@ -33,11 +33,26 @@ while IFS= read -r file; do
   fi
 done < <(find . -name "*.html" -type f ! -path "./.git/*" ! -path "./node_modules/*" 2>/dev/null)
 
+# 1b. assets/*.js — los ?v= que viven dentro del JS (por ejemplo el logo que
+#     inyecta shared-auth.js) deben moverse junto con los del HTML y los sw.
+echo ""
+echo "📦 Procesando assets/*.js..."
+while IFS= read -r file; do
+  if grep -q "?v=" "$file"; then
+    sed -i "s/?v=[0-9][0-9a-zA-Z-]*/?v=$TIMESTAMP/g" "$file"
+    echo "   ✓ $file"
+    BUMPED_COUNT=$((BUMPED_COUNT+1))
+  fi
+done < <(find ./assets -name "*.js" -type f 2>/dev/null)
+
 # 2. sw.js (raíz) — CACHE name específico para shell
 echo ""
 echo "🔧 Procesando sw.js (raíz) — shell + aforos..."
 if grep -q "const CACHE='yoye-shell-v" sw.js; then
   sed -i "s/const CACHE='yoye-shell-v[0-9]*[^']*'/const CACHE='yoye-shell-v$TIMESTAMP'/g" sw.js
+  # Los ?v= del precache deben quedar iguales a los del HTML, o el navegador
+  # sigue sirviendo la copia vieja aunque el archivo del servidor haya cambiado.
+  sed -i "s/?v=[0-9][0-9a-zA-Z-]*/?v=$TIMESTAMP/g" sw.js
   echo "   ✓ sw.js — CACHE actualizado a: yoye-shell-v$TIMESTAMP"
   BUMPED_COUNT=$((BUMPED_COUNT+1))
 else
@@ -49,10 +64,23 @@ echo ""
 echo "🔧 Procesando calicatas/sw.js — SEPARADO, caché de calicatas..."
 if grep -q "const CACHE='calicatas-campo-v" calicatas/sw.js; then
   sed -i "s/const CACHE='calicatas-campo-v[0-9]*[^']*'/const CACHE='calicatas-campo-v$TIMESTAMP'/g" calicatas/sw.js
+  sed -i "s/?v=[0-9][0-9a-zA-Z-]*/?v=$TIMESTAMP/g" calicatas/sw.js
   echo "   ✓ calicatas/sw.js — CACHE actualizado a: calicatas-campo-v$TIMESTAMP"
   BUMPED_COUNT=$((BUMPED_COUNT+1))
 else
   echo "   ⚠️  calicatas/sw.js no contiene patrón 'calicatas-campo-v' esperado"
+fi
+
+# 4. aforo/sw.js — caché de la app de aforo
+echo ""
+echo "🔧 Procesando aforo/sw.js — caché de la app de aforo..."
+if [ -f "aforo/sw.js" ] && grep -q "const CACHE='aforo-campo-v" aforo/sw.js; then
+  sed -i "s/const CACHE='aforo-campo-v[0-9]*[^']*'/const CACHE='aforo-campo-v$TIMESTAMP'/g" aforo/sw.js
+  sed -i "s/?v=[0-9][0-9a-zA-Z-]*/?v=$TIMESTAMP/g" aforo/sw.js
+  echo "   ✓ aforo/sw.js — CACHE actualizado a: aforo-campo-v$TIMESTAMP"
+  BUMPED_COUNT=$((BUMPED_COUNT+1))
+else
+  echo "   ⚠️  aforo/sw.js no encontrado o sin patrón 'aforo-campo-v'"
 fi
 
 echo ""

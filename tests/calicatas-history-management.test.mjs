@@ -28,14 +28,23 @@ test('editing preserves record identity and synchronizes child changes', () => {
   assert.match(app, /Guardar cambios/);
 });
 
-test('all offline entry points request the history management release', () => {
-  const scriptVersion = 'calicatas.js?v=20260823-history-management-1';
-  const styleVersion = 'calicatas.css?v=20260823-history-management-1';
+test('all offline entry points request the same release as the service worker', () => {
+  // No fijamos la versión a mano: comprobamos que todas las entradas pidan
+  // exactamente la misma, que es lo que evita que el navegador siga sirviendo
+  // una copia vieja después de un cambio.
+  const versionOf = (source, asset) => {
+    const match = source.match(new RegExp(`${asset}\\?v=([0-9a-zA-Z-]+)`));
+    return match && match[1];
+  };
+  const scriptVersion = versionOf(pages[0], 'calicatas\\.js');
+  const styleVersion = versionOf(pages[0], 'calicatas\\.css');
+  assert.ok(scriptVersion, 'calicatas.js debe declarar una versión');
+  assert.ok(styleVersion, 'calicatas.css debe declarar una versión');
   for (const page of pages) {
-    assert.ok(page.includes(scriptVersion));
-    assert.ok(page.includes(styleVersion));
+    assert.equal(versionOf(page, 'calicatas\\.js'), scriptVersion);
+    assert.equal(versionOf(page, 'calicatas\\.css'), styleVersion);
   }
-  assert.ok(serviceWorker.includes(scriptVersion));
-  assert.ok(serviceWorker.includes(styleVersion));
-  assert.ok(serviceWorker.includes('calicatas-campo-v24-history-management'));
+  assert.equal(versionOf(serviceWorker, 'calicatas\\.js'), scriptVersion);
+  assert.equal(versionOf(serviceWorker, 'calicatas\\.css'), styleVersion);
+  assert.match(serviceWorker, /const CACHE='calicatas-campo-v[0-9a-zA-Z-]+'/);
 });

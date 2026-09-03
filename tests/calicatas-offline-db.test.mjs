@@ -15,9 +15,11 @@ test('Supabase and IndexedDB use separate connection variables', () => {
   assert.doesNotMatch(app, /if\(db\)return Promise\.resolve\(db\)/);
 });
 
-test('all Calicatas entry points and the offline shell request the fixed asset', () => {
-  const version = 'calicatas.js?v=20260823-history-management-1';
-  for (const page of pages) assert.ok(page.includes(version));
-  assert.ok(serviceWorker.includes(version));
-  assert.match(serviceWorker, /calicatas-campo-v\d+-/);
+test('all Calicatas entry points and the offline shell request the same asset', () => {
+  const versionOf = source => (source.match(/calicatas\.js\?v=([0-9a-zA-Z-]+)/) || [])[1];
+  const version = versionOf(pages[0]);
+  assert.ok(version, 'calicatas.js debe declarar una versión');
+  for (const page of pages) assert.equal(versionOf(page), version);
+  assert.equal(versionOf(serviceWorker), version);
+  assert.match(serviceWorker, /calicatas-campo-v[0-9a-zA-Z-]+/);
 });

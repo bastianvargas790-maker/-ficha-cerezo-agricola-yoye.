@@ -1,16 +1,16 @@
-const CACHE='calicatas-campo-v24-history-management';
+const CACHE='calicatas-campo-v20260903-entrega';
 const SHELL=[
   './',
   './index.html',
   './registro.html',
   './registro-v16.html',
   './manifest.webmanifest',
-  '../assets/private-app.css?v=20260820-login-fix-1',
-  '../assets/calicatas.css?v=20260823-history-management-1',
-  '../assets/supabase.js?v=20260821-supabase-global-1',
-  '../assets/shared-auth.js?v=20260821-official-logo-1',
-  '../assets/calicatas.js?v=20260823-history-management-1',
-  '../assets/yoye-logo-official.png?v=20260821-official-logo-1',
+  '../assets/private-app.css?v=20260903-entrega',
+  '../assets/calicatas.css?v=20260903-entrega',
+  '../assets/supabase.js?v=20260903-entrega',
+  '../assets/shared-auth.js?v=20260903-entrega',
+  '../assets/calicatas.js?v=20260903-entrega',
+  '../assets/yoye-logo-official.png?v=20260903-entrega',
   '../assets/icons/favicon.svg',
   '../assets/icons/pwa-192.png',
   '../assets/icons/pwa-512.png',
