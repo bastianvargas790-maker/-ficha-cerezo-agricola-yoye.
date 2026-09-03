@@ -22,7 +22,7 @@ const MODULO_LABEL={riego:'Riego',descoles:'Descoles',acido:'Ácido',aforos:'Afo
    su propia base de fichas/variedades). No depende de la base de datos. */
 const CULTIVOS_POR_CAMPO={
   'rinconada-plano':['cerezo','nogal','naranjo','duraznero','nectarino','ciruelo'],
-  'rinconada-cerro':['cerezo','nogal','ciruelo'],
+  'rinconada-cerro':['palto','naranjo','mandarina'],
   'mirador-plano':['cerezo','naranjo','duraznero','nectarino'],
   'mirador-cerro':['nogal','cerezo']
 };
@@ -302,7 +302,7 @@ function navItems(){
   const activeId=/\/cuarteles\//.test(path)?'cuarteles':
     /\/paneles\//.test(path)?'paneles':
     /\/mas\//.test(path)?'mas':
-    /\/(cerezo|ciruelo|duraznero|naranjo|nectarino|nogal)\//.test(path)&&location.hash==='#database'?'cuarteles':
+    /\/(cerezo|ciruelo|duraznero|naranjo|nectarino|nogal|palto|mandarina)\//.test(path)&&location.hash==='#database'?'cuarteles':
     isRoot()?'inicio':'';
   return [
     {id:'inicio',t:'Inicio',g:'⌂',href:root()},
