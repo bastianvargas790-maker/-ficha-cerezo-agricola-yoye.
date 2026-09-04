@@ -18,12 +18,14 @@ test('nada de la navegación manda a la ficha de cerezo', () => {
   }
 });
 
-test('el Inicio muestra todas las fichas, no solo las del campo', () => {
-  const inicio = leer('../index.html');
-  assert.match(inicio, /const visibles=crops;/);
-  for (const cultivo of ['palto/', 'mandarina/', 'cerezo/', 'nogal/']) {
-    assert.ok(inicio.includes(`url:'${cultivo}'`), `falta la ficha ${cultivo}`);
+test('el Inicio muestra las ocho fichas, no solo las del campo', () => {
+  // El Inicio dejó de filtrar por los cultivos del campo activo: las fichas son
+  // material de estudio y se ofrecen todas siempre.
+  const home = leer('../assets/home-yoye.js');
+  for (const cultivo of ['cerezo', 'ciruelo', 'nogal', 'duraznero', 'nectarino', 'naranjo', 'palto', 'mandarina']) {
+    assert.ok(home.includes(`slug:'${cultivo}'`), `falta la ficha ${cultivo}`);
   }
+  assert.ok(!home.includes('yoyeCultivosCampo'), 'el Inicio no debe filtrar las fichas por campo');
 });
 
 test('el Inicio no duplica los accesos de registro que viven en la barra inferior', () => {
@@ -37,4 +39,18 @@ test('todo el sitio usa el logo oficial', () => {
                       '../cuarteles/lista.html', '../aforo/index.html', '../mas/index.html']) {
     assert.ok(!leer(ruta).includes('yoye-logo.svg'), `${ruta} usa el logo genérico`);
   }
+});
+
+test('el Inicio usa el sistema visual de la app y no inventa datos', () => {
+  const inicio = leer('../index.html');
+  const home = leer('../assets/home-yoye.js');
+  assert.match(inicio, /yoye-app\.css\?v=/);
+  assert.match(inicio, /id="homeKpis"/);
+  assert.match(inicio, /id="homeAlerts"/);
+  assert.match(inicio, /id="homeCrops"/);
+  // Los indicadores salen de la base, filtrados por el campo activo.
+  for (const tabla of ['cuarteles', 'sectores_aforo', 'aforos', 'calicatas']) {
+    assert.ok(home.includes(`from('${tabla}')`), `el Inicio debe consultar ${tabla}`);
+  }
+  assert.ok(home.includes("eq('campo_id',campo.id)"), 'los datos del Inicio deben filtrarse por campo');
 });
