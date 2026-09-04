@@ -58,6 +58,7 @@ function calcularResultado(emisores){
 
 let db,session,profile;
 let cuartelesCache={};
+let sectoresCache={};
 let syncRunning=false;
 
 /* Cuarteles del campo activo.
@@ -89,6 +90,48 @@ async function cuartelesDeCampo(campo){
   return list;
 }
 
+/* Sectores de aforo del campo activo (public.sectores_aforo).
+   La numeración de aforo NO es la de riego: un cuartel de riego puede tener dos
+   válvulas que se aforan por separado (C-20 se afora como 18 y 20; C-40 como
+   "40 A" y "40 B"), y la planilla de cada campo valida esa columna contra su
+   propio catálogo. Por eso la lista viene de la base y no se escribe a mano.
+   Se guarda con el mismo store que los cuarteles, bajo otra llave, para que la
+   app siga preguntando el sector correcto sin señal. */
+async function sectoresDeCampo(campo){
+  const key=campo.slug||campo.id;
+  if(!key)return [];
+  if(sectoresCache[key])return sectoresCache[key];
+  const cacheKey='sectores:'+key;
+  let list=[];
+  if(db&&campo.id){
+    try{
+      const r=await db.from('sectores_aforo').select('id,cuartel_id,codigo,nombre,orden').eq('activo',true).eq('campo_id',campo.id).order('orden');
+      if(!r.error&&Array.isArray(r.data)){
+        list=r.data;
+        try{await localPut({id:cacheKey,list},STORE_CUARTELES)}catch{}
+      }
+    }catch{}
+  }
+  if(!list.length){
+    try{const cached=await localGet(cacheKey,STORE_CUARTELES);if(cached?.list?.length)list=cached.list}catch{}
+  }
+  sectoresCache[key]=list;
+  return list;
+}
+
+/* El sector que quedó elegido para este aforo: el único del cuartel cuando hay
+   uno solo, o el que marcó el evaluador cuando hay varios. */
+function sectorElegido(){
+  const sectores=sectoresDelCuartel();
+  if(sectores.length===1)return sectores[0];
+  return sectores.find(s=>s.codigo===state.sector)||null;
+}
+
+function sectoresDelCuartel(){
+  if(!state?.cuartel_id)return [];
+  return sectoresActuales.filter(s=>s.cuartel_id===state.cuartel_id);
+}
+
 function root(){return location.pathname.split('/').filter(Boolean).length>1?'../':'./'}
 
 let state=null;
@@ -116,23 +159,26 @@ function readStepInputs(host){
   });
 }
 
-/* Un cuartel puede tener extensiones con válvula y sistema propio que se aforan
-   por separado, aunque compartan presión y volumen de riego con el cuartel madre
-   (C-37 tiene la Isla; C-40 tiene las válvulas A y B). No son cuarteles aparte:
-   comparten cuartel_id y se distinguen por el sector del aforo.
-   Cuando el cuartel declara unidades en cuarteles.unidades_aforo se ofrecen como
-   lista cerrada -- escrito a mano, 'Isla' e 'isla' quedan como dos sectores
-   distintos y rompen la comparación histórica de CU sin dar ningún error.
-   Si el cuartel no declara unidades, el campo sigue siendo texto libre. */
-function campoSector(cuarteles){
-  const sel=cuarteles.find(c=>c.id===state.cuartel_id);
-  const unidades=Array.isArray(sel?.unidades_aforo)?sel.unidades_aforo:[];
-  if(!unidades.length)
+/* Un cuartel puede tener más de un sector de aforo: válvulas con sistema propio
+   que se aforan por separado aunque compartan cuartel de riego (C-20 se afora
+   como 18 y 20; C-40 como "40 A" y "40 B"). Los sectores viven en
+   public.sectores_aforo, uno por fila del catálogo DB_Cuarteles de la planilla
+   de cada campo, y se ofrecen como lista cerrada: el código elegido es el que
+   viaja a la hoja, que valida esa columna contra ese mismo catálogo. Escrito a
+   mano, "40 A" y "40A" quedan como dos sectores distintos y la planilla rechaza
+   la fila.
+   Con un solo sector no se pregunta nada: la función de sincronización lo
+   resuelve sola. Sin sectores cargados (o sin señal y sin copia local) el campo
+   vuelve a ser texto libre para no bloquear el registro en terreno. */
+function campoSector(){
+  const sectores=sectoresDelCuartel();
+  if(!state.cuartel_id||sectores.length===1)return '';
+  if(!sectores.length)
     return `<div class="yoye-field"><label>Sector</label><div class="yoye-input"><input data-f="sector" type="text" placeholder="Ej. norte" value="${esc(state.sector)}"></div></div>`;
-  return `<div class="yoye-field"><label>Sector de aforo</label><div class="yoye-input"><select data-f="sector">
-    <option value="">Cuartel completo</option>
-    ${unidades.map(u=>`<option value="${esc(u)}" ${state.sector===u?'selected':''}>${esc(u)}</option>`).join('')}
-  </select></div></div>`;
+  return `<div class="yoye-field"><label>Sector de aforo *</label><div class="yoye-input"><select data-f="sector">
+    <option value="">¿Cuál sector se aforó?</option>
+    ${sectores.map(s=>`<option value="${esc(s.codigo)}" ${state.sector===s.codigo?'selected':''}>${esc(s.nombre||s.codigo)}</option>`).join('')}
+  </select></div><p class="yoye-hint">Este cuartel tiene ${sectores.length} sectores de aforo con válvula propia.</p></div>`;
 }
 
 function pasoIdentificacion(campo,cuarteles){
@@ -142,7 +188,7 @@ function pasoIdentificacion(campo,cuarteles){
         <option value="">Selecciona un cuartel de ${esc(campo.nombre)}</option>
         ${cuarteles.map(c=>`<option value="${esc(c.id)}" ${state.cuartel_id===c.id?'selected':''}>${esc(c.codigo||c.cuartel)}</option>`).join('')}
       </select></div>${!cuarteles.length?`<p class="yoye-hint">${navigator.onLine?'Este campo aún no tiene cuarteles cargados en la base.':'Sin conexión y sin copia local de este campo. Ábrelo una vez con señal para poder aforarlo después sin conexión.'}</p>`:''}</div>
-      ${campoSector(cuarteles)}
+      ${campoSector()}
       <div class="yoye-field"><label>Equipo de riego</label><div class="yoye-input"><input data-f="equipo_riego" type="text" placeholder="Ej. equipo 3" value="${esc(state.equipo_riego)}"></div></div>
       <div class="yoye-field"><label>Caseta</label><div class="yoye-input"><input data-f="caseta" type="text" placeholder="Opcional" value="${esc(state.caseta)}"></div></div>
       <div class="yoye-field"><label>Fecha de evaluación *</label><div class="yoye-input"><input data-f="fecha_evaluacion" type="date" value="${esc(state.fecha_evaluacion)}"></div></div>
@@ -200,15 +246,16 @@ function progresoHtml(){
   <div class="yoye-wizard-status"><span>Paso ${state.step+1} de 4 · <b>${PASOS[state.step]}</b></span></div>`;
 }
 
-let cuartelesActuales=[];
+let cuartelesActuales=[],sectoresActuales=[];
 function renderCuerpo(host,campo){
   const body=$('#yoyeAforoBody',host);
   if(!body)return;
   body.innerHTML=[pasoIdentificacion(campo,cuartelesActuales),pasoPresiones(),pasoEmisores(),pasoResultado()][state.step];
   // El sector depende del cuartel elegido, así que el paso 1 se vuelve a dibujar
   // al cambiarlo. Se limpia el sector anterior: pertenecía al cuartel previo.
-  if(state.step===0)$('[data-f="cuartel_id"]',body)?.addEventListener('change',()=>{
+  if(state.step===0)$('[data-f="cuartel_id"]',body)?.addEventListener('change',e=>{
     readStepInputs(host);
+    state.cuartel_id=e.target.value;
     state.sector='';
     renderCuerpo(host,campo);
   });
@@ -221,6 +268,7 @@ function renderCuerpo(host,campo){
 function validarPaso(){
   if(state.step===0){
     if(!state.cuartel_id)return 'Selecciona un cuartel.';
+    if(sectoresDelCuartel().length>1&&!state.sector)return 'Este cuartel tiene más de un sector de aforo: indica cuál se aforó.';
     if(!state.fecha_evaluacion)return 'Indica la fecha de evaluación.';
     if(!isNum(state.temporada))return 'Indica la temporada.';
   }
@@ -242,7 +290,9 @@ async function guardarAforo(host){
   const org=profile?.organizacion_id;
   const aforo={
     id,organizacion_id:org,cuartel_id:state.cuartel_id,
-    sector:state.sector||null,equipo_riego:state.equipo_riego||null,caseta:state.caseta||null,
+    sector:sectorElegido()?.codigo||state.sector||null,
+    sector_aforo_id:sectorElegido()?.id||null,
+    equipo_riego:state.equipo_riego||null,caseta:state.caseta||null,
     temporada:Number(state.temporada),fecha_evaluacion:state.fecha_evaluacion,
     evaluador_id:session.user.id,evaluador_nombre:state.evaluador_nombre||session.user.email,
     cantidad_valvulas:Number(state.cantidad_valvulas||0),tipo_linea:state.tipo_linea||null,
@@ -347,7 +397,7 @@ async function abrir(){
       btn.disabled=false;
     }
   };
-  cuartelesActuales=await cuartelesDeCampo(campo);
+  [cuartelesActuales,sectoresActuales]=await Promise.all([cuartelesDeCampo(campo),sectoresDeCampo(campo)]);
   renderCuerpo(modal,campo);
 }
 
@@ -361,7 +411,7 @@ addEventListener('yoye-auth-ready',async e=>{
   db=e.detail.client;session=e.detail.session;
   if(!session)return;
   try{const {data}=await db.from('perfiles').select('*').eq('id',session.user.id).maybeSingle();profile=data||null}catch{}
-  cuartelesCache={};
+  cuartelesCache={};sectoresCache={};
   syncQueue(null);
 });
 document.addEventListener('yoye-campo-changed',()=>{cuartelesCache={}});
