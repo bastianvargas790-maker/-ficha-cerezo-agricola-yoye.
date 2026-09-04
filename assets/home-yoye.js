@@ -106,24 +106,37 @@ function fechaCorta(f){
 }
 
 /* ---------- Estado de la información ---------- */
+/* Se muestran como mucho dos avisos, los más accionables primero. La lista
+   completa de lo que falta cargar está en la pantalla de Cuarteles; el Inicio
+   no es un inventario de pendientes, es lo que hay que mirar hoy. */
 function pintarAlertas(campo){
   const host=$('#homeAlerts'); if(!host)return;
   const {cuarteles,sectores,aforos,calicatas}=datos;
-  const alertas=[];
-  const sinSuperficie=cuarteles.filter(c=>!esNum(c.superficie_ha)).length;
-  if(sinSuperficie)alertas.push({tono:'warning',t:`${pl(sinSuperficie,'cuartel','cuarteles')} sin superficie registrada`,
-    d:'Sin superficie no se puede calcular lámina de riego ni reposición. Cárgala en la ficha del cuartel.',href:'cuarteles/lista.html'});
-  const sinCultivo=cuarteles.filter(c=>!c.cultivo||String(c.cultivo).toLowerCase()==='por definir').length;
-  if(sinCultivo)alertas.push({tono:'warning',t:`${pl(sinCultivo,'cuartel','cuarteles')} sin cultivo definido`,
-    d:'El cultivo decide qué ficha técnica se ofrece y qué se copia a la planilla.',href:'cuarteles/lista.html'});
-  const evaluados=new Set(aforos.map(a=>a.sector_aforo_id||a.cuartel_id).filter(Boolean));
-  const faltanAforo=(sectores.length||cuarteles.length)-evaluados.size;
-  if(faltanAforo>0)alertas.push({tono:'info',t:`${pl(faltanAforo,'sector','sectores')} sin aforo registrado`,
-    d:'Se registran desde la app de Aforo y aparecen en el panel al instante.',href:'paneles/#panel-aforos'});
-  const sinCalicata=cuarteles.length-new Set(calicatas.map(c=>c.cuartel_id)).size;
-  if(sinCalicata>0)alertas.push({tono:'info',t:`${pl(sinCalicata,'cuartel','cuarteles')} sin calicata`,
-    d:'La calicata es lo que muestra cómo se está mojando el suelo bajo el gotero.',href:'paneles/#panel-calicatas'});
+  const posibles=[];
 
+  const sinCultivo=cuarteles.filter(c=>!c.cultivo||String(c.cultivo).toLowerCase()==='por definir').length;
+  if(sinCultivo)posibles.push({p:1,tono:'warning',t:`${pl(sinCultivo,'cuartel','cuarteles')} sin cultivo definido`,
+    d:'El cultivo decide qué ficha se ofrece y qué se copia a la planilla.',href:'cuarteles/lista.html'});
+
+  const sinSuperficie=cuarteles.filter(c=>!esNum(c.superficie_ha)).length;
+  if(sinSuperficie)posibles.push({p:2,tono:'warning',t:'Falta la superficie de los cuarteles',
+    d:`${pl(sinSuperficie,'cuartel','cuarteles')} sin superficie. Sin ese dato no se puede calcular lámina ni reposición de riego.`,
+    href:'cuarteles/lista.html'});
+
+  // El avance se cuenta como avance, no como falta: en plena temporada de aforo
+  // "38 sectores sin aforo" asusta y no dice nada que el porcentaje no diga.
+  const totalSectores=sectores.length||cuarteles.length;
+  const evaluados=new Set(aforos.map(a=>a.sector_aforo_id||a.cuartel_id).filter(Boolean)).size;
+  if(totalSectores&&evaluados<totalSectores)posibles.push({p:3,tono:'info',
+    t:`Aforo de la temporada: ${n0(evaluados)} de ${n0(totalSectores)} sectores`,
+    d:'Cada aforo que se registre aparece en el panel al instante.',href:'paneles/#panel-aforos'});
+
+  const conCalicata=new Set(calicatas.map(c=>c.cuartel_id)).size;
+  if(cuarteles.length&&conCalicata<cuarteles.length)posibles.push({p:4,tono:'info',
+    t:`Calicatas: ${n0(conCalicata)} de ${n0(cuarteles.length)} cuarteles evaluados`,
+    d:'La calicata muestra cómo se está mojando el suelo bajo el gotero.',href:'paneles/#panel-calicatas'});
+
+  const alertas=posibles.sort((a,b)=>a.p-b.p).slice(0,2);
   host.innerHTML=alertas.length?alertas.map(a=>`
     <a class="alert alert-${a.tono}" href="${esc(a.href)}">
       <span class="alert-dot" aria-hidden="true"></span>
