@@ -1,16 +1,16 @@
-const CACHE='calicatas-campo-v20260904-cultivos';
+const CACHE='calicatas-campo-v20260904-nogales';
 const SHELL=[
   './',
   './index.html',
   './registro.html',
   './registro-v16.html',
   './manifest.webmanifest',
-  '../assets/private-app.css?v=20260904-cultivos',
-  '../assets/calicatas.css?v=20260904-cultivos',
-  '../assets/supabase.js?v=20260904-cultivos',
-  '../assets/shared-auth.js?v=20260904-cultivos',
-  '../assets/calicatas.js?v=20260904-cultivos',
-  '../assets/yoye-logo-official.png?v=20260904-cultivos',
+  '../assets/private-app.css?v=20260904-nogales',
+  '../assets/calicatas.css?v=20260904-nogales',
+  '../assets/supabase.js?v=20260904-nogales',
+  '../assets/shared-auth.js?v=20260904-nogales',
+  '../assets/calicatas.js?v=20260904-nogales',
+  '../assets/yoye-logo-official.png?v=20260904-nogales',
   '../assets/icons/favicon.svg',
   '../assets/icons/pwa-192.png',
   '../assets/icons/pwa-512.png',

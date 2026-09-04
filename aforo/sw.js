@@ -1,15 +1,15 @@
-const CACHE='aforo-campo-v20260904-cultivos';
+const CACHE='aforo-campo-v20260904-nogales';
 const SHELL=[
   './',
   './index.html',
   './manifest.webmanifest',
-  '../assets/yoye-theme.css?v=20260904-cultivos',
-  '../assets/private-app.css?v=20260904-cultivos',
-  '../assets/campos.css?v=20260904-cultivos',
-  '../assets/supabase.js?v=20260904-cultivos',
-  '../assets/shared-auth.js?v=20260904-cultivos',
-  '../assets/campos.js?v=20260904-cultivos',
-  '../assets/aforo.js?v=20260904-cultivos',
+  '../assets/yoye-theme.css?v=20260904-nogales',
+  '../assets/private-app.css?v=20260904-nogales',
+  '../assets/campos.css?v=20260904-nogales',
+  '../assets/supabase.js?v=20260904-nogales',
+  '../assets/shared-auth.js?v=20260904-nogales',
+  '../assets/campos.js?v=20260904-nogales',
+  '../assets/aforo.js?v=20260904-nogales',
   '../assets/yoye-logo.svg',
   '../assets/icons/favicon.svg',
   '../assets/icons/pwa-192.png',
