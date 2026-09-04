@@ -1,16 +1,16 @@
-const CACHE='calicatas-campo-v20260904-sectores';
+const CACHE='calicatas-campo-v20260904-cultivos';
 const SHELL=[
   './',
   './index.html',
   './registro.html',
   './registro-v16.html',
   './manifest.webmanifest',
-  '../assets/private-app.css?v=20260904-sectores',
-  '../assets/calicatas.css?v=20260904-sectores',
-  '../assets/supabase.js?v=20260904-sectores',
-  '../assets/shared-auth.js?v=20260904-sectores',
-  '../assets/calicatas.js?v=20260904-sectores',
-  '../assets/yoye-logo-official.png?v=20260904-sectores',
+  '../assets/private-app.css?v=20260904-cultivos',
+  '../assets/calicatas.css?v=20260904-cultivos',
+  '../assets/supabase.js?v=20260904-cultivos',
+  '../assets/shared-auth.js?v=20260904-cultivos',
+  '../assets/calicatas.js?v=20260904-cultivos',
+  '../assets/yoye-logo-official.png?v=20260904-cultivos',
   '../assets/icons/favicon.svg',
   '../assets/icons/pwa-192.png',
   '../assets/icons/pwa-512.png',

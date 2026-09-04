@@ -12,10 +12,10 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const STORAGE_KEY='yoye_campo_activo';
 
 const CAMPOS_FALLBACK=[
- {slug:'rinconada-plano',nombre:'Rinconada Plano',superficie_ha:78.44,cuarteles_referencia:34,cultivos_referencia:6,alcance:['riego','descoles','acido','aforos','calicatas'],encargado_nombre:'Rodrigo Abarca',encargado_iniciales:'RA',encargado_cargo:'Jefe de campo',foto_url:'assets/campos/rinconada-plano.png',orden:1},
- {slug:'rinconada-cerro',nombre:'Rinconada Cerro',superficie_ha:41.20,cuarteles_referencia:18,cultivos_referencia:3,alcance:['aforos','calicatas'],encargado_nombre:'Pedro Velásquez',encargado_iniciales:'PV',encargado_cargo:'Jefe de campo',foto_url:'assets/campos/rinconada-cerro.png',orden:2},
+ {slug:'rinconada-plano',nombre:'Rinconada Plano',superficie_ha:78.44,cuarteles_referencia:36,cultivos_referencia:7,alcance:['riego','descoles','acido','aforos','calicatas'],encargado_nombre:'Rodrigo Abarca',encargado_iniciales:'RA',encargado_cargo:'Jefe de campo',foto_url:'assets/campos/rinconada-plano.png',orden:1},
+ {slug:'rinconada-cerro',nombre:'Rinconada Cerro',superficie_ha:41.20,cuarteles_referencia:55,cultivos_referencia:3,alcance:['aforos','calicatas'],encargado_nombre:'Pedro Velásquez',encargado_iniciales:'PV',encargado_cargo:'Jefe de campo',foto_url:'assets/campos/rinconada-cerro.png',orden:2},
  {slug:'mirador-plano',nombre:'Mirador Plano',superficie_ha:56.90,cuarteles_referencia:19,cultivos_referencia:4,alcance:['aforos','calicatas'],encargado_nombre:'Joaquín Quiroga',encargado_iniciales:'JQ',encargado_cargo:'Jefe de campo',foto_url:'assets/campos/mirador-plano.png',orden:3},
- {slug:'mirador-cerro',nombre:'Mirador Cerro',superficie_ha:33.50,cuarteles_referencia:14,cultivos_referencia:2,alcance:['aforos','calicatas'],encargado_nombre:'Eladio León',encargado_iniciales:'EL',encargado_cargo:'Jefe de campo',foto_url:'assets/campos/mirador-cerro.png',orden:4}
+ {slug:'mirador-cerro',nombre:'Mirador Cerro',superficie_ha:33.50,cuarteles_referencia:28,cultivos_referencia:3,alcance:['aforos','calicatas'],encargado_nombre:'Eladio León',encargado_iniciales:'EL',encargado_cargo:'Jefe de campo',foto_url:'assets/campos/mirador-cerro.png',orden:4}
 ];
 const MODULO_LABEL={riego:'Riego',descoles:'Descoles',acido:'Ácido',aforos:'Aforos',calicatas:'Calicatas'};
 /* Catálogo de cultivos por campo (referencia de contenido, cada campo mantiene
@@ -23,8 +23,8 @@ const MODULO_LABEL={riego:'Riego',descoles:'Descoles',acido:'Ácido',aforos:'Afo
 const CULTIVOS_POR_CAMPO={
   'rinconada-plano':['cerezo','nogal','naranjo','duraznero','nectarino','ciruelo'],
   'rinconada-cerro':['palto','naranjo','mandarina'],
-  'mirador-plano':['cerezo','naranjo','duraznero','nectarino'],
-  'mirador-cerro':['nogal','cerezo']
+  'mirador-plano':['ciruelo','cerezo','nogal','nectarino'],
+  'mirador-cerro':['palto','naranjo','mandarina']
 };
 window.yoyeCultivosCampo=slug=>CULTIVOS_POR_CAMPO[slug]||CULTIVOS_POR_CAMPO['rinconada-plano'];
 

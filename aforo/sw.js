@@ -1,15 +1,15 @@
-const CACHE='aforo-campo-v20260904-sectores';
+const CACHE='aforo-campo-v20260904-cultivos';
 const SHELL=[
   './',
   './index.html',
   './manifest.webmanifest',
-  '../assets/yoye-theme.css?v=20260904-sectores',
-  '../assets/private-app.css?v=20260904-sectores',
-  '../assets/campos.css?v=20260904-sectores',
-  '../assets/supabase.js?v=20260904-sectores',
-  '../assets/shared-auth.js?v=20260904-sectores',
-  '../assets/campos.js?v=20260904-sectores',
-  '../assets/aforo.js?v=20260904-sectores',
+  '../assets/yoye-theme.css?v=20260904-cultivos',
+  '../assets/private-app.css?v=20260904-cultivos',
+  '../assets/campos.css?v=20260904-cultivos',
+  '../assets/supabase.js?v=20260904-cultivos',
+  '../assets/shared-auth.js?v=20260904-cultivos',
+  '../assets/campos.js?v=20260904-cultivos',
+  '../assets/aforo.js?v=20260904-cultivos',
   '../assets/yoye-logo.svg',
   '../assets/icons/favicon.svg',
   '../assets/icons/pwa-192.png',
