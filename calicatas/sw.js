@@ -1,20 +1,20 @@
-const CACHE='calicatas-campo-v20260904-avisos';
+const CACHE='calicatas-campo-v20260904-iconos';
 const SHELL=[
   './',
   './index.html',
   './registro.html',
   './registro-v16.html',
   './manifest.webmanifest',
-  '../assets/private-app.css?v=20260904-avisos',
-  '../assets/calicatas.css?v=20260904-avisos',
-  '../assets/supabase.js?v=20260904-avisos',
-  '../assets/shared-auth.js?v=20260904-avisos',
-  '../assets/calicatas.js?v=20260904-avisos',
-  '../assets/yoye-logo-official.png?v=20260904-avisos',
+  '../assets/private-app.css?v=20260904-iconos',
+  '../assets/calicatas.css?v=20260904-iconos',
+  '../assets/supabase.js?v=20260904-iconos',
+  '../assets/shared-auth.js?v=20260904-iconos',
+  '../assets/calicatas.js?v=20260904-iconos',
+  '../assets/yoye-logo-official.png?v=20260904-iconos',
   '../assets/icons/favicon.svg',
-  '../assets/icons/pwa-192.png',
-  '../assets/icons/pwa-512.png',
-  '../assets/icons/maskable-512.png'
+  '../assets/icons/calicatas-192.png',
+  '../assets/icons/calicatas-512.png',
+  '../assets/icons/calicatas-maskable-512.png'
 ];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('calicatas-campo-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));

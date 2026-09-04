@@ -151,7 +151,7 @@ function elegirCampo(slug,fueBienvenida){
 
 /* ---------- Header: selector + conexión ---------- */
 function headerHost(){
-  return $('.top')||$('.app-topbar')||$('.qd-top')||$('.cal-top')||null;
+  return $('.top')||$('.app-topbar')||$('.qd-top')||$('.cal-top')||$('.app-top')||$('.cl-top')||null;
 }
 function renderHeaderSelector(){
   const host=headerHost();

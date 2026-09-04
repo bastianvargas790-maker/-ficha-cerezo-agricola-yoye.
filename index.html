@@ -11,22 +11,22 @@
 <link rel="icon" href="assets/icons/favicon.svg">
 <link rel="apple-touch-icon" href="assets/icons/pwa-192.png">
 <link rel="preload" as="image" href="assets/img/portada/cerezo.webp">
-<link rel="stylesheet" href="assets/yoye-theme.css?v=20260904-avisos">
-<link rel="stylesheet" href="assets/yoye-app.css?v=20260904-avisos">
-<link rel="stylesheet" href="assets/private-app.css?v=20260904-avisos">
-<link rel="stylesheet" href="assets/campos.css?v=20260904-avisos">
+<link rel="stylesheet" href="assets/yoye-theme.css?v=20260904-iconos">
+<link rel="stylesheet" href="assets/yoye-app.css?v=20260904-iconos">
+<link rel="stylesheet" href="assets/private-app.css?v=20260904-iconos">
+<link rel="stylesheet" href="assets/campos.css?v=20260904-iconos">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.min.js"></script>
-<script defer src="assets/shared-auth.js?v=20260904-avisos"></script>
-<script defer src="assets/campos.js?v=20260904-avisos"></script>
-<script defer src="assets/aforo.js?v=20260904-avisos"></script>
-<script defer src="assets/home-yoye.js?v=20260904-avisos"></script>
+<script defer src="assets/shared-auth.js?v=20260904-iconos"></script>
+<script defer src="assets/campos.js?v=20260904-iconos"></script>
+<script defer src="assets/aforo.js?v=20260904-iconos"></script>
+<script defer src="assets/home-yoye.js?v=20260904-iconos"></script>
 <style>
   /* Ajustes propios del Inicio sobre el sistema visual de la app. */
   body{margin:0}
   .app-shell{max-width:1180px;margin:0 auto;padding:0 max(14px,env(safe-area-inset-left)) 110px max(14px,env(safe-area-inset-right))}
-  .app-top{display:flex;align-items:center;gap:12px;padding:12px 0 2px}
+  .app-top{display:flex;align-items:center;gap:10px;padding:12px 0 2px}
   .app-top img{height:36px;width:auto}
-  .app-top .campo-actual{margin-left:auto;font-size:.78rem;font-weight:800;color:var(--muted)}
+  .app-top .yoye-campo-pill{margin-left:auto}
   .alert{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;
     padding:14px 15px;background:var(--paper);border:1px solid var(--line);border-radius:var(--r-md);
     box-shadow:var(--shadow-sm);text-decoration:none;color:inherit}
@@ -50,7 +50,6 @@
 
   <header class="app-top">
     <img src="assets/yoye-logo.png" alt="Agrícola Yoye">
-    <span class="campo-actual" id="homeCampo"></span>
   </header>
 
   <div class="hero">

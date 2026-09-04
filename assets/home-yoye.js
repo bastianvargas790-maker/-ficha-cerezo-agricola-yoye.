@@ -174,8 +174,6 @@ let cargando=false;
 async function refrescar(){
   const campo=typeof window.yoyeActiveCampo==='function'?window.yoyeActiveCampo():null;
   pintarCabecera();
-  const titulo=$('#homeCampo');
-  if(titulo)titulo.textContent=campo?.nombre||'';
   if(!db||!campo?.id){
     estadoSync('Elige un campo para ver sus datos',false);
     pintarCultivos();
