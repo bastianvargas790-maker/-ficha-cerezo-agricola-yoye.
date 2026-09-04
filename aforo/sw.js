@@ -1,15 +1,15 @@
-const CACHE='aforo-campo-v20260904-nogales';
+const CACHE='aforo-campo-v20260904-cuarteles';
 const SHELL=[
   './',
   './index.html',
   './manifest.webmanifest',
-  '../assets/yoye-theme.css?v=20260904-nogales',
-  '../assets/private-app.css?v=20260904-nogales',
-  '../assets/campos.css?v=20260904-nogales',
-  '../assets/supabase.js?v=20260904-nogales',
-  '../assets/shared-auth.js?v=20260904-nogales',
-  '../assets/campos.js?v=20260904-nogales',
-  '../assets/aforo.js?v=20260904-nogales',
+  '../assets/yoye-theme.css?v=20260904-cuarteles',
+  '../assets/private-app.css?v=20260904-cuarteles',
+  '../assets/campos.css?v=20260904-cuarteles',
+  '../assets/supabase.js?v=20260904-cuarteles',
+  '../assets/shared-auth.js?v=20260904-cuarteles',
+  '../assets/campos.js?v=20260904-cuarteles',
+  '../assets/aforo.js?v=20260904-cuarteles',
   '../assets/yoye-logo.svg',
   '../assets/icons/favicon.svg',
   '../assets/icons/pwa-192.png',
