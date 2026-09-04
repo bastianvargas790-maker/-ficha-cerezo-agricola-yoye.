@@ -1,16 +1,16 @@
-const CACHE='calicatas-campo-v20260904-sinfotos';
+const CACHE='calicatas-campo-v20260904-navegacion';
 const SHELL=[
   './',
   './index.html',
   './registro.html',
   './registro-v16.html',
   './manifest.webmanifest',
-  '../assets/private-app.css?v=20260904-sinfotos',
-  '../assets/calicatas.css?v=20260904-sinfotos',
-  '../assets/supabase.js?v=20260904-sinfotos',
-  '../assets/shared-auth.js?v=20260904-sinfotos',
-  '../assets/calicatas.js?v=20260904-sinfotos',
-  '../assets/yoye-logo-official.png?v=20260904-sinfotos',
+  '../assets/private-app.css?v=20260904-navegacion',
+  '../assets/calicatas.css?v=20260904-navegacion',
+  '../assets/supabase.js?v=20260904-navegacion',
+  '../assets/shared-auth.js?v=20260904-navegacion',
+  '../assets/calicatas.js?v=20260904-navegacion',
+  '../assets/yoye-logo-official.png?v=20260904-navegacion',
   '../assets/icons/favicon.svg',
   '../assets/icons/pwa-192.png',
   '../assets/icons/pwa-512.png',

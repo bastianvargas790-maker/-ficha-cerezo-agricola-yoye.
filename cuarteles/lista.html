@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="es" class="auth-pending">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Cuarteles · Agrícola Yoye</title>
+  <meta name="theme-color" content="#234b36">
+  <link rel="manifest" href="../manifest.webmanifest">
+  <link rel="icon" href="../assets/icons/favicon.svg">
+  <link rel="apple-touch-icon" href="../assets/icons/pwa-192.png">
+  <link rel="stylesheet" href="../assets/yoye-theme.css?v=20260904-navegacion">
+  <link rel="stylesheet" href="../assets/private-app.css?v=20260904-navegacion">
+  <link rel="stylesheet" href="../assets/campos.css?v=20260904-navegacion">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.min.js"></script>
+  <script defer src="../assets/shared-auth.js?v=20260904-navegacion"></script>
+  <script defer src="../assets/campos.js?v=20260904-navegacion"></script>
+  <script defer src="../assets/aforo.js?v=20260904-navegacion"></script>
+  <script defer src="../assets/cuarteles-lista.js?v=20260904-navegacion"></script>
+  <style>
+    body{margin:0;background:var(--bg,#f7f4eb);color:var(--text,#26302b);
+         font-family:var(--font-body,"Segoe UI",Inter,system-ui,sans-serif)}
+    .cl-shell{max-width:720px;margin:0 auto;padding:16px 16px 96px}
+    .cl-top{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+    .cl-top .back{font-size:13px;font-weight:700;color:var(--ink,#17352c);text-decoration:none}
+    .cl-top img{height:30px;margin-left:auto}
+    .cl-hero h1{font:800 clamp(1.9rem,6vw,2.5rem) var(--font-heading,Georgia,serif);margin:.1em 0;color:var(--ink,#17352c)}
+    .cl-hero p{margin:0 0 14px;color:var(--text-secondary,#645c50);font-size:.95rem;line-height:1.5}
+    .cl-eyebrow{color:#7d5838;font-weight:850;letter-spacing:.1em;text-transform:uppercase;font-size:.72rem}
+    .cl-tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+    .cl-tools input,.cl-tools select{flex:1 1 150px;min-width:0;padding:10px 12px;border:1px solid var(--line,#e2dbc8);
+      border-radius:10px;background:var(--paper,#fffdf8);font:inherit;font-size:.92rem;color:inherit}
+    .cl-count{font-size:.82rem;color:var(--text-secondary,#645c50);margin:0 0 10px}
+    .cl-list{display:flex;flex-direction:column;gap:10px;list-style:none;margin:0;padding:0}
+    .cl-item{background:var(--paper,#fffdf8);border:1px solid var(--line,#e2dbc8);border-radius:14px;padding:12px 14px}
+    .cl-item h2{font:800 1.05rem var(--font-heading,Georgia,serif);margin:0 0 2px;color:var(--ink,#17352c)}
+    .cl-meta{font-size:.85rem;color:var(--text-secondary,#645c50);margin:0 0 10px}
+    .cl-tags{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+    .cl-tag{font-size:.72rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;
+      background:var(--surface-alt,#efe9dc);color:var(--ink,#17352c);border-radius:999px;padding:3px 9px}
+    .cl-links{display:flex;gap:8px;flex-wrap:wrap}
+    .cl-links a{font-size:.85rem;font-weight:700;text-decoration:none;padding:8px 12px;border-radius:10px;
+      border:1px solid var(--line,#e2dbc8);color:var(--ink,#17352c);background:var(--bg,#f7f4eb)}
+    .cl-links a.primary{background:var(--ink,#17352c);color:#fff;border-color:var(--ink,#17352c)}
+    .cl-state{padding:22px 16px;text-align:center;color:var(--text-secondary,#645c50);font-size:.92rem}
+  </style>
+</head>
+<body>
+  <main class="cl-shell">
+    <header class="cl-top">
+      <a class="back" href="../">← Inicio</a>
+      <img src="../assets/yoye-logo.png" alt="Agrícola Yoye">
+    </header>
+
+    <section class="cl-hero">
+      <div class="cl-eyebrow">Base del campo</div>
+      <h1>Cuarteles</h1>
+      <p id="clSub">Cargando los cuarteles del campo activo…</p>
+    </section>
+
+    <div class="cl-tools">
+      <input id="clBuscar" type="search" placeholder="Buscar por código, cultivo o variedad" aria-label="Buscar cuartel">
+      <select id="clCultivo" aria-label="Filtrar por cultivo"><option value="">Todos los cultivos</option></select>
+    </div>
+
+    <p class="cl-count" id="clCount"></p>
+    <ul class="cl-list" id="clLista"></ul>
+    <div class="cl-state" id="clEstado">Cargando…</div>
+  </main>
+</body>
+</html>

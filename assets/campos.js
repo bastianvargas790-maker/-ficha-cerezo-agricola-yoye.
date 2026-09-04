@@ -236,7 +236,7 @@ function hojaCamposHtml(){
 }
 function registrosDisponibles(campo){
   const items=[];
-  if(tieneModulo(campo,'riego'))items.push({id:'riego',g:'💧',t:'Riego',d:'ETo, Kc, horas y caudal real',href:root()+'cerezo/#riego'});
+  if(tieneModulo(campo,'riego'))items.push({id:'riego',g:'💧',t:'Riego',d:'Elige el cuartel y registra el riego',href:root()+'cuarteles/lista.html'});
   items.push({id:'calicata',g:'🪨',t:'Calicata',d:'Perfiles H %, CE y T °C',href:root()+'calicatas/registro-v16.html'});
   items.push({id:'aforo',g:'⌁',t:'Aforo',d:'Presiones y 16 emisores',href:null});
   return items;
@@ -271,7 +271,7 @@ function bindHojaEvents(host){
 function esPaneles(){return /\/paneles\//.test(location.pathname)}
 function panelesData(){
   return [
-    {mod:'riego',icon:'💧',k:'Temporada',t:'Dashboard general',d:'Riego, ETc y estado del campo',href:root()+'cerezo/#database'},
+    {mod:'riego',icon:'💧',k:'Temporada',t:'Dashboard general',d:'Riego, ETc y estado del campo',href:root()+'cuarteles/lista.html'},
     {mod:'acido',icon:'☢️',k:'Aplicaciones',t:'Ácido peracético',d:'Aplicado, pendiente y consumo',href:root()+'control-acido/#acido'},
     {mod:'descoles',icon:'🚰',k:'Mantención',t:'Descoles',d:'Avance y estado por sector',href:root()+'control-acido/#descole'},
     {mod:'aforos',icon:'⌁',k:'Uniformidad',t:'Aforos',d:'CU, presión y sectores críticos',href:root()+'aforo-rinconada/'},
@@ -306,7 +306,7 @@ function navItems(){
     isRoot()?'inicio':'';
   return [
     {id:'inicio',t:'Inicio',g:'⌂',href:root()},
-    {id:'cuarteles',t:'Cuarteles',g:'▦',href:root()+'cerezo/#database'},
+    {id:'cuarteles',t:'Cuarteles',g:'▦',href:root()+'cuarteles/lista.html'},
     {id:'registrar',t:'Registrar',g:'＋',href:null},
     {id:'paneles',t:'Paneles',g:'⌁',href:root()+'paneles/'},
     {id:'mas',t:'Más',g:'•••',href:root()+'mas/'}
