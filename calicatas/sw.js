@@ -1,16 +1,16 @@
-const CACHE='calicatas-campo-v20260904-cuarteles';
+const CACHE='calicatas-campo-v20260904-sinfotos';
 const SHELL=[
   './',
   './index.html',
   './registro.html',
   './registro-v16.html',
   './manifest.webmanifest',
-  '../assets/private-app.css?v=20260904-cuarteles',
-  '../assets/calicatas.css?v=20260904-cuarteles',
-  '../assets/supabase.js?v=20260904-cuarteles',
-  '../assets/shared-auth.js?v=20260904-cuarteles',
-  '../assets/calicatas.js?v=20260904-cuarteles',
-  '../assets/yoye-logo-official.png?v=20260904-cuarteles',
+  '../assets/private-app.css?v=20260904-sinfotos',
+  '../assets/calicatas.css?v=20260904-sinfotos',
+  '../assets/supabase.js?v=20260904-sinfotos',
+  '../assets/shared-auth.js?v=20260904-sinfotos',
+  '../assets/calicatas.js?v=20260904-sinfotos',
+  '../assets/yoye-logo-official.png?v=20260904-sinfotos',
   '../assets/icons/favicon.svg',
   '../assets/icons/pwa-192.png',
   '../assets/icons/pwa-512.png',
