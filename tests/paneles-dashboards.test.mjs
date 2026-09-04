@@ -32,3 +32,23 @@ test('los gráficos no dependen de una librería externa', () => {
   assert.ok(!/cdn|jsdelivr|unpkg|chart\.js/i.test(script), 'los gráficos se dibujan en SVG propio');
   assert.match(script, /<svg viewBox/);
 });
+
+test('ácido y descole también se dibujan dentro de la app', () => {
+  // Eran un enlace al archivo en Drive: se salía de la app y pedía acceso.
+  assert.ok(script.includes("from('aplicaciones_acido')"), 'deben leer de la base');
+  assert.match(script, /acido:\{titulo:'Ácido peracético'/);
+  assert.match(script, /descoles:\{titulo:'Descoles'/);
+  assert.match(script, /#panel-\(aforos\|calicatas\|acido\|descoles\)/);
+});
+
+test('el descole respeta la regla de la planilla', () => {
+  // "No aplica" se excluye del total; "No aplica (plantación nueva)" cuenta
+  // como superficie resuelta. Si esto cambia, el avance deja de cuadrar.
+  assert.ok(script.includes("!=='No aplica'"), 'debe excluir lo que no aplica');
+  assert.match(script, /no aplica \\\(plantaci/);
+});
+
+test('cada panel dice de cuándo son los datos', () => {
+  assert.match(script, /function actualizacion|const actualizacion/);
+  assert.ok(script.includes('planilla oficial del campo'), 'debe declarar el origen');
+});

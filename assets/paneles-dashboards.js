@@ -200,10 +200,106 @@ function pintarCalicatas(d,campo){
     (calicatas.length?'':vacio(`Todavía no hay calicatas registradas en ${campo.nombre}. Se registran desde la app de Calicatas y aparecen aquí de inmediato.`));
 }
 
+
+/* ---------- Ácido peracético y descole ----------
+   Los dos salen de la misma tabla, que es la copia en la base del registro de
+   aplicaciones de la planilla oficial del campo. Antes estos paneles eran un
+   enlace al archivo en Drive: había que salir de la app y Google pedía acceso. */
+async function datosAcido(campo){
+  const r=await db.from('aplicaciones_acido')
+    .select('id_registro,caseta,equipo,cuartel_codigo,variedad,superficie_ha,fecha_aplicacion,estado_aplicacion,fecha_descole,estado_descole,litros_requeridos,litros_aplicados,litros_pendientes,actualizado_en')
+    .eq('campo_id',campo.id).order('id_registro');
+  return {filas:r.data||[],error:r.error};
+}
+const grupo=f=>[f.caseta,f.equipo?'E'+String(f.equipo).replace(/^E/i,''):null].filter(Boolean).join(' · ')||'Sin identificación';
+const actualizacion=filas=>{
+  const f=filas.map(x=>x.actualizado_en).filter(Boolean).sort().at(-1);
+  if(!f)return '';
+  const d=new Date(f);
+  return `Datos de la planilla oficial del campo · actualizados el ${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+};
+
+function pintarAcido(d,campo){
+  const filas=d.filas;
+  if(!filas.length)return vacio(`Todavía no hay registro de aplicaciones cargado para ${campo.nombre}.`);
+  const req=filas.reduce((t,f)=>t+(Number(f.litros_requeridos)||0),0);
+  const apl=filas.reduce((t,f)=>t+(Number(f.litros_aplicados)||0),0);
+  const pen=filas.reduce((t,f)=>t+(Number(f.litros_pendientes)||0),0);
+  const avance=req?apl/req*100:0;
+
+  const kpis=`<div class="pd-kpis">
+    ${kpi('Avance aplicado',`${n1(avance)}<span class="pd-de">%</span>`,'sobre los litros requeridos','terracota')}
+    ${kpi('Litros requeridos',`${n1(req)}<span class="pd-de">L</span>`,'para todo el campo','terracota')}
+    ${kpi('Litros aplicados',`${n1(apl)}<span class="pd-de">L</span>`,`${n0(filas.filter(f=>f.estado_aplicacion==='Aplicado').length)} de ${n0(filas.length)} cuarteles`,'verde')}
+    ${kpi('Litros pendientes',`${n1(pen)}<span class="pd-de">L</span>`,`${n0(filas.filter(f=>f.estado_aplicacion!=='Aplicado').length)} cuarteles por aplicar`,'azul')}
+  </div>`;
+
+  const g=new Map();
+  filas.forEach(f=>{const k=grupo(f),e=g.get(k)||{req:0,apl:0};
+    e.req+=Number(f.litros_requeridos)||0; e.apl+=Number(f.litros_aplicados)||0; g.set(k,e)});
+  const porGrupo=[...g.entries()].map(([k,e])=>({etiqueta:k,valor:e.req?e.apl/e.req*100:0,
+    texto:`${n1(e.req?e.apl/e.req*100:0)}%`})).sort((a,b)=>b.valor-a.valor);
+
+  const pendientes=filas.filter(f=>f.estado_aplicacion!=='Aplicado')
+    .sort((a,b)=>(Number(b.litros_pendientes)||0)-(Number(a.litros_pendientes)||0)).slice(0,10)
+    .map(f=>`<tr><td>${esc(f.cuartel_codigo||'—')}</td><td>${esc(grupo(f))}</td>
+      <td>${n1(Number(f.superficie_ha)||0)} ha</td><td>${n1(Number(f.litros_pendientes)||0)} L</td></tr>`).join('');
+
+  return kpis+
+    barras('Avance por grupo','Comparación',porGrupo)+
+    (pendientes?`<section class="pd-card"><div class="pd-kicker">Detalle</div><h3 class="pd-card-title">Cuarteles por aplicar</h3>
+      <div class="pd-tabla-wrap"><table class="pd-tabla"><thead><tr><th>Cuartel</th><th>Grupo</th><th>Superficie</th><th>Pendiente</th></tr></thead><tbody>${pendientes}</tbody></table></div></section>`:'')+
+    `<p class="pd-nota">${esc(actualizacion(filas))}</p>`;
+}
+
+function pintarDescole(d,campo){
+  const filas=d.filas;
+  if(!filas.length)return vacio(`Todavía no hay registro de descole cargado para ${campo.nombre}.`);
+  /* Regla de la planilla: "No aplica" se excluye del total; "No aplica
+     (plantación nueva)" cuenta como superficie ya resuelta. */
+  const aplicables=filas.filter(f=>String(f.estado_descole||'')!=='No aplica');
+  const sup=x=>Number(x.superficie_ha)||0;
+  const total=aplicables.reduce((t,f)=>t+sup(f),0);
+  const resuelto=aplicables.filter(f=>/descolado|no aplica \(plantaci/i.test(f.estado_descole||'')).reduce((t,f)=>t+sup(f),0);
+  const pendiente=total-resuelto;
+  const avance=total?resuelto/total*100:0;
+
+  const kpis=`<div class="pd-kpis">
+    ${kpi('Superficie aplicable',`${n1(total)}<span class="pd-de">ha</span>`,'sin contar lo que no aplica','azul')}
+    ${kpi('Superficie descolada',`${n1(resuelto)}<span class="pd-de">ha</span>`,`${n0(aplicables.filter(f=>/descolado/i.test(f.estado_descole||'')).length)} cuarteles`,'verde')}
+    ${kpi('Superficie pendiente',`${n1(pendiente)}<span class="pd-de">ha</span>`,'por descolar','terracota')}
+    ${kpi('Avance del campo',`${n1(avance)}<span class="pd-de">%</span>`,'por superficie','azul')}
+  </div>`;
+
+  const g=new Map();
+  aplicables.forEach(f=>{const k=grupo(f),e=g.get(k)||{total:0,ok:0};
+    e.total+=sup(f); if(/descolado|no aplica \(plantaci/i.test(f.estado_descole||''))e.ok+=sup(f); g.set(k,e)});
+  const porGrupo=[...g.entries()].map(([k,e])=>({etiqueta:k,valor:e.total?e.ok/e.total*100:0,
+    texto:`${n1(e.total?e.ok/e.total*100:0)}%`})).sort((a,b)=>b.valor-a.valor);
+
+  const estados=new Map();
+  aplicables.forEach(f=>{const k=f.estado_descole||'Sin estado';estados.set(k,(estados.get(k)||0)+1)});
+  const porEstado=[...estados.entries()].map(([k,v])=>({etiqueta:k,valor:v,texto:n0(v)})).sort((a,b)=>b.valor-a.valor);
+
+  const pend=aplicables.filter(f=>!/descolado|no aplica/i.test(f.estado_descole||''))
+    .sort((a,b)=>sup(b)-sup(a)).slice(0,10)
+    .map(f=>`<tr><td>${esc(f.cuartel_codigo||'—')}</td><td>${esc(grupo(f))}</td>
+      <td>${n1(sup(f))} ha</td><td>${esc(f.estado_descole||'—')}</td></tr>`).join('');
+
+  return kpis+
+    barras('Avance por grupo','Comparación',porGrupo)+
+    barras('Cuarteles por estado','Distribución',porEstado)+
+    (pend?`<section class="pd-card"><div class="pd-kicker">Detalle</div><h3 class="pd-card-title">Cuarteles por descolar</h3>
+      <div class="pd-tabla-wrap"><table class="pd-tabla"><thead><tr><th>Cuartel</th><th>Grupo</th><th>Superficie</th><th>Estado</th></tr></thead><tbody>${pend}</tbody></table></div></section>`:'')+
+    `<p class="pd-nota">${esc(actualizacion(filas))}</p>`;
+}
+
 /* ---------- Orquestación ---------- */
 const PANELES={
   aforos:{titulo:'Aforos',kicker:'Uniformidad',desc:'Avance del aforo, coeficiente de uniformidad y sectores que requieren atención.',datos:datosAforo,pinta:pintarAforo},
-  calicatas:{titulo:'Calicatas',kicker:'Monitoreo del suelo',desc:'Humedad, conductividad eléctrica y observaciones de perfil por cuartel.',datos:datosCalicatas,pinta:pintarCalicatas}
+  calicatas:{titulo:'Calicatas',kicker:'Monitoreo del suelo',desc:'Humedad, conductividad eléctrica y observaciones de perfil por cuartel.',datos:datosCalicatas,pinta:pintarCalicatas},
+  acido:{titulo:'Ácido peracético',kicker:'Aplicaciones',desc:'Litros aplicados y pendientes, avance por caseta y equipo.',datos:datosAcido,pinta:pintarAcido},
+  descoles:{titulo:'Descoles',kicker:'Mantención',desc:'Avance del descole por superficie, grupo por grupo.',datos:datosAcido,pinta:pintarDescole}
 };
 
 async function abrirPanel(clave){
@@ -244,6 +340,8 @@ function cerrarPanel(){
 function claveDe(href){
   if(/aforo-rinconada/.test(href))return 'aforos';
   if(/calicatas/.test(href))return 'calicatas';
+  if(/#acido/.test(href))return 'acido';
+  if(/#descole/.test(href))return 'descoles';
   return null;
 }
 function enlazarLista(){
@@ -263,10 +361,10 @@ function enlazarLista(){
 addEventListener('yoye-auth-ready',e=>{db=e.detail.client});
 addEventListener('DOMContentLoaded',()=>{
   enlazarLista();
-  setTimeout(()=>{const m=location.hash.match(/^#panel-(aforos|calicatas)$/);if(m)abrirPanel(m[1])},900);
+  setTimeout(()=>{const m=location.hash.match(/^#panel-(aforos|calicatas|acido|descoles)$/);if(m)abrirPanel(m[1])},900);
 });
 document.addEventListener('yoye-campo-changed',()=>{
-  const m=location.hash.match(/^#panel-(aforos|calicatas)$/);
+  const m=location.hash.match(/^#panel-(aforos|calicatas|acido|descoles)$/);
   if(m)abrirPanel(m[1]); else cerrarPanel();
 });
 window.yoyeAbrirPanel=abrirPanel;
