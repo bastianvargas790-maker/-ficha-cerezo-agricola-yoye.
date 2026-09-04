@@ -154,9 +154,9 @@ html.yoye-has-bottom-nav body{padding-bottom:calc(78px + env(safe-area-inset-bot
 /* ===== Paneles (tarjetas verdes) ===== */
 .yoye-panel-item{display:grid;grid-template-columns:44px 1fr 16px;gap:13px;align-items:center;width:100%;text-align:left;background:var(--green);border:1px solid var(--ink);border-radius:var(--radius-lg);padding:15px;cursor:pointer;text-decoration:none}
 .yoye-panel-icon{width:44px;height:44px;border-radius:999px;background:rgba(245,234,216,.16);display:grid;place-items:center;font-size:20px}
-.yoye-panel-kicker{font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--sage-300)}
-.yoye-panel-title{font-family:var(--font-heading);font-size:19px;font-weight:700;color:var(--cream);margin:3px 0 2px}
-.yoye-panel-desc{font-size:12.5px;color:rgba(245,234,216,.78)}
+.yoye-panel-kicker{display:block;font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--sage-300)}
+.yoye-panel-title{display:block;font-family:var(--font-heading);font-size:19px;font-weight:700;color:var(--cream);margin:3px 0 2px}
+.yoye-panel-desc{display:block;font-size:12.5px;color:rgba(245,234,216,.78)}
 .yoye-panel-chevron{color:var(--sage-300)}
 .yoye-panel-note{margin-top:16px;padding:14px 16px;border-radius:var(--radius-md);border:1px dashed var(--sage-400);background:var(--sage-100);font-size:12.5px;line-height:1.55;color:var(--sage-800)}
 
