@@ -37,10 +37,16 @@ async function localGet(id,store=STORE){const d=await openLocalDb();return new P
 
 const POSICIONES=['Inicio','1/3','2/3','Último'];
 const LINEAS=['1ª línea','1/3 línea','2/3 línea','Última línea'];
+const TIEMPO_ESTANDAR='36';
+/* El orden es posición por posición y, dentro de cada una, línea por línea:
+   así se llena en terreno y así está la planilla. */
 function emisoresVacios(){
   const out=[];let idx=1;
-  LINEAS.forEach(linea=>POSICIONES.forEach(posicion=>out.push({posicion,linea,indice:idx++,volumen_cc:'',tiempo_segundos:''})));
+  POSICIONES.forEach(posicion=>LINEAS.forEach(linea=>out.push({posicion,linea,indice:idx++,volumen_cc:'',tiempo_segundos:TIEMPO_ESTANDAR})));
   return out;
+}
+function indiceEmisor(posicion,linea){
+  return POSICIONES.indexOf(posicion)*LINEAS.length+LINEAS.indexOf(linea);
 }
 function caudalLh(vol,seg){const v=Number(vol),s=Number(seg);return s>0&&v>=0?(v/s)*3.6:0}
 function avg(arr){return arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:0}
@@ -142,7 +148,7 @@ function estadoInicial(campo){
     temporada:new Date().getFullYear(),fecha_evaluacion:localDate(),
     evaluador_nombre:profile?.nombre_completo||campo.encargado_nombre||session?.user?.email||'',
     cantidad_valvulas:0,tipo_linea:'',
-    presion_entrada_prom:'',presion_salida_prom:'',
+    presiones:Array.from({length:5},()=>({entrada:'',salida:''})),
     emisores:emisoresVacios(),
     observaciones:''
   };
@@ -155,6 +161,9 @@ function readStepInputs(host){
     if(f==='volumen_cc'||f==='tiempo_segundos'){
       const i=Number(el.dataset.i);
       if(state.emisores[i])state.emisores[i][f]=el.value;
+    }else if(f==='presion_entrada'||f==='presion_salida'){
+      const i=Number(el.dataset.i);
+      if(state.presiones[i])state.presiones[i][f==='presion_entrada'?'entrada':'salida']=el.value;
     }else state[f]=el.value;
   });
 }
@@ -201,30 +210,92 @@ function pasoIdentificacion(campo,cuarteles){
       </select></div></div>
     </div>`;
 }
+/* Presiones: una fila por válvula, entrada y salida, igual que la planilla.
+   Antes era un solo par de números; en terreno se miden hasta cinco válvulas y
+   el promedio se calcula sobre las que efectivamente se midieron. */
+function presionesPromedio(){
+  const ent=state.presiones.map(p=>Number(p.entrada)).filter(v=>Number.isFinite(v)&&v>0);
+  const sal=state.presiones.map(p=>Number(p.salida)).filter(v=>Number.isFinite(v)&&v>0);
+  const entrada=ent.length?avg(ent):null, salida=sal.length?avg(sal):null;
+  const perdida=(entrada!==null&&salida!==null)?entrada-salida:null;
+  const pct=(perdida!==null&&entrada>0)?perdida/entrada*100:null;
+  return {entrada,salida,perdida,pct,nEntrada:ent.length,nSalida:sal.length};
+}
+function fmt(v,dec=2){return v===null||v===undefined?'—':Number(v).toLocaleString('es-CL',{minimumFractionDigits:dec,maximumFractionDigits:dec})}
+
 function pasoPresiones(){
-  const entrada=Number(state.presion_entrada_prom)||0,salida=Number(state.presion_salida_prom)||0;
-  const perdida=entrada-salida,pct=entrada>0?(perdida/entrada*100):0;
+  const r=presionesPromedio();
+  const estado=r.entrada===null?'Sin dato de entrada'
+    :r.salida===null?'Sin dato de salida'
+    :r.pct<=20?'Pérdida aceptable':'Revisar presión';
+  const filas=state.presiones.map((p,i)=>`<tr>
+      <th scope="row">Válvula ${i+1}</th>
+      <td><input data-f="presion_entrada" data-i="${i}" type="number" step="0.1" min="0" inputmode="decimal" placeholder="—" value="${esc(p.entrada)}"></td>
+      <td><input data-f="presion_salida" data-i="${i}" type="number" step="0.1" min="0" inputmode="decimal" placeholder="—" value="${esc(p.salida)}"></td>
+    </tr>`).join('');
   return `
-    <div class="yoye-form-card">
-      <div class="yoye-field"><label>Presión de entrada *</label><div class="yoye-input"><input data-f="presion_entrada_prom" type="number" step="0.1" min="0" placeholder="0,0" value="${esc(state.presion_entrada_prom)}"><span class="yoye-unit">bar</span></div></div>
-      <div class="yoye-field"><label>Presión de salida *</label><div class="yoye-input"><input data-f="presion_salida_prom" type="number" step="0.1" min="0" placeholder="0,0" value="${esc(state.presion_salida_prom)}"><span class="yoye-unit">bar</span></div></div>
-      <div class="yoye-hint">Pérdida de carga estimada: <b>${perdida.toFixed(2)} bar</b> (${pct.toFixed(0)}%) · ${pct<=20?'Aceptable':'Revisar presión'}</div>
+    <div class="yoye-af-card">
+      <div class="yoye-af-head">
+        <div><span class="yoye-af-paso">Paso 2 · Presión</span>
+        <h3>Registro de presiones <small>(bar)</small></h3></div>
+        <span class="yoye-af-formula">entrada − salida = pérdida</span>
+      </div>
+      <div class="yoye-af-tabla-wrap">
+        <table class="yoye-af-tabla">
+          <thead><tr><th>Válvula</th><th>Entrada</th><th>Salida</th></tr></thead>
+          <tbody>${filas}</tbody>
+        </table>
+      </div>
+      <div class="yoye-af-resumen">
+        <div><span>Entrada promedio</span><b>${fmt(r.entrada)}</b></div>
+        <div><span>Salida promedio</span><b>${fmt(r.salida)}</b></div>
+        <div><span>Pérdida</span><b>${fmt(r.perdida)}</b></div>
+      </div>
+      <p class="yoye-af-estado">${esc(estado)}</p>
+      <p class="yoye-af-nota">Completa al menos una válvula. El promedio usa solo las válvulas medidas.</p>
     </div>`;
 }
+
+/* Emisores: cuatro bloques, uno por posición de la línea, y dentro de cada uno
+   una columna por línea. Es la misma grilla de la planilla, para que quien
+   afora copie de arriba abajo sin traducir nada. */
+function bloqueEmisores(posicion){
+  const idx=l=>indiceEmisor(posicion,l);
+  const celda=(l,campo,ph)=>{
+    const i=idx(l),e=state.emisores[i];
+    return `<td><input data-f="${campo}" data-i="${i}" type="number" min="0" step="${campo==='volumen_cc'?'1':'0.1'}" inputmode="decimal" placeholder="${ph}" value="${esc(e[campo])}"></td>`;
+  };
+  const caudal=l=>{
+    const e=state.emisores[idx(l)];
+    return `<td class="yoye-af-calc">${isNum(e.volumen_cc)&&isNum(e.tiempo_segundos)&&Number(e.tiempo_segundos)>0?caudalLh(e.volumen_cc,e.tiempo_segundos).toFixed(1):'—'}</td>`;
+  };
+  return `<div class="yoye-af-bloque">
+    <div class="yoye-af-bloque-tit">${esc(posicion==='Inicio'||posicion==='Último'?posicion:posicion+' de la línea')}</div>
+    <div class="yoye-af-tabla-wrap">
+      <table class="yoye-af-tabla">
+        <thead><tr><th>Dato</th>${LINEAS.map(l=>`<th>${esc(l)}</th>`).join('')}</tr></thead>
+        <tbody>
+          <tr><th scope="row">Volumen (cc)</th>${LINEAS.map(l=>celda(l,'volumen_cc','cc')).join('')}</tr>
+          <tr><th scope="row">Tiempo (s)</th>${LINEAS.map(l=>celda(l,'tiempo_segundos','s')).join('')}</tr>
+          <tr class="yoye-af-fila-calc"><th scope="row">Caudal (L/h)</th>${LINEAS.map(caudal).join('')}</tr>
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
 function pasoEmisores(){
-  let out='<div class="yoye-form-card"><p class="yoye-hint">Registra volumen (cc) y tiempo (s) en las 16 posiciones. El caudal se calcula solo.</p><div class="yoye-emisores-grid">';
-  let linea='';
-  state.emisores.forEach((e,i)=>{
-    if(e.linea!==linea){linea=e.linea;out+=`<div class="yoye-emisor-linea-label">${esc(linea)}</div>`}
-    out+=`<div class="yoye-emisor-row">
-      <span class="yoye-emisor-pos">${esc(e.posicion)}</span>
-      <input data-f="volumen_cc" data-i="${i}" type="number" min="0" step="1" inputmode="decimal" placeholder="cc" value="${esc(e.volumen_cc)}">
-      <input data-f="tiempo_segundos" data-i="${i}" type="number" min="0" step="0.1" inputmode="decimal" placeholder="s" value="${esc(e.tiempo_segundos)}">
-      <span class="yoye-emisor-caudal">${isNum(e.volumen_cc)&&isNum(e.tiempo_segundos)?caudalLh(e.volumen_cc,e.tiempo_segundos).toFixed(1)+' L/h':'—'}</span>
+  const faltan=state.emisores.filter(e=>!isNum(e.volumen_cc)).length;
+  return `
+    <div class="yoye-af-card">
+      <div class="yoye-af-head">
+        <div><span class="yoye-af-paso">Paso 3 · Emisores</span>
+        <h3>Aforo de emisores</h3></div>
+        <span class="yoye-af-formula">cc ÷ segundos × 3,6</span>
+      </div>
+      <p class="yoye-af-nota">Ingresa cada posición por línea, de izquierda a derecha. El tiempo viene con 36 segundos, cámbialo si mediste distinto.</p>
+      ${POSICIONES.map(bloqueEmisores).join('')}
+      <p class="yoye-af-estado">${faltan?`Faltan ${faltan} de 16 volúmenes`:'Las 16 posiciones están completas'}</p>
     </div>`;
-  });
-  out+='</div></div>';
-  return out;
 }
 function pasoResultado(){
   const r=calcularResultado(state.emisores);
@@ -273,7 +344,9 @@ function validarPaso(){
     if(!isNum(state.temporada))return 'Indica la temporada.';
   }
   if(state.step===1){
-    if(!isNum(state.presion_entrada_prom)||!isNum(state.presion_salida_prom))return 'Completa las presiones de entrada y salida.';
+    const r=presionesPromedio();
+    if(r.entrada===null)return 'Ingresa la presión de entrada de al menos una válvula.';
+    if(r.salida===null)return 'Ingresa la presión de salida de al menos una válvula.';
   }
   if(state.step===2){
     const incompleto=state.emisores.some(e=>!isNum(e.volumen_cc)||!isNum(e.tiempo_segundos)||Number(e.tiempo_segundos)<=0);
@@ -284,8 +357,11 @@ function validarPaso(){
 
 async function guardarAforo(host){
   const r=calcularResultado(state.emisores);
-  const entrada=Number(state.presion_entrada_prom),salida=Number(state.presion_salida_prom);
-  const perdida=entrada-salida,pct=entrada>0?(perdida/entrada*100):0;
+  const p=presionesPromedio();
+  const entrada=p.entrada??0, salida=p.salida??0;
+  const perdida=p.perdida??0, pct=p.pct??0;
+  const entradas=state.presiones.map(x=>Number(x.entrada)).filter(v=>Number.isFinite(v)&&v>0);
+  const salidas=state.presiones.map(x=>Number(x.salida)).filter(v=>Number.isFinite(v)&&v>0);
   const id=uuid();
   const org=profile?.organizacion_id;
   const aforo={
@@ -295,10 +371,10 @@ async function guardarAforo(host){
     equipo_riego:state.equipo_riego||null,caseta:state.caseta||null,
     temporada:Number(state.temporada),fecha_evaluacion:state.fecha_evaluacion,
     evaluador_id:session.user.id,evaluador_nombre:state.evaluador_nombre||session.user.email,
-    cantidad_valvulas:Number(state.cantidad_valvulas||0),tipo_linea:state.tipo_linea||null,
+    cantidad_valvulas:Number(state.cantidad_valvulas||0)||Math.max(entradas.length,salidas.length),tipo_linea:state.tipo_linea||null,
     presion_entrada_prom:entrada,presion_salida_prom:salida,perdida_carga:perdida,
     estado_presion:pct<=20?'Aceptable':'Revisar',
-    presiones_entrada:[entrada],presiones_salida:[salida],
+    presiones_entrada:entradas,presiones_salida:salidas,
     caudal_promedio:r.promedio,caudal_25:r.caudal25,coeficiente_uniformidad:r.cu,clasificacion:r.clasificacion,
     observaciones_rapidas:[],observaciones:state.observaciones||null,
     latitud:null,longitud:null,fotografia_url:null,
