@@ -54,3 +54,26 @@ test('el Inicio usa el sistema visual de la app y no inventa datos', () => {
   }
   assert.ok(home.includes("eq('campo_id',campo.id)"), 'los datos del Inicio deben filtrarse por campo');
 });
+
+test('la app se adapta a pantallas de notebook', () => {
+  // En 1440 px la versión anterior se veía como un teléfono estirado: una sola
+  // columna al centro y la barra inferior cruzando toda la pantalla.
+  const inicio = leer('../index.html');
+  const cuarteles = leer('../cuarteles/lista.html');
+  const paneles = leer('../paneles/index.html');
+  const campos = leer('../assets/campos.css');
+  const panelCss = leer('../assets/paneles-dashboards.css');
+
+  assert.match(inicio, /@media\(min-width:1000px\)[\s\S]*crop-strip/);
+  assert.match(cuarteles, /@media\(min-width:760px\)[\s\S]*cl-list/);
+  assert.match(paneles, /@media\(min-width:1000px\)/);
+  assert.match(campos, /@media \(min-width:900px\)[\s\S]*yoye-bottom-nav/);
+  assert.match(panelCss, /@media \(min-width:1000px\)[\s\S]*pd-cuerpo/);
+});
+
+test('la lista de paneles se oculta al abrir un dashboard', () => {
+  // El estilo en línea le ganaba al atributo hidden y quedaban las dos cosas.
+  const paneles = leer('../paneles/index.html');
+  assert.ok(!paneles.includes('style="display:flex;flex-direction:column;gap:12px"'));
+  assert.match(paneles, /#yoyePanelesList\[hidden\]/);
+});

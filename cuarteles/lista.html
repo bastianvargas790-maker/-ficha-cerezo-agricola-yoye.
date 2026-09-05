@@ -8,18 +8,18 @@
   <link rel="manifest" href="../manifest.webmanifest">
   <link rel="icon" href="../assets/icons/favicon.svg">
   <link rel="apple-touch-icon" href="../assets/icons/pwa-192.png">
-  <link rel="stylesheet" href="../assets/yoye-theme.css?v=20260904-paneles2">
-  <link rel="stylesheet" href="../assets/private-app.css?v=20260904-paneles2">
-  <link rel="stylesheet" href="../assets/campos.css?v=20260904-paneles2">
+  <link rel="stylesheet" href="../assets/yoye-theme.css?v=20260904-notebook">
+  <link rel="stylesheet" href="../assets/private-app.css?v=20260904-notebook">
+  <link rel="stylesheet" href="../assets/campos.css?v=20260904-notebook">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.min.js"></script>
-  <script defer src="../assets/shared-auth.js?v=20260904-paneles2"></script>
-  <script defer src="../assets/campos.js?v=20260904-paneles2"></script>
-  <script defer src="../assets/aforo.js?v=20260904-paneles2"></script>
-  <script defer src="../assets/cuarteles-lista.js?v=20260904-paneles2"></script>
+  <script defer src="../assets/shared-auth.js?v=20260904-notebook"></script>
+  <script defer src="../assets/campos.js?v=20260904-notebook"></script>
+  <script defer src="../assets/aforo.js?v=20260904-notebook"></script>
+  <script defer src="../assets/cuarteles-lista.js?v=20260904-notebook"></script>
   <style>
     body{margin:0;background:var(--bg,#f7f4eb);color:var(--text,#26302b);
          font-family:var(--font-body,"Segoe UI",Inter,system-ui,sans-serif)}
-    .cl-shell{max-width:720px;margin:0 auto;padding:16px 16px 96px}
+    .cl-shell{max-width:1180px;margin:0 auto;padding:16px 16px 120px}
     .cl-top{display:flex;align-items:center;gap:10px;margin-bottom:14px}
     .cl-top .back{font-size:13px;font-weight:700;color:var(--ink,#17352c);text-decoration:none}
     .cl-top img{height:36px;width:auto}
@@ -43,6 +43,12 @@
       border:1px solid var(--line,#e2dbc8);color:var(--ink,#17352c);background:var(--bg,#f7f4eb)}
     .cl-links a.primary{background:var(--ink,#17352c);color:#fff;border-color:var(--ink,#17352c)}
     .cl-state{padding:22px 16px;text-align:center;color:var(--text-secondary,#645c50);font-size:.92rem}
+    /* En notebook la lista en una sola columna deja media pantalla vacía. */
+    @media(min-width:760px){
+      .cl-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+      .cl-tools{max-width:560px}
+    }
+    @media(min-width:1100px){.cl-list{grid-template-columns:repeat(3,minmax(0,1fr))}}
   </style>
 </head>
 <body>

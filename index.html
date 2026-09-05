@@ -11,15 +11,15 @@
 <link rel="icon" href="assets/icons/favicon.svg">
 <link rel="apple-touch-icon" href="assets/icons/pwa-192.png">
 <link rel="preload" as="image" href="assets/img/portada/cerezo.webp">
-<link rel="stylesheet" href="assets/yoye-theme.css?v=20260904-paneles2">
-<link rel="stylesheet" href="assets/yoye-app.css?v=20260904-paneles2">
-<link rel="stylesheet" href="assets/private-app.css?v=20260904-paneles2">
-<link rel="stylesheet" href="assets/campos.css?v=20260904-paneles2">
+<link rel="stylesheet" href="assets/yoye-theme.css?v=20260904-notebook">
+<link rel="stylesheet" href="assets/yoye-app.css?v=20260904-notebook">
+<link rel="stylesheet" href="assets/private-app.css?v=20260904-notebook">
+<link rel="stylesheet" href="assets/campos.css?v=20260904-notebook">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.min.js"></script>
-<script defer src="assets/shared-auth.js?v=20260904-paneles2"></script>
-<script defer src="assets/campos.js?v=20260904-paneles2"></script>
-<script defer src="assets/aforo.js?v=20260904-paneles2"></script>
-<script defer src="assets/home-yoye.js?v=20260904-paneles2"></script>
+<script defer src="assets/shared-auth.js?v=20260904-notebook"></script>
+<script defer src="assets/campos.js?v=20260904-notebook"></script>
+<script defer src="assets/aforo.js?v=20260904-notebook"></script>
+<script defer src="assets/home-yoye.js?v=20260904-notebook"></script>
 <style>
   /* Ajustes propios del Inicio sobre el sistema visual de la app. */
   body{margin:0}
@@ -43,6 +43,14 @@
   .crop-card{display:block;text-decoration:none}
   .crop-meta{display:flex;gap:10px;justify-content:space-between;font-size:.8rem;color:#e7efe7}
   @media(max-width:640px){.app-shell{padding-bottom:118px}}
+  /* En notebook el carrusel obliga a arrastrar para ver ocho fichas que caben. */
+  @media(min-width:1000px){
+    .crop-strip{grid-auto-flow:row;grid-template-columns:repeat(4,minmax(0,1fr));overflow:visible}
+    .crop-card{min-height:230px}
+    .app-shell{padding-bottom:130px}
+  }
+  /* Son cinco indicadores: en cuatro columnas el quinto queda solo en otra fila. */
+  @media(min-width:1100px){#homeKpis{grid-template-columns:repeat(5,minmax(0,1fr))}}
 </style>
 </head>
 <body>

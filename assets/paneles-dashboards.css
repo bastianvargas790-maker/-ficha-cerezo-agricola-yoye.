@@ -44,3 +44,18 @@
 .pd-tabla tbody tr:last-child td{border-bottom:0}
 
 @media(min-width:620px){.pd-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}}
+
+
+/* Notebook y escritorio: el panel deja de ser una columna larga de teléfono.
+   Las tarjetas de indicadores siguen ocupando todo el ancho y los gráficos se
+   acomodan de a dos, que es como se lee un dashboard en una pantalla grande. */
+@media (min-width:1000px){
+  .pd-cuerpo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px;align-items:start}
+  .pd-cuerpo>.pd-kpis{grid-column:1 / -1}
+  .pd-cuerpo>.pd-nota{grid-column:1 / -1}
+  .pd-titulo{font-size:2.1rem}
+  .pd-svg-wrap svg{min-width:0}
+}
+@media (min-width:1400px){
+  .pd-cuerpo{grid-template-columns:repeat(3,minmax(0,1fr))}
+}

@@ -320,7 +320,8 @@ async function abrirPanel(clave){
   location.hash='#panel-'+clave;
   try{
     const d=await p.datos(campo);
-    $('.pd-cargando',host).outerHTML=p.pinta(d,campo);
+    // El cuerpo va envuelto para poder acomodarlo en dos columnas en notebook.
+    $('.pd-cargando',host).outerHTML=`<div class="pd-cuerpo">${p.pinta(d,campo)}</div>`;
   }catch(e){
     const c=$('.pd-cargando',host);
     if(c)c.outerHTML=vacio('No se pudieron cargar los datos: '+(e?.message||'error de conexión'));
