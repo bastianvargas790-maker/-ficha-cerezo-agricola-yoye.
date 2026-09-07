@@ -1,15 +1,15 @@
-const CACHE='aforo-campo-v20260907-paneles';
+const CACHE='aforo-campo-v20260907-fluidez';
 const SHELL=[
   './',
   './index.html',
   './manifest.webmanifest',
-  '../assets/yoye-theme.css?v=20260907-paneles',
-  '../assets/private-app.css?v=20260907-paneles',
-  '../assets/campos.css?v=20260907-paneles',
-  '../assets/supabase.js?v=20260907-paneles',
-  '../assets/shared-auth.js?v=20260907-paneles',
-  '../assets/campos.js?v=20260907-paneles',
-  '../assets/aforo.js?v=20260907-paneles',
+  '../assets/yoye-theme.css?v=20260907-fluidez',
+  '../assets/private-app.css?v=20260907-fluidez',
+  '../assets/campos.css?v=20260907-fluidez',
+  '../assets/supabase.js?v=20260907-fluidez',
+  '../assets/shared-auth.js?v=20260907-fluidez',
+  '../assets/campos.js?v=20260907-fluidez',
+  '../assets/aforo.js?v=20260907-fluidez',
   '../assets/yoye-logo.png',
   '../assets/icons/favicon.svg',
   '../assets/icons/aforo-192.png',

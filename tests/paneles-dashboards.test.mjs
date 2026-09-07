@@ -91,3 +91,41 @@ test('las tablas de detalle ocupan todo el ancho en notebook', () => {
   assert.ok(script.includes('pd-card pd-ancho'), 'las tablas deben marcarse');
   assert.match(css, /\.pd-cuerpo>\.pd-ancho[^{]*\{grid-column:1 \/ -1\}/);
 });
+
+test('la URL manda: el atrás del navegador cierra el dashboard', () => {
+  // Antes la vista y la URL iban por separado: el atrás retrocedía el hash y el
+  // dashboard seguía en pantalla. En el teléfono el atrás es el gesto de volver.
+  assert.ok(script.includes("addEventListener('hashchange'"), 'debe escuchar el hash');
+  assert.ok(script.includes('function sincronizarConHash'), 'la pantalla sigue a la URL');
+  assert.match(script, /if\(clave\)\{ if\(clave!==panelAbierto\)abrirPanel\(clave,\{desdeHash:true\}\) \}/);
+});
+
+test('volver desde el panel no deja pasos muertos en el historial', () => {
+  // Si la entrada la creamos al abrir, "← Paneles" hace history.back(); si se
+  // llegó por enlace directo no hay a dónde volver y se reescribe la URL.
+  assert.ok(script.includes('entradaPropia'), 'debe saber si creó la entrada');
+  assert.match(script, /if\(entradaPropia\)\{entradaPropia=false;history\.back\(\)\}/);
+  assert.ok(script.includes("history.replaceState(null,'',location.pathname)"), 'y el respaldo');
+});
+
+test('un enlace directo abre apenas hay sesión, sin espera fija', () => {
+  // Antes eran 900 ms fijos: se veía la lista y después saltaba al dashboard.
+  assert.ok(!/setTimeout\(\(\)=>\{const m=location\.hash\.match/.test(script), 'sin espera fija');
+  assert.ok(script.includes('function abrirCuandoSePueda'), 'debe reintentar hasta tener campo');
+});
+
+test('los clics rápidos no dejan dos dashboards pisados', () => {
+  // La consulta del panel anterior podía llegar después y pintar encima.
+  assert.match(script, /if\(panelAbierto!==clave\)return;/);
+});
+
+test('cambiar de campo recarga el dashboard abierto', () => {
+  assert.match(script, /if\(panelAbierto\)abrirPanel\(panelAbierto,\{desdeHash:true\}\)/);
+});
+
+test('abrir un panel desde el final de la lista empieza arriba', () => {
+  // En el teléfono se entraba con la página desplazada; al recargar el mismo
+  // panel (cambio de campo) se respeta dónde iba leyendo.
+  assert.match(script, /const otroPanel=panelAbierto!==clave;/);
+  assert.match(script, /if\(otroPanel\)scrollTo\(\{top:0,behavior:'instant'\}\)/);
+});

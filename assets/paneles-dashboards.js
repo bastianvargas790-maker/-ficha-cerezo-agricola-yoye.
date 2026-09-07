@@ -15,6 +15,11 @@ const prom=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
 const fecha=f=>{if(!f)return '—';const [a,m,d]=String(f).slice(0,10).split('-');return `${d}/${m}/${a}`};
 
 let db,campoActual=null;
+/* Qué panel está en pantalla y si la entrada de historial la creamos nosotros:
+   eso decide si el botón "← Paneles" puede usar el atrás del navegador o tiene
+   que reescribir la URL (cuando se llegó por enlace directo no hay a dónde
+   volver dentro de la app). */
+let panelAbierto=null,entradaPropia=false;
 
 /* ---------- Piezas visuales ---------- */
 function kpi(label,valor,pie,tono,chico){
@@ -434,7 +439,7 @@ const PANELES={
   descoles:{titulo:'Descoles',kicker:'Mantención',desc:'Avance del descole por superficie, grupo por grupo.',datos:datosAcido,pinta:pintarDescole}
 };
 
-async function abrirPanel(clave){
+async function abrirPanel(clave,{desdeHash=false}={}){
   const p=PANELES[clave];
   const campo=typeof window.yoyeActiveCampo==='function'?window.yoyeActiveCampo():null;
   // "Todos los campos" no depende del campo activo; los demás sí.
@@ -451,10 +456,20 @@ async function abrirPanel(clave){
     <h2 class="pd-titulo">${esc(p.titulo)}</h2>
     <p class="pd-desc">${esc(p.desc)}</p>
     <div class="pd-cargando">Cargando datos del campo…</div>`;
-  $('#pdVolver').onclick=cerrarPanel;
-  location.hash='#panel-'+clave;
+  $('#pdVolver').onclick=()=>cerrarPanel();
+  /* Al abrir un panel desde el final de la lista, en el teléfono se entraba con
+     la página ya desplazada y el dashboard empezaba a media pantalla. Al
+     recargar el mismo panel (cambio de campo) se respeta dónde iba leyendo. */
+  const otroPanel=panelAbierto!==clave;
+  panelAbierto=clave;
+  if(otroPanel)scrollTo({top:0,behavior:'instant'});
+  // Abrir desde la lista agrega una entrada al historial, para que el atrás del
+  // navegador devuelva a la lista. Si venimos siguiendo el hash, la entrada ya
+  // existe y volver a escribirla duplicaría el paso atrás.
+  if(!desdeHash&&location.hash!=='#panel-'+clave){location.hash='#panel-'+clave;entradaPropia=true}
   try{
     const d=await p.datos(campo);
+    if(panelAbierto!==clave)return;   // llegó tarde: ya se abrió otro panel
     // El cuerpo va envuelto para poder acomodarlo en dos columnas en notebook.
     $('.pd-cargando',host).outerHTML=`<div class="pd-cuerpo">${p.pinta(d,campo)}</div>`;
   }catch(e){
@@ -462,14 +477,20 @@ async function abrirPanel(clave){
     if(c)c.outerHTML=vacio('No se pudieron cargar los datos: '+(e?.message||'error de conexión'));
   }
 }
-function cerrarPanel(){
+function cerrarPanel({desdeHash=false}={}){
   const host=$('#yoyePanelVista'),lista=$('#yoyePanelesList'),hero=$('#yoyePanelesHero');
+  panelAbierto=null;
   if(host){host.hidden=true;host.innerHTML=''}
   if(lista)lista.hidden=false;
   if(hero)hero.hidden=false;
   // campos.js decide si la nota corresponde a este campo; al volver se repinta.
   if(typeof window.yoyeRefrescarPaneles==='function')window.yoyeRefrescarPaneles();
-  if(location.hash.startsWith('#panel-'))history.replaceState(null,'',location.pathname);
+  if(desdeHash||!location.hash.startsWith('#panel-'))return;
+  /* Si la entrada del historial la creamos al abrir, el botón "← Paneles" hace
+     lo mismo que el atrás del navegador y no deja pasos muertos. Si se llegó
+     por enlace directo no hay a dónde volver: se reescribe la URL. */
+  if(entradaPropia){entradaPropia=false;history.back()}
+  else history.replaceState(null,'',location.pathname);
 }
 
 /* La lista de paneles la dibuja campos.js después de autenticar, así que en vez
@@ -497,14 +518,36 @@ function enlazarLista(){
   });
 }
 
-addEventListener('yoye-auth-ready',e=>{db=e.detail.client});
-addEventListener('DOMContentLoaded',()=>{
-  enlazarLista();
-  setTimeout(()=>{const m=location.hash.match(/^#panel-(campos|aforos|calicatas|acido|descoles)$/);if(m)abrirPanel(m[1])},900);
-});
+/* ---------- El hash manda ----------
+   Antes la vista y la URL vivían cada una por su lado: al abrir un panel se
+   escribía el hash, pero nadie escuchaba si cambiaba. Con el botón atrás del
+   navegador -- que en el teléfono es el gesto de volver -- la URL retrocedía y
+   el dashboard seguía en pantalla; un enlace a otro panel desde uno abierto no
+   hacía nada. Ahora la URL es la única fuente de verdad y la pantalla la sigue. */
+const claveDelHash=()=>(location.hash.match(/^#panel-(campos|aforos|calicatas|acido|descoles)$/)||[])[1]||null;
+
+function sincronizarConHash(){
+  const clave=claveDelHash();
+  if(clave){ if(clave!==panelAbierto)abrirPanel(clave,{desdeHash:true}) }
+  else if(panelAbierto)cerrarPanel({desdeHash:true});
+}
+addEventListener('hashchange',sincronizarConHash);
+
+/* Al cargar con #panel-… se esperaba 900 ms fijos: se veía la lista y recién
+   después saltaba al dashboard. Ahora se abre apenas hay sesión y campo, que
+   suele ser bastante antes. */
+function abrirCuandoSePueda(intentos=25){
+  if(!claveDelHash())return;
+  const listo=db&&(typeof window.yoyeActiveCampo==='function'?window.yoyeActiveCampo()?.id:null);
+  if(listo)return sincronizarConHash();
+  if(intentos>0)setTimeout(()=>abrirCuandoSePueda(intentos-1),120);
+}
+addEventListener('yoye-auth-ready',e=>{db=e.detail.client;abrirCuandoSePueda()});
+addEventListener('DOMContentLoaded',()=>{enlazarLista();abrirCuandoSePueda()});
 document.addEventListener('yoye-campo-changed',()=>{
-  const m=location.hash.match(/^#panel-(campos|aforos|calicatas|acido|descoles)$/);
-  if(m)abrirPanel(m[1]); else cerrarPanel();
+  // Cambiar de campo con un dashboard abierto lo recarga con los datos del
+  // campo nuevo, en vez de dejar a la vista los números del anterior.
+  if(panelAbierto)abrirPanel(panelAbierto,{desdeHash:true}); else cerrarPanel({desdeHash:true});
 });
 window.yoyeAbrirPanel=abrirPanel;
 })();
