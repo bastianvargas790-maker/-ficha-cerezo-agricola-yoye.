@@ -21,3 +21,40 @@
 @media(max-width:520px){.section-title{align-items:flex-start;flex-direction:column}.depth-controls{width:100%;display:grid;grid-template-columns:1fr auto}.depth-controls input{grid-column:1/-1;width:100%}.report-grid{grid-template-columns:1fr 1fr}.report-actions{display:grid;grid-template-columns:1fr}.reading-head,.reading-row{grid-template-columns:92px 108px 86px 94px 78px;min-width:500px}}
 .profile-status{justify-self:center;color:var(--muted);font-size:.72rem;text-align:center}
 .history-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}.history-actions button{min-height:42px;padding:9px 14px}.history-delete{border:1px solid #c77a72;border-radius:12px;background:#fff4f2;color:#8f352f;font-weight:850;cursor:pointer}.history-delete:hover{background:#fde7e3}@media(max-width:520px){.history-actions{display:grid;grid-template-columns:1fr 1fr}.history-actions button{width:100%}}
+
+/* Mismo criterio en la app de Calicatas: se llena de pie, con una mano y a
+   veces con guante. Los selects de "Estado" y los botones de profundidad
+   quedaban bajo los 44 px. */
+@media (max-width:820px){
+  .back,.secondary,.remove-depth,.retry-button,.history-delete{min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+  .depth-controls select,.depth-controls input,.depth-controls button{min-height:44px}
+  .reading-row select,.reading-row input{min-height:44px}
+  .cal-tools select,.cl-tools select,.cl-tools input{min-height:44px}
+}
+@media (max-width:820px){
+  .cal-top .back,.cal-top a{min-height:44px;display:inline-flex;align-items:center}
+  #addDepth,#addCustomDepth,.depth-controls>*{min-height:44px}
+  .reading-row select,.reading-row input{min-height:44px;padding:9px}
+}
+
+/* Cuando el shell de Yoye inyecta su cabecera (selector de campo y estado de
+   conexión), la barra propia de Calicatas quedaba con dos puntos verdes: el
+   suyo y el del shell. Además la reja de tres columnas descolocaba el selector.
+   Con la cabecera inyectada manda una fila flexible y se oculta el duplicado. */
+.cal-top.yoye-header-injected{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.cal-top.yoye-header-injected .status{display:none}
+.cal-top.yoye-header-injected .yoye-campo-pill{margin-left:auto;flex:0 1 auto}
+/* En el teléfono son cuatro cosas para 390 px: volver, perfil, campo y estado.
+   En una sola fila el nombre del campo salía cortado ("Rinco...") y el punto de
+   conexión caía descolgado. Dos filas explícitas: arriba quién y dónde vuelve,
+   abajo el campo activo con su estado. */
+@media(max-width:640px){
+  .cal-top.yoye-header-injected{
+    display:grid;grid-template-columns:1fr auto;gap:6px 10px;
+    grid-template-areas:"volver perfil" "campo estado"}
+  .cal-top.yoye-header-injected .back{grid-area:volver;white-space:nowrap;font-size:.9rem}
+  .cal-top.yoye-header-injected .profile-status{grid-area:perfil;justify-self:end;text-align:right;font-size:.76rem;line-height:1.25}
+  .cal-top.yoye-header-injected .yoye-campo-pill{grid-area:campo;margin-left:0;width:100%}
+  .cal-top.yoye-header-injected .yoye-conn-btn{grid-area:estado;align-self:center}
+  .cal-top.yoye-header-injected .cal-logo{display:none}
+}

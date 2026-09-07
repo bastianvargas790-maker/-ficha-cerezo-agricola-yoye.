@@ -6,21 +6,24 @@
   <title>Aforo · Agrícola Yoye</title>
   <meta name="description" content="Registro offline de aforos de Agrícola Yoye">
   <meta name="theme-color" content="#234b36">
-  <link rel="manifest" href="./manifest.webmanifest">
+  <meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="Aforo"><link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="../assets/icons/favicon.svg">
   <link rel="apple-touch-icon" href="../assets/icons/aforo-192.png">
-  <link rel="stylesheet" href="../assets/yoye-theme.css?v=20260907-fluidez">
-  <link rel="stylesheet" href="../assets/private-app.css?v=20260907-fluidez">
-  <link rel="stylesheet" href="../assets/campos.css?v=20260907-fluidez">
-  <script src="../assets/supabase.js?v=20260907-fluidez"></script>
-  <script defer src="../assets/shared-auth.js?v=20260907-fluidez"></script>
-  <script defer src="../assets/campos.js?v=20260907-fluidez"></script>
-  <script defer src="../assets/aforo.js?v=20260907-fluidez"></script>
+  <link rel="stylesheet" href="../assets/yoye-theme.css?v=20260907-movil">
+  <link rel="stylesheet" href="../assets/private-app.css?v=20260907-movil">
+  <link rel="stylesheet" href="../assets/campos.css?v=20260907-movil">
+  <script src="../assets/supabase.js?v=20260907-movil"></script>
+  <script defer src="../assets/shared-auth.js?v=20260907-movil"></script>
+  <script defer src="../assets/campos.js?v=20260907-movil"></script>
+  <script defer src="../assets/aforo.js?v=20260907-movil"></script>
   <script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./sw.js',{scope:'./'}).catch(()=>{}));</script>
   <style>
     .af-shell{max-width:640px;margin:0 auto;padding:18px 16px 96px;font-family:var(--font-body,system-ui,sans-serif)}
     .af-top{display:flex;align-items:center;gap:10px;margin-bottom:18px}
-    .af-top .back{font-size:13px;font-weight:700;color:var(--ink,#17352c);text-decoration:none}
+    .af-top .back{font-size:13px;font-weight:700;color:var(--ink,#17352c);text-decoration:none;display:inline-flex;align-items:center;min-height:44px}
+    /* Los dos enlaces de la app de Aforo medían 15 px de alto: imposibles de
+       tocar con guante. 44 px es el mínimo cómodo. */
+    a[href*="aforo-rinconada"],.panel-link{display:inline-flex;align-items:center;min-height:44px}
     .af-top img{height:30px;margin-left:auto}
     .af-title{font-family:var(--font-heading,Georgia,serif);font-size:26px;margin:0 0 4px;color:var(--ink,#17352c)}
     .af-sub{font-size:13.5px;color:var(--text-secondary,#645c50);margin:0 0 18px;line-height:1.5}

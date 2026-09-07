@@ -138,7 +138,18 @@ function sectoresDelCuartel(){
   return sectoresActuales.filter(s=>s.cuartel_id===state.cuartel_id);
 }
 
-function root(){return location.pathname.split('/').filter(Boolean).length>1?'../':'./'}
+/* La raíz de la app se deduce de la URL de este mismo archivo, que siempre
+   cuelga de assets/. Contar segmentos del path fallaba según dónde estuviera
+   publicado el sitio: en GitHub Pages hay una carpeta de proyecto de por medio,
+   pero servido en la raíz de un dominio los enlaces de Paneles apuntaban a
+   /paneles/cuarteles/... y no existían. */
+const RAIZ=(()=>{
+  const s=[...document.scripts].find(x=>/assets\/(campos|aforo)\.js/.test(x.src||''));
+  const m=s&&s.src&&s.src.match(/^(.*\/)assets\/(?:campos|aforo)\.js/);
+  if(m){try{return new URL(m[1],location.href).pathname}catch{}}
+  return location.pathname.replace(/[^/]*$/,'');
+})();
+function root(){return RAIZ}
 
 let state=null;
 function estadoInicial(campo){
@@ -201,9 +212,9 @@ function pasoIdentificacion(campo,cuarteles){
       <div class="yoye-field"><label>Equipo de riego</label><div class="yoye-input"><input data-f="equipo_riego" type="text" placeholder="Ej. equipo 3" value="${esc(state.equipo_riego)}"></div></div>
       <div class="yoye-field"><label>Caseta</label><div class="yoye-input"><input data-f="caseta" type="text" placeholder="Opcional" value="${esc(state.caseta)}"></div></div>
       <div class="yoye-field"><label>Fecha de evaluación *</label><div class="yoye-input"><input data-f="fecha_evaluacion" type="date" value="${esc(state.fecha_evaluacion)}"></div></div>
-      <div class="yoye-field"><label>Temporada *</label><div class="yoye-input"><input data-f="temporada" type="number" min="2000" max="2100" value="${esc(state.temporada)}"></div></div>
+      <div class="yoye-field"><label>Temporada *</label><div class="yoye-input"><input data-f="temporada" type="number" inputmode="numeric" min="2000" max="2100" value="${esc(state.temporada)}"></div></div>
       <div class="yoye-field"><label>Evaluador</label><div class="yoye-input"><input data-f="evaluador_nombre" type="text" value="${esc(state.evaluador_nombre)}"></div></div>
-      <div class="yoye-field"><label>Cantidad de válvulas</label><div class="yoye-input"><input data-f="cantidad_valvulas" type="number" min="0" max="5" value="${esc(state.cantidad_valvulas)}"></div></div>
+      <div class="yoye-field"><label>Cantidad de válvulas</label><div class="yoye-input"><input data-f="cantidad_valvulas" type="number" inputmode="numeric" min="0" max="5" value="${esc(state.cantidad_valvulas)}"></div></div>
       <div class="yoye-field"><label>Tipo de línea</label><div class="yoye-input"><select data-f="tipo_linea">
         <option value="">Sin especificar</option>
         ${['Cinta','Manguera','Polietileno','Otro'].map(o=>`<option ${state.tipo_linea===o?'selected':''}>${o}</option>`).join('')}

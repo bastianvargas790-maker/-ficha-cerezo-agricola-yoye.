@@ -27,5 +27,8 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "id": "/yoye-aforo",
+  "orientation": "portrait-primary",
+  "dir": "ltr"
 }

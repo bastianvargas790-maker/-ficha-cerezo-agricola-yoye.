@@ -33,8 +33,21 @@ let campos=CAMPOS_FALLBACK.slice();
 let online=navigator.onLine;
 let sheetOpen=null;
 
-function root(){return location.pathname.split('/').filter(Boolean).length>1?'../':'./'}
-function isRoot(){return root()==='./'}
+/* La raíz de la app se deduce de la URL de este mismo archivo, que siempre
+   cuelga de assets/. Contar segmentos del path fallaba según dónde estuviera
+   publicado el sitio: en GitHub Pages hay una carpeta de proyecto de por medio,
+   pero servido en la raíz de un dominio los enlaces de Paneles apuntaban a
+   /paneles/cuarteles/... y no existían. */
+const RAIZ=(()=>{
+  const s=[...document.scripts].find(x=>/assets\/(campos|aforo)\.js/.test(x.src||''));
+  const m=s&&s.src&&s.src.match(/^(.*\/)assets\/(?:campos|aforo)\.js/);
+  if(m){try{return new URL(m[1],location.href).pathname}catch{}}
+  return location.pathname.replace(/[^/]*$/,'');
+})();
+function root(){return RAIZ}
+/* Con root() relativo bastaba comparar con './'; ahora es una ruta absoluta, así
+   que "estoy en el Inicio" se decide comparando la página actual con la raíz. */
+function isRoot(){return location.pathname.replace(/index\.html$/,'')===RAIZ}
 
 function activeSlug(){return localStorage.getItem(STORAGE_KEY)||null}
 function setActiveSlug(slug){localStorage.setItem(STORAGE_KEY,slug)}
@@ -170,12 +183,13 @@ function renderHeaderSelector(){
   $('.yoye-campo-nombre',pill).textContent=activeCampo().nombre;
   let conn=$('#yoyeConnBtn',host);
   if(!conn){
-    conn=document.createElement('button');
-    conn.type='button';
+    /* Era un botón que alternaba el estado de conexión "para demostración":
+       en terreno, alguien lo toca y la app se cree sin internet sin estarlo.
+       Ahora solo informa lo que dice el navegador. */
+    conn=document.createElement('span');
     conn.id='yoyeConnBtn';
     conn.className='yoye-conn-btn';
-    conn.title='Alternar estado de conexión (demostración)';
-    conn.onclick=()=>{online=!online;renderConn();document.dispatchEvent(new CustomEvent('yoye-online-changed',{detail:{online}}))};
+    conn.setAttribute('role','status');
     host.append(conn);
   }
   renderConn();
@@ -184,6 +198,8 @@ function renderConn(){
   const conn=$('#yoyeConnBtn');
   if(!conn)return;
   conn.textContent=online?'●':'◴';
+  conn.title=online?'Con conexión':'Sin conexión · los registros se guardan en el dispositivo';
+  conn.setAttribute('aria-label',conn.title);
   conn.classList.toggle('is-offline',!online);
   $$('.yoye-sync-chip').forEach(chip=>{
     chip.textContent=online?'✓ Sincronizado':'◴ Sin señal · cambios en cola';
