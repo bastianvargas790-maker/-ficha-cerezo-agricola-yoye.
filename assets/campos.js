@@ -90,7 +90,7 @@ function saludoSantiago(){
   return'Buenas tardes';
 }
 
-function tieneModulo(campo,mod){return(campo.alcance||[]).includes(mod)}
+function tieneModulo(campo,mod){return mod==='*'||(campo.alcance||[]).includes(mod)}
 function esCompleto(campo){return tieneModulo(campo,'riego')}
 
 /* ---------- Bienvenida ---------- */
@@ -271,7 +271,11 @@ function bindHojaEvents(host){
 function esPaneles(){return /\/paneles\//.test(location.pathname)}
 function panelesData(){
   return [
-    {mod:'riego',icon:'💧',k:'Temporada',t:'Dashboard general',d:'Riego, ETc y estado del campo',href:root()+'cuarteles/lista.html'},
+    // Siempre visible: es el único panel que no depende del campo activo.
+    {mod:'*',icon:'▲',k:'Comparación',t:'Todos los campos',d:'Los campos lado a lado en una sola vista',href:'#todos-los-campos'},
+    // Este abre la lista de cuarteles, no un dashboard: llamarlo "Dashboard
+    // general" prometía un gráfico que no existe (no hay registros de riego aún).
+    {mod:'riego',icon:'💧',k:'Base del campo',t:'Cuarteles y riego',d:'Ficha, cultivo y riego de cada cuartel',href:root()+'cuarteles/lista.html'},
     {mod:'acido',icon:'☢️',k:'Aplicaciones',t:'Ácido peracético',d:'Aplicado, pendiente y consumo',href:root()+'control-acido/#acido'},
     {mod:'descoles',icon:'🚰',k:'Mantención',t:'Descoles',d:'Avance y estado por sector',href:root()+'control-acido/#descole'},
     {mod:'aforos',icon:'⌁',k:'Uniformidad',t:'Aforos',d:'CU, presión y sectores críticos',href:root()+'aforo-rinconada/'},
@@ -295,6 +299,9 @@ function aplicarPaneles(){
   const note=$('#yoyePanelesNote');
   if(note)note.hidden=esCompleto(campo);
 }
+/* paneles-dashboards.js la llama al cerrar un dashboard, para devolver la lista
+   y la nota de alcance al estado que corresponde al campo activo. */
+window.yoyeRefrescarPaneles=aplicarPaneles;
 
 /* ---------- Nav inferior ---------- */
 function navItems(){

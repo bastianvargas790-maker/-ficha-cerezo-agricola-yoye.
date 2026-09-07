@@ -41,7 +41,9 @@ function barras(titulo,kicker,filas,sufijo){
 /* Barras verticales en SVG: sin librerías, se ve igual sin conexión. */
 function columnas(titulo,kicker,datos,unidad,color){
   if(!datos.length)return '';
-  const w=320,h=170,pad={l:34,r:8,t:10,b:26};
+  // pad.t deja aire suficiente para la cifra sobre la barra más alta: con 10 la
+  // etiqueta del máximo quedaba cortada por el borde del SVG.
+  const w=320,h=176,pad={l:34,r:8,t:18,b:26};
   const max=Math.max(...datos.map(d=>d.valor))||1;
   const ancho=(w-pad.l-pad.r)/datos.length;
   const barras=datos.map((d,i)=>{
@@ -64,6 +66,19 @@ function columnas(titulo,kicker,datos,unidad,color){
   </section>`;
 }
 const vacio=t=>`<section class="pd-card pd-vacio">${esc(t)}</section>`;
+/* Mismo criterio que campos.js: en el sitio publicado las páginas cuelgan de
+   una carpeta, así que desde /paneles/ hay que subir un nivel. */
+const raiz=()=>location.pathname.split('/').filter(Boolean).length>1?'../':'./';
+/* Panel sin datos: el aviso va primero y a todo el ancho, con la acción que
+   corresponde. Antes quedaba al costado de un gráfico con todo en cero, que es
+   peor que no mostrar nada. */
+function vacioAccion(titulo,detalle,accion,href){
+  return `<section class="pd-card pd-vacio pd-vacio-full">
+    <strong class="pd-vacio-titulo">${esc(titulo)}</strong>
+    <span>${esc(detalle)}</span>
+    ${accion?`<a class="pd-vacio-accion" href="${esc(href)}">${esc(accion)}</a>`:''}
+  </section>`;
+}
 
 /* ---------- Datos ---------- */
 async function datosAforo(campo){
@@ -131,12 +146,18 @@ function pintarAforo(d,campo){
     <td>${esNum(a.coeficiente_uniformidad)?n1(a.coeficiente_uniformidad)+'%':'—'}</td>
     <td>${esc(a.clasificacion||'—')}</td></tr>`).join('');
 
+  // Sin aforos, "avance por equipo" son barras en cero para todos: ruido que
+  // hace parecer roto un panel que solo está esperando el primer registro.
+  if(!aforos.length)return kpis+vacioAccion(
+    `Todavía no hay aforos registrados en ${campo.nombre}.`,
+    `Los ${n0(totalSectores)} sectores del campo ya están cargados. En cuanto se registre el primer aforo desde la app, este panel se llena solo.`,
+    'Abrir la app de Aforo', raiz()+'aforo/');
+
   return kpis+destacados+
     (filasEquipo.length?barras('Avance por equipo','Comparación',filasEquipo):'')+
     (filasClase.length?barras('Aforos por clasificación','Distribución',filasClase):'')+
-    (ultimos?`<section class="pd-card"><div class="pd-kicker">Detalle</div><h3 class="pd-card-title">Últimos aforos</h3>
-      <div class="pd-tabla-wrap"><table class="pd-tabla"><thead><tr><th>Sector</th><th>Fecha</th><th>CU</th><th>Clasificación</th></tr></thead><tbody>${ultimos}</tbody></table></div></section>`:'')+
-    (aforos.length?'':vacio(`Todavía no hay aforos registrados en ${campo.nombre}. En cuanto se registre el primero desde la app, este panel se llena solo.`));
+    (ultimos?`<section class="pd-card pd-ancho"><div class="pd-kicker">Detalle</div><h3 class="pd-card-title">Últimos aforos</h3>
+      <div class="pd-tabla-wrap"><table class="pd-tabla"><thead><tr><th>Sector</th><th>Fecha</th><th>CU</th><th>Clasificación</th></tr></thead><tbody>${ultimos}</tbody></table></div></section>`:'');
 }
 
 async function datosCalicatas(campo){
@@ -171,6 +192,14 @@ function pintarCalicatas(d,campo){
   }).filter(x=>x.n>0);
 
   const humedades=medidas.filter(l=>esNum(l.humedad_pct)).map(l=>Number(l.humedad_pct));
+  if(!calicatas.length)return `<div class="pd-kpis">
+    ${kpi('Calicatas registradas','0','en todo el campo','cafe')}
+    ${kpi('Cuarteles del campo',n0(cuarteles.length),'listos para evaluar','cafe')}
+  </div>`+vacioAccion(
+    `Todavía no hay calicatas registradas en ${campo.nombre}.`,
+    'Se registran desde la app de Calicatas y aparecen acá de inmediato, sin pasar por la planilla.',
+    'Abrir la app de Calicatas', raiz()+'calicatas/');
+
   const kpis=`<div class="pd-kpis">
     ${kpi('Calicatas registradas',n0(calicatas.length),'en todo el campo','cafe')}
     ${kpi('Cuarteles evaluados',`${n0(conCalicata.size)}<span class="pd-de">/ ${n0(cuarteles.length)}</span>`,'con al menos una calicata','cafe')}
@@ -196,8 +225,7 @@ function pintarCalicatas(d,campo){
     columnas('CE promedio por profundidad','Conductividad eléctrica',porProf('ce_ms_cm'),'Milisiemens por centímetro.','#8c6847')+
     (porCuartelFilas.length?barras('Humedad promedio por cuartel','Comparación',porCuartelFilas):'')+
     (raices.size?barras('Estado de raíces','Observaciones',aFilas(raices)):'')+
-    (compact.size?barras('Compactación','Observaciones',aFilas(compact)):'')+
-    (calicatas.length?'':vacio(`Todavía no hay calicatas registradas en ${campo.nombre}. Se registran desde la app de Calicatas y aparecen aquí de inmediato.`));
+    (compact.size?barras('Compactación','Observaciones',aFilas(compact)):'');
 }
 
 
@@ -247,7 +275,7 @@ function pintarAcido(d,campo){
 
   return kpis+
     barras('Avance por grupo','Comparación',porGrupo)+
-    (pendientes?`<section class="pd-card"><div class="pd-kicker">Detalle</div><h3 class="pd-card-title">Cuarteles por aplicar</h3>
+    (pendientes?`<section class="pd-card pd-ancho"><div class="pd-kicker">Detalle</div><h3 class="pd-card-title">Cuarteles por aplicar</h3>
       <div class="pd-tabla-wrap"><table class="pd-tabla"><thead><tr><th>Cuartel</th><th>Grupo</th><th>Superficie</th><th>Pendiente</th></tr></thead><tbody>${pendientes}</tbody></table></div></section>`:'')+
     `<p class="pd-nota">${esc(actualizacion(filas))}</p>`;
 }
@@ -289,13 +317,117 @@ function pintarDescole(d,campo){
   return kpis+
     barras('Avance por grupo','Comparación',porGrupo)+
     barras('Cuarteles por estado','Distribución',porEstado)+
-    (pend?`<section class="pd-card"><div class="pd-kicker">Detalle</div><h3 class="pd-card-title">Cuarteles por descolar</h3>
+    (pend?`<section class="pd-card pd-ancho"><div class="pd-kicker">Detalle</div><h3 class="pd-card-title">Cuarteles por descolar</h3>
       <div class="pd-tabla-wrap"><table class="pd-tabla"><thead><tr><th>Cuartel</th><th>Grupo</th><th>Superficie</th><th>Estado</th></tr></thead><tbody>${pend}</tbody></table></div></section>`:'')+
     `<p class="pd-nota">${esc(actualizacion(filas))}</p>`;
 }
 
+/* ---------- Todos los campos ----------
+   Los demás paneles miran el campo activo. Este los pone lado a lado, que es la
+   vista que pide jefatura: dónde va cada campo sin ir cambiando de uno en uno.
+   No lleva filtro por campo a propósito: las políticas de RLS deciden qué campos
+   entran, así que un jefe de campo ve aquí solo el suyo. */
+async function datosTodos(){
+  const campos=(window.yoyeCampos||[]).filter(c=>c.id);
+  const [cu,se,ca,ac]=await Promise.all([
+    db.from('cuarteles').select('id,campo_id,superficie_ha').eq('activo',true),
+    db.from('sectores_aforo').select('id,campo_id').eq('activo',true),
+    db.from('calicatas').select('id,cuartel_id,fecha').eq('activo',true),
+    db.from('aplicaciones_acido').select('campo_id,superficie_ha,litros_requeridos,litros_aplicados,estado_descole')
+  ]);
+  const cuarteles=cu.data||[];
+  let aforos=[];
+  if(cuarteles.length){
+    const r=await db.from('aforos').select('cuartel_id,sector_aforo_id,coeficiente_uniformidad');
+    if(!r.error)aforos=r.data||[];
+  }
+  return {campos,cuarteles,sectores:se.data||[],calicatas:ca.data||[],acido:ac.data||[],aforos};
+}
+
+function pintarTodos(d){
+  const {campos,cuarteles,sectores,calicatas,acido,aforos}=d;
+  if(!campos.length)return vacio('No hay campos disponibles para tu cuenta.');
+  const campoDeCuartel=new Map(cuarteles.map(c=>[c.id,c.campo_id]));
+  const evaluados=new Set(aforos.map(a=>a.sector_aforo_id||a.cuartel_id).filter(Boolean));
+  const cus=aforos.map(a=>Number(a.coeficiente_uniformidad)).filter(v=>Number.isFinite(v)&&v>0);
+
+  const resumen=campos.map(c=>{
+    const suyos=cuarteles.filter(q=>q.campo_id===c.id);
+    const conSup=suyos.filter(q=>esNum(q.superficie_ha));
+    const misSectores=sectores.filter(s=>s.campo_id===c.id);
+    const totalSectores=misSectores.length||suyos.length;
+    const hechos=misSectores.filter(s=>evaluados.has(s.id)).length
+      || suyos.filter(q=>evaluados.has(q.id)).length;
+    const misCalicatas=calicatas.filter(k=>campoDeCuartel.get(k.cuartel_id)===c.id);
+    const misAcido=acido.filter(a=>a.campo_id===c.id);
+    const req=misAcido.reduce((t,a)=>t+(Number(a.litros_requeridos)||0),0);
+    const apl=misAcido.reduce((t,a)=>t+(Number(a.litros_aplicados)||0),0);
+    return {
+      nombre:c.nombre, slug:c.slug,
+      // La superficie sale de los cuarteles cuando está medida; si no, la del
+      // campo, que es el dato de referencia. Nunca se inventa.
+      superficie: conSup.length?conSup.reduce((t,q)=>t+Number(q.superficie_ha),0)
+        :(esNum(c.superficie_ha)?Number(c.superficie_ha):0),
+      superficieMedida: conSup.length>0,
+      cuarteles:suyos.length, sectores:totalSectores, aforos:hechos,
+      avance: totalSectores?hechos/totalSectores*100:0,
+      calicatas:misCalicatas.length,
+      cuartelesConCalicata:new Set(misCalicatas.map(k=>k.cuartel_id)).size,
+      acidoAvance: req?apl/req*100:null
+    };
+  });
+
+  const totCuarteles=resumen.reduce((t,r)=>t+r.cuarteles,0);
+  const totSectores=resumen.reduce((t,r)=>t+r.sectores,0);
+  const totAforos=resumen.reduce((t,r)=>t+r.aforos,0);
+  const totCalicatas=resumen.reduce((t,r)=>t+r.calicatas,0);
+  const totSup=resumen.reduce((t,r)=>t+r.superficie,0);
+
+  const kpis=`<div class="pd-kpis">
+    ${kpi('Campos',n0(campos.length),'con acceso en tu cuenta','verde')}
+    ${kpi('Superficie total',`${n2(totSup)}<span class="pd-de">ha</span>`,'suma de los campos','verde')}
+    ${kpi('Cuarteles',n0(totCuarteles),`${n0(totSectores)} sectores de riego`,'azul')}
+    ${kpi('Avance del aforo',`${totSectores?n1(totAforos/totSectores*100):'0,0'}<span class="pd-de">%</span>`,`${n0(totAforos)} de ${n0(totSectores)} sectores`,'azul')}
+    ${kpi('Calicatas',n0(totCalicatas),cus.length?`CU promedio ${n1(prom(cus))}%`:'registradas en total','cafe')}
+  </div>`;
+
+  const filaAvance=resumen.map(r=>({etiqueta:r.nombre,valor:r.avance,
+    texto:`${n0(r.aforos)}/${n0(r.sectores)} · ${n1(r.avance)}%`}));
+  const filaSup=resumen.map(r=>({etiqueta:r.nombre,valor:r.superficie,texto:`${n2(r.superficie)} ha`}))
+    .sort((a,b)=>b.valor-a.valor);
+  const filaCal=resumen.filter(r=>r.cuarteles).map(r=>({etiqueta:r.nombre,
+    valor:r.cuarteles?r.cuartelesConCalicata/r.cuarteles*100:0,
+    texto:`${n0(r.cuartelesConCalicata)}/${n0(r.cuarteles)}`}));
+  const conAcido=resumen.filter(r=>r.acidoAvance!==null);
+
+  const tabla=`<section class="pd-card pd-ancho"><div class="pd-kicker">Detalle</div>
+    <h3 class="pd-card-title">Resumen por campo</h3>
+    <div class="pd-tabla-wrap"><table class="pd-tabla">
+      <thead><tr><th>Campo</th><th>Superficie</th><th>Cuarteles</th><th>Sectores</th><th>Aforos</th><th>Calicatas</th><th>Avance</th></tr></thead>
+      <tbody>${resumen.map(r=>`<tr>
+        <td>${esc(r.nombre)}</td>
+        <td>${n2(r.superficie)} ha${r.superficieMedida?'':' *'}</td>
+        <td>${n0(r.cuarteles)}</td><td>${n0(r.sectores)}</td>
+        <td>${n0(r.aforos)}</td><td>${n0(r.calicatas)}</td>
+        <td>${n1(r.avance)}%</td></tr>`).join('')}</tbody>
+    </table></div>
+    ${resumen.some(r=>!r.superficieMedida)?'<p class="pd-nota">* Superficie de referencia del campo: todavía falta cargarla cuartel por cuartel.</p>':''}
+  </section>`;
+
+  return kpis+
+    barras('Avance del aforo por campo','Comparación',filaAvance)+
+    barras('Superficie por campo','Comparación',filaSup)+
+    (filaCal.length?barras('Cuarteles con calicata','Comparación',filaCal):'')+
+    (conAcido.length?barras('Ácido peracético aplicado','Comparación',
+      conAcido.map(r=>({etiqueta:r.nombre,valor:r.acidoAvance,texto:`${n1(r.acidoAvance)}%`}))):'')+
+    tabla;
+}
+
 /* ---------- Orquestación ---------- */
 const PANELES={
+  campos:{titulo:'Todos los campos',kicker:'Comparación',global:true,
+    desc:'Los cuatro campos lado a lado: superficie, cuarteles, avance del aforo y calicatas.',
+    datos:datosTodos,pinta:pintarTodos},
   aforos:{titulo:'Aforos',kicker:'Uniformidad',desc:'Avance del aforo, coeficiente de uniformidad y sectores que requieren atención.',datos:datosAforo,pinta:pintarAforo},
   calicatas:{titulo:'Calicatas',kicker:'Monitoreo del suelo',desc:'Humedad, conductividad eléctrica y observaciones de perfil por cuartel.',datos:datosCalicatas,pinta:pintarCalicatas},
   acido:{titulo:'Ácido peracético',kicker:'Aplicaciones',desc:'Litros aplicados y pendientes, avance por caseta y equipo.',datos:datosAcido,pinta:pintarAcido},
@@ -305,14 +437,17 @@ const PANELES={
 async function abrirPanel(clave){
   const p=PANELES[clave];
   const campo=typeof window.yoyeActiveCampo==='function'?window.yoyeActiveCampo():null;
-  if(!p||!campo||!db)return;
+  // "Todos los campos" no depende del campo activo; los demás sí.
+  if(!p||!db||(!campo&&!p.global))return;
   campoActual=campo;
-  const host=$('#yoyePanelVista'),lista=$('#yoyePanelesList'),hero=$('#yoyePanelesHero');
+  const host=$('#yoyePanelVista'),lista=$('#yoyePanelesList'),hero=$('#yoyePanelesHero'),nota=$('#yoyePanelesNote');
   if(!host)return;
-  lista.hidden=true; if(hero)hero.hidden=true;
+  // La nota de alcance habla del campo activo y de la lista; con un dashboard
+  // abierto queda fuera de lugar, sobre todo en "Todos los campos".
+  lista.hidden=true; if(hero)hero.hidden=true; if(nota)nota.hidden=true;
   host.hidden=false;
   host.innerHTML=`<button type="button" class="pd-volver" id="pdVolver">← Paneles</button>
-    <div class="pd-kicker">${esc(p.kicker)} · ${esc(campo.nombre)}</div>
+    <div class="pd-kicker">${esc(p.global?'Todos los campos':p.kicker+' · '+campo.nombre)}</div>
     <h2 class="pd-titulo">${esc(p.titulo)}</h2>
     <p class="pd-desc">${esc(p.desc)}</p>
     <div class="pd-cargando">Cargando datos del campo…</div>`;
@@ -332,6 +467,8 @@ function cerrarPanel(){
   if(host){host.hidden=true;host.innerHTML=''}
   if(lista)lista.hidden=false;
   if(hero)hero.hidden=false;
+  // campos.js decide si la nota corresponde a este campo; al volver se repinta.
+  if(typeof window.yoyeRefrescarPaneles==='function')window.yoyeRefrescarPaneles();
   if(location.hash.startsWith('#panel-'))history.replaceState(null,'',location.pathname);
 }
 
@@ -339,6 +476,7 @@ function cerrarPanel(){
    de enganchar cada enlace se escucha el clic en el contenedor: da igual cuándo
    aparezcan los elementos. Los paneles externos siguen abriendo su fuente. */
 function claveDe(href){
+  if(/#todos-los-campos/.test(href))return 'campos';
   if(/aforo-rinconada/.test(href))return 'aforos';
   if(/calicatas/.test(href))return 'calicatas';
   if(/#acido/.test(href))return 'acido';
@@ -362,10 +500,10 @@ function enlazarLista(){
 addEventListener('yoye-auth-ready',e=>{db=e.detail.client});
 addEventListener('DOMContentLoaded',()=>{
   enlazarLista();
-  setTimeout(()=>{const m=location.hash.match(/^#panel-(aforos|calicatas|acido|descoles)$/);if(m)abrirPanel(m[1])},900);
+  setTimeout(()=>{const m=location.hash.match(/^#panel-(campos|aforos|calicatas|acido|descoles)$/);if(m)abrirPanel(m[1])},900);
 });
 document.addEventListener('yoye-campo-changed',()=>{
-  const m=location.hash.match(/^#panel-(aforos|calicatas|acido|descoles)$/);
+  const m=location.hash.match(/^#panel-(campos|aforos|calicatas|acido|descoles)$/);
   if(m)abrirPanel(m[1]); else cerrarPanel();
 });
 window.yoyeAbrirPanel=abrirPanel;

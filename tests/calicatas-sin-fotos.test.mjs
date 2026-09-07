@@ -22,3 +22,28 @@ test('la app no sube nada al almacenamiento', () => {
   assert.ok(!script.includes('storage.from'), 'calicatas.js no debe usar Storage');
   assert.ok(!script.includes('fotos_calicata'), 'calicatas.js no debe escribir en fotos_calicata');
 });
+
+test('la app confirma cuando la calicata llegó a la base', () => {
+  // Antes el rótulo se quedaba en "Guardado localmente" aunque ya estuviera
+  // sincronizada: quien registra en terreno no sabía si había llegado.
+  const js = readFileSync(new URL('../assets/calicatas.js', import.meta.url), 'utf8');
+  assert.ok(js.includes('estadoTrasSincronizar'), 'debe revisar el estado tras sincronizar');
+  assert.ok(js.includes('Guardada y sincronizada'), 'debe confirmar el envío');
+  assert.ok(js.includes('pendiente de envío'), 'y avisar cuando quedó pendiente');
+});
+
+test('no queda el aviso de "inicia sesión" con la sesión ya cargada', () => {
+  // shared-auth resuelve después del primer aviso; el error rojo se quedaba
+  // pegado debajo de un formulario que ya funcionaba.
+  const js = readFileSync(new URL('../assets/calicatas.js', import.meta.url), 'utf8');
+  const bloque = js.slice(js.indexOf('async function loadProfile'), js.indexOf('async function loadProfile') + 2600);
+  assert.ok(/else msg\(''\)/.test(bloque), 'al cargar los cuarteles debe limpiar el mensaje');
+});
+
+test('el registro se adapta a pantallas de notebook', () => {
+  const css = readFileSync(new URL('../assets/calicatas.css', import.meta.url), 'utf8');
+  assert.match(css, /@media\(min-width:1100px\)\{[^}]*\.cal-shell\{max-width:1180px\}/);
+  assert.ok(css.includes('#readings{display:grid'), 'las profundidades van de a dos');
+  // "No realizada" se cortaba en una columna de 108px.
+  assert.match(css, /\.reading-head,\.reading-row\{grid-template-columns:104px 122px/);
+});
