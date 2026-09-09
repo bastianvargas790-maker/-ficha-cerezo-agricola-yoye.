@@ -70,3 +70,51 @@
 @media (min-width:1400px){
   .pd-cuerpo{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
+
+/* ---------- Filtros del panel ----------
+   Una sola fila arriba que alcanza a todos los gráficos: nunca un filtro
+   dentro de una tarjeta, porque entonces cada gráfico muestra otra cosa. */
+.pd-filtros{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin:0 0 14px}
+.pd-filtro{display:flex;flex-direction:column;gap:3px;flex:1 1 130px;min-width:0}
+.pd-filtro>span{font-size:.7rem;font-weight:850;letter-spacing:.04em;text-transform:uppercase;color:var(--text-secondary,#645c50)}
+.pd-filtro select{width:100%;min-height:44px;padding:9px 10px;border:1px solid var(--line,#e2dbc8);
+  border-radius:10px;background:var(--paper,#fffdf8);font:inherit;font-size:.9rem;color:inherit}
+.pd-filtro-limpiar{min-height:44px;padding:9px 14px;border:1px solid var(--line,#e2dbc8);border-radius:10px;
+  background:var(--surface-alt,#efe9dc);font:inherit;font-size:.85rem;font-weight:800;color:var(--ink,#17352c);cursor:pointer}
+
+/* ---------- Perfil del bulbo ---------- */
+.pd-perfiles{display:contents}
+.pd-perfil{display:contents}
+.pd-perfil-cab{grid-column:1 / -1;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin:6px 0 2px}
+.pd-perfil-cab strong{font:800 1.05rem var(--font-heading,Georgia,serif);color:var(--ink,#17352c)}
+.pd-perfil-cab span{font-size:.78rem;color:var(--text-secondary,#645c50)}
+
+/* Leyenda: con dos o más series siempre está, y además cada serie lleva su
+   valor rotulado en el gráfico, así que la identidad nunca depende del color. */
+.pd-leyenda{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px}
+.pd-leyenda-item{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--text-secondary,#645c50)}
+.pd-leyenda-item i{width:14px;height:3px;border-radius:2px;flex:none}
+.pd-leyenda-lista{list-style:none;margin:0;padding:0;display:grid;gap:7px;min-width:0}
+.pd-leyenda-lista li{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;font-size:.82rem}
+.pd-leyenda-lista i{width:11px;height:11px;border-radius:3px}
+.pd-leyenda-lista span{color:var(--text-secondary,#645c50);overflow:hidden;text-overflow:ellipsis}
+.pd-leyenda-lista b{color:var(--ink,#17352c);font-weight:800}
+
+/* ---------- Anillo ---------- */
+.pd-anillo-fila{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.pd-anillo{width:120px;height:120px;flex:none}
+.pd-anillo-num{font:800 24px var(--font-heading,Georgia,serif);fill:var(--ink,#17352c)}
+.pd-anillo-de{font:600 10px var(--font-body,system-ui,sans-serif);fill:var(--text-secondary,#645c50)}
+
+/* Barras divergentes: el cero al centro, sube a la derecha y baja a la izquierda. */
+.pd-div{display:flex;flex-direction:column;gap:9px}
+.pd-div-row{display:grid;grid-template-columns:minmax(56px,74px) 1fr auto;align-items:center;gap:9px}
+.pd-div-label{font-size:.8rem;color:var(--text-secondary,#645c50);overflow-wrap:anywhere}
+.pd-div-track{position:relative;height:11px;border-radius:4px;background:var(--surface-alt,#efe9dc)}
+.pd-div-track i{position:absolute;top:0;height:100%;border-radius:3px}
+.pd-div-pos{background:#b1543a}
+.pd-div-neg{background:#2a78d6}
+.pd-div-cero{position:absolute;left:50%;top:-3px;width:1px;height:17px;background:var(--line,#cfc8b6)}
+.pd-div-valor{font-size:.82rem;font-weight:800;color:var(--ink,#17352c);white-space:nowrap}
+.pd-leyenda-nota{font-size:.72rem;color:var(--text-secondary,#645c50);margin-left:auto}
+.pd-dato-suelto{font:800 1.4rem var(--font-heading,Georgia,serif);color:var(--ink,#17352c);margin:.2em 0 0}

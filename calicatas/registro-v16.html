@@ -9,21 +9,21 @@
   <meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="Calicatas"><link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="../assets/icons/favicon.svg">
   <link rel="apple-touch-icon" href="../assets/icons/calicatas-192.png">
-  <link rel="stylesheet" href="../assets/yoye-theme.css?v=20260909-lecturas">
-  <link rel="stylesheet" href="../assets/private-app.css?v=20260909-lecturas">
-  <link rel="stylesheet" href="../assets/calicatas.css?v=20260909-lecturas">
-  <script src="../assets/supabase.js?v=20260909-lecturas"></script>
-  <script defer src="../assets/shared-auth.js?v=20260909-lecturas"></script>
-  <link rel="stylesheet" href="../assets/campos.css?v=20260909-lecturas">
-  <script defer src="../assets/campos.js?v=20260909-lecturas"></script><script defer src="../assets/aforo.js?v=20260909-lecturas"></script>
-  <script defer src="../assets/calicatas.js?v=20260909-lecturas"></script>
+  <link rel="stylesheet" href="../assets/yoye-theme.css?v=20260909-panel">
+  <link rel="stylesheet" href="../assets/private-app.css?v=20260909-panel">
+  <link rel="stylesheet" href="../assets/calicatas.css?v=20260909-panel">
+  <script src="../assets/supabase.js?v=20260909-panel"></script>
+  <script defer src="../assets/shared-auth.js?v=20260909-panel"></script>
+  <link rel="stylesheet" href="../assets/campos.css?v=20260909-panel">
+  <script defer src="../assets/campos.js?v=20260909-panel"></script><script defer src="../assets/aforo.js?v=20260909-panel"></script>
+  <script defer src="../assets/calicatas.js?v=20260909-panel"></script>
   <script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./sw.js',{scope:'./'}).catch(()=>{}));</script>
 </head>
 <body>
   <main class="cal-shell">
     <header class="cal-top">
       <a href="../" class="back">← Agrícola Yoye</a>
-      <img src="../assets/yoye-logo-official.png?v=20260909-lecturas" class="cal-logo" alt="Agrícola Yoye">
+      <img src="../assets/yoye-logo-official.png?v=20260909-panel" class="cal-logo" alt="Agrícola Yoye">
       <span id="calProfile" class="profile-status">Perfil: cargando…</span>
       <span id="calSync" class="status">Conectando…</span>
     </header>
@@ -37,7 +37,10 @@
 
     <nav class="cal-actions" aria-label="Acciones de calicatas">
       <button type="button" class="action-card active" data-view="register"><span class="icon">＋</span><b>Registrar nueva calicata</b><small>Formulario móvil de terreno</small></button>
-      <button type="button" class="action-card" data-view="history"><span class="icon">▥</span><b>Ver historial</b><small>Gráficas y trazabilidad</small></button>
+      <!-- Esta app es para registrar en terreno. El análisis (perfiles del bulbo,
+           comparación entre cuarteles, tendencias) vive en Paneles, dentro de la
+           app principal, donde hay pantalla y filtros para leerlo bien. -->
+      <a class="action-card" href="../paneles/#panel-calicatas"><span class="icon">⌁</span><b>Ver el análisis</b><small>Perfiles y comparación en Paneles</small></a>
     </nav>
 
     <section id="registerView" class="view active">
@@ -77,7 +80,9 @@
       <div class="report-actions"><button id="copyReport" class="primary" type="button">Copiar reporte</button><button id="shareReport" class="secondary" type="button">Compartir reporte</button><button id="editObservations" class="secondary" type="button">Editar observaciones</button><button id="backToCalicata" class="secondary" type="button">Volver a la calicata</button></div>
     </section>
 
-    <section id="historyView" class="view">
+    <!-- Se conserva fuera de la vista solo porque el guardado offline consulta
+     estos nodos; en pantalla la app quedó únicamente para registrar. -->
+    <section id="historyView" class="view" hidden aria-hidden="true">
       <div class="panel">
         <div class="section-title"><div><span class="kicker">Trazabilidad</span><h2>Historial por cuartel</h2></div></div>
         <div class="history-filter"><label class="field"><span>Cuartel</span><select id="historyQuarter"><option value="">Selecciona un cuartel</option></select></label><label class="field"><span>Profundidad</span><select id="historyDepth"><option value="">Todas</option></select></label><label class="field"><span>Punto de medición</span><select id="historyPoint"><option value="">Todos</option><option value="punto_cero">Centro</option><option value="linea_izquierda">Izquierda</option><option value="linea_derecha">Derecha</option></select></label><label class="field"><span>Cultivo</span><input id="historyCulture" type="search" placeholder="Filtrar cultivo"></label><label class="field"><span>Variedad</span><input id="historyVariety" type="search" placeholder="Filtrar variedad"></label><label class="field"><span>Desde / hasta</span><span class="date-range"><input id="historyFrom" type="date" aria-label="Fecha desde"><input id="historyTo" type="date" aria-label="Fecha hasta"></span></label></div>

@@ -86,3 +86,9 @@
   .reading-row input{text-align:center}
   .profile-name{font-size:.85rem}
 }
+
+/* La app de terreno quedó solo para registrar: el análisis se lee en Paneles.
+   La vista de historial permanece en el DOM porque el guardado sin conexión
+   consulta sus nodos, pero no debe aparecer nunca. */
+#historyView{display:none !important}
+.action-card{display:block;text-decoration:none}

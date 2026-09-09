@@ -165,20 +165,48 @@ function pintarAforo(d,campo){
       <div class="pd-tabla-wrap"><table class="pd-tabla"><thead><tr><th>Sector</th><th>Fecha</th><th>CU</th><th>Clasificación</th></tr></thead><tbody>${ultimos}</tbody></table></div></section>`:'');
 }
 
+/* ---------- Calicatas ----------
+   Una calicata es la lectura de un bulbo húmedo: tres puntos (centro bajo el
+   gotero, izquierda y derecha) a tres profundidades. Lo que dice si el riego
+   está bien no es el promedio, es la FORMA del perfil: si la humedad cae a
+   90 cm el bulbo no llega a la raíz; si la CE sube con la profundidad hay
+   sales acumulándose abajo; si un lado está más seco el bulbo va corrido.
+   Promediar el campo mezcla cuarteles con distinto suelo, cultivo y caudal, y
+   borra justamente eso: los datos reales del campo van de 0 a 6,2 mS/cm de CE
+   a 90 cm, y su promedio no describe a ninguno de los dos cuarteles.
+   Por eso este panel filtra y compara, y nunca promedia entre cuarteles. */
+
+/* Paleta de los tres puntos del perfil. Fija por identidad -- el centro es
+   siempre azul -- y validada para daltonismo sobre el fondo de la app
+   (separación mínima ΔE 8,4 en protanopía; todos sobre 3:1 de contraste). */
+const PUNTOS=[
+  {clave:'punto_cero',      nombre:'Centro',    color:'#2a78d6'},
+  {clave:'linea_izquierda', nombre:'Izquierda', color:'#eb6834'},
+  {clave:'linea_derecha',   nombre:'Derecha',   color:'#199e70'}
+];
+const RAMPA=['#cde2fb','#9ec5f4','#6da7ec','#3987e5','#256abf','#184f95'];
+const etiquetaPerfil=k=>PUNTOS.find(p=>p.clave===k)?.nombre||k;
+const UNION={unidos:'Bulbos unidos',parcialmente_unidos:'Parcialmente unidos',no_unidos:'Bulbos separados'};
+
+/* Filtros del panel. Viven fuera del render para sobrevivir al repintado. */
+let filtroCal={cuartel:'',caseta:'',equipo:'',cultivo:''};
+
 async function datosCalicatas(campo){
-  const cuart=await db.from('cuarteles').select('id,codigo,cultivo,equipo').eq('campo_id',campo.id).eq('activo',true);
+  const cuart=await db.from('cuarteles').select('id,codigo,cultivo,variedad,caseta,equipo')
+    .eq('campo_id',campo.id).eq('activo',true);
   const cuarteles=cuart.data||[];
   const porCuartel=new Map(cuarteles.map(c=>[c.id,c]));
   let calicatas=[],lecturas=[],observaciones=[];
   if(cuarteles.length){
-    const r=await db.from('calicatas').select('id,cuartel_id,fecha,responsable,union_bulbos,profundidad_efectiva_raices_cm')
+    const r=await db.from('calicatas')
+      .select('id,cuartel_id,fecha,hora,responsable,union_bulbos,profundidad_hoyo_cm,profundidad_efectiva_raices_cm,horas_desde_ultimo_riego,duracion_ultimo_riego_h,observaciones_generales')
       .in('cuartel_id',cuarteles.map(c=>c.id)).eq('activo',true).order('fecha',{ascending:false});
     calicatas=r.data||[];
     if(calicatas.length){
       const ids=calicatas.map(c=>c.id);
       const [l,o]=await Promise.all([
         db.from('lecturas_calicata').select('calicata_id,perfil,profundidad_cm,humedad_pct,ce_ms_cm,temperatura_c,estado').in('calicata_id',ids),
-        db.from('observaciones_calicata').select('calicata_id,categoria,opcion_etiqueta').in('calicata_id',ids)
+        db.from('observaciones_calicata').select('calicata_id,categoria,opcion_etiqueta,perfil,profundidad_cm').in('calicata_id',ids)
       ]);
       lecturas=l.data||[]; observaciones=o.data||[];
     }
@@ -186,17 +214,128 @@ async function datosCalicatas(campo){
   return {cuarteles,porCuartel,calicatas,lecturas,observaciones};
 }
 
+/* ---------- Piezas propias del perfil ---------- */
+/* Perfil vertical: la profundidad baja por el eje Y, como se ve en el hoyo.
+   Un gráfico de barras horizontal no deja leer la forma del bulbo.
+   El dominio del eje se recibe de afuera y es COMÚN a todos los perfiles del
+   panel: si cada tarjeta se escala a sus propios datos, un cuartel que va de
+   9 a 30 % se ve igual que uno que va de 29 a 33 %, y comparar deja de
+   significar nada. */
+function perfilVertical(titulo,kicker,series,unidad,nota,dominio){
+  const profs=[...new Set(series.flatMap(s=>s.puntos.map(p=>p.prof)))].sort((a,b)=>a-b);
+  const valores=series.flatMap(s=>s.puntos.map(p=>p.valor)).filter(Number.isFinite);
+  if(!profs.length||!valores.length)return '';
+  const w=320,h=200,pad={l:36,r:54,t:14,b:28};
+  const min=dominio?dominio[0]:0, max=(dominio?dominio[1]:Math.max(...valores))||1;
+  const x=v=>pad.l+(v-min)/((max-min)||1)*(w-pad.l-pad.r);
+  const maxProf=Math.max(...profs), minProf=Math.min(...profs);
+  const y=p=>pad.t+(p-minProf)/((maxProf-minProf)||1)*(h-pad.t-pad.b);
+
+  const guias=profs.map(pr=>`<line x1="${pad.l}" x2="${w-pad.r}" y1="${y(pr).toFixed(1)}" y2="${y(pr).toFixed(1)}" class="pd-svg-guia"></line>
+    <text x="${pad.l-6}" y="${(y(pr)+3).toFixed(1)}" class="pd-svg-eje" text-anchor="end">${n0(pr)}</text>`).join('');
+  const ejeX=[min,(min+max)/2,max].map(v=>`<text x="${x(v).toFixed(1)}" y="${h-pad.b+16}" class="pd-svg-eje">${n1(v)}</text>`).join('');
+
+  /* Rótulos: cada serie lleva el suyo al final del trazo, pero cuando dos caen
+     casi encima -- que es lo normal cuando los tres puntos miden parecido -- se
+     separan en vertical. Antes se pisaban y quedaba "29,833,132,2" ilegible. */
+  const finales=series.map(s=>{
+    const ps=s.puntos.filter(p=>Number.isFinite(p.valor)).sort((a,b)=>a.prof-b.prof);
+    return ps.length?{s,p:ps.at(-1),px:x(ps.at(-1).valor),py:y(ps.at(-1).prof)}:null;
+  }).filter(Boolean).sort((a,b)=>a.px-b.px);
+  finales.forEach((f,i)=>{
+    f.dy=0;
+    for(let j=0;j<i;j++) if(Math.abs(finales[j].px-f.px)<42&&Math.abs((finales[j].py+finales[j].dy)-(f.py+f.dy))<11)
+      f.dy=(finales[j].dy||0)-11;
+  });
+
+  const trazos=series.map(s=>{
+    const ps=s.puntos.filter(p=>Number.isFinite(p.valor)).sort((a,b)=>a.prof-b.prof);
+    if(!ps.length)return '';
+    const d=ps.map((p,i)=>`${i?'L':'M'}${x(p.valor).toFixed(1)},${y(p.prof).toFixed(1)}`).join(' ');
+    return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+      ${ps.map(p=>`<circle cx="${x(p.valor).toFixed(1)}" cy="${y(p.prof).toFixed(1)}" r="4" fill="${s.color}" stroke="var(--paper,#fffdf8)" stroke-width="2"><title>${esc(s.nombre)} · ${n0(p.prof)} cm · ${n1(p.valor)}${esc(unidad||'')}</title></circle>`).join('')}`;
+  }).join('');
+  const rotulos=finales.map(f=>`<text x="${Math.min(w-3,f.px+9).toFixed(1)}" y="${(f.py+f.dy+3).toFixed(1)}"
+    class="pd-svg-val" text-anchor="start" fill="${f.s.color}">${n1(f.p.valor)}</text>`).join('');
+
+  return `<section class="pd-card">
+    <div class="pd-kicker">${esc(kicker)}</div>
+    <h3 class="pd-card-title">${esc(titulo)}</h3>
+    <div class="pd-svg-wrap"><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(titulo)}">
+      ${guias}${ejeX}${trazos}${rotulos}
+    </svg></div>
+    ${nota?`<p class="pd-nota">${esc(nota)}</p>`:''}
+  </section>`;
+}
+
+/* Barras divergentes: sube o baja respecto de cero. Con barras normales, "la CE
+   bajó 0,64" se dibujaba como una barra diminuta hacia el mismo lado que "subió
+   4,03", que es justo lo contrario de lo que pasó. */
+function barrasDivergentes(titulo,kicker,filas,nota){
+  const vals=filas.map(f=>f.valor).filter(Number.isFinite);
+  if(!vals.length)return '';
+  const tope=Math.max(...vals.map(Math.abs))||1;
+  return `<section class="pd-card">
+    <div class="pd-kicker">${esc(kicker)}</div>
+    <h3 class="pd-card-title">${esc(titulo)}</h3>
+    <div class="pd-div">${filas.map(f=>{
+      const pos=f.valor>=0, ancho=Math.max(1.5,Math.abs(f.valor)/tope*50);
+      return `<div class="pd-div-row">
+        <span class="pd-div-label">${esc(f.etiqueta)}</span>
+        <span class="pd-div-track">
+          <i class="${pos?'pd-div-pos':'pd-div-neg'}" style="${pos?'left:50%':'right:50%'};width:${ancho.toFixed(1)}%"></i>
+          <b class="pd-div-cero"></b>
+        </span>
+        <b class="pd-div-valor">${esc(f.texto)}</b>
+      </div>`}).join('')}</div>
+    ${nota?`<p class="pd-nota">${esc(nota)}</p>`:''}
+  </section>`;
+}
+
+/* Anillo: solo para parte-de-un-todo con pocas porciones, nunca para comparar
+   valores parecidos (para eso están las barras). */
+function anillo(titulo,kicker,partes,pie){
+  const total=partes.reduce((t,p)=>t+p.valor,0);
+  if(!total)return '';
+  const r=46,c=2*Math.PI*r; let acum=0;
+  const arcos=partes.filter(p=>p.valor>0).map(p=>{
+    const frac=p.valor/total, largo=Math.max(0,c*frac-3);   // 3 = separación entre porciones
+    const el=`<circle cx="60" cy="60" r="${r}" fill="none" stroke="${p.color}" stroke-width="15"
+      stroke-dasharray="${largo.toFixed(2)} ${(c-largo).toFixed(2)}" stroke-dashoffset="${(-c*acum).toFixed(2)}"
+      transform="rotate(-90 60 60)"><title>${esc(p.etiqueta)}: ${n0(p.valor)} de ${n0(total)} (${n1(frac*100)}%)</title></circle>`;
+    acum+=frac; return el;
+  }).join('');
+  const mayor=[...partes].sort((a,b)=>b.valor-a.valor)[0];
+  return `<section class="pd-card">
+    <div class="pd-kicker">${esc(kicker)}</div>
+    <h3 class="pd-card-title">${esc(titulo)}</h3>
+    <div class="pd-anillo-fila">
+      <svg viewBox="0 0 120 120" class="pd-anillo" role="img" aria-label="${esc(titulo)}">
+        <circle cx="60" cy="60" r="${r}" fill="none" stroke="var(--surface-alt,#efe9dc)" stroke-width="15"></circle>
+        ${arcos}
+        <text x="60" y="57" text-anchor="middle" class="pd-anillo-num">${n0(mayor.valor)}</text>
+        <text x="60" y="73" text-anchor="middle" class="pd-anillo-de">de ${n0(total)}</text>
+      </svg>
+      <ul class="pd-leyenda-lista">${partes.filter(p=>p.valor>0).map(p=>`
+        <li><i style="background:${p.color}"></i><span>${esc(p.etiqueta)}</span><b>${n0(p.valor)}</b></li>`).join('')}</ul>
+    </div>
+    ${pie?`<p class="pd-nota">${esc(pie)}</p>`:''}
+  </section>`;
+}
+
+function tabla(titulo,kicker,cabeceras,filas,nota){
+  if(!filas.length)return '';
+  return `<section class="pd-card pd-ancho"><div class="pd-kicker">${esc(kicker)}</div>
+    <h3 class="pd-card-title">${esc(titulo)}</h3>
+    <div class="pd-tabla-wrap"><table class="pd-tabla"><thead><tr>${cabeceras.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
+    <tbody>${filas.map(f=>`<tr>${f.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+    ${nota?`<p class="pd-nota">${esc(nota)}</p>`:''}</section>`;
+}
+
+/* ---------- Render del panel ---------- */
 function pintarCalicatas(d,campo){
   const {cuarteles,porCuartel,calicatas,lecturas,observaciones}=d;
-  const conCalicata=new Set(calicatas.map(c=>c.cuartel_id));
-  const medidas=lecturas.filter(l=>l.estado!=='no_realizada');
-  const profs=[...new Set(medidas.map(l=>Number(l.profundidad_cm)).filter(Number.isFinite))].sort((a,b)=>a-b);
-  const porProf=campo=>profs.map(p=>{
-    const v=medidas.filter(l=>Number(l.profundidad_cm)===p&&esNum(l[campo])).map(l=>Number(l[campo]));
-    return {etiqueta:`${n0(p)} cm`, valor:v.length?prom(v):0, n:v.length};
-  }).filter(x=>x.n>0);
 
-  const humedades=medidas.filter(l=>esNum(l.humedad_pct)).map(l=>Number(l.humedad_pct));
   if(!calicatas.length)return `<div class="pd-kpis">
     ${kpi('Calicatas registradas','0','en todo el campo','cafe')}
     ${kpi('Cuarteles del campo',n0(cuarteles.length),'listos para evaluar','cafe')}
@@ -205,34 +344,182 @@ function pintarCalicatas(d,campo){
     'Se registran desde la app de Calicatas y aparecen acá de inmediato, sin pasar por la planilla.',
     'Abrir la app de Calicatas', raiz()+'calicatas/');
 
-  const kpis=`<div class="pd-kpis">
-    ${kpi('Calicatas registradas',n0(calicatas.length),'en todo el campo','cafe')}
-    ${kpi('Cuarteles evaluados',`${n0(conCalicata.size)}<span class="pd-de">/ ${n0(cuarteles.length)}</span>`,'con al menos una calicata','cafe')}
-    ${kpi('Última evaluación',fecha(calicatas[0]?.fecha),calicatas[0]?esc(porCuartel.get(calicatas[0].cuartel_id)?.codigo||''):'sin registros','verde',true)}
-    ${kpi('Humedad promedio',humedades.length?`${n1(prom(humedades))}<span class="pd-de">%</span>`:'—','de todas las mediciones','verde')}
+  // --- Filtros: una sola fila que alcanza a todos los gráficos ---
+  const cuartelDe=k=>porCuartel.get(k.cuartel_id)||{};
+  const opciones=(campoNombre)=>[...new Set(calicatas.map(k=>cuartelDe(k)[campoNombre]).filter(Boolean))].sort();
+  const pasa=k=>{const q=cuartelDe(k);
+    return (!filtroCal.cuartel||q.codigo===filtroCal.cuartel)
+        && (!filtroCal.caseta ||q.caseta===filtroCal.caseta)
+        && (!filtroCal.equipo ||q.equipo===filtroCal.equipo)
+        && (!filtroCal.cultivo||q.cultivo===filtroCal.cultivo)};
+  const sel=calicatas.filter(pasa);
+  const selector=(id,etq,vals,actual)=>`<label class="pd-filtro"><span>${esc(etq)}</span>
+    <select data-cal-filtro="${id}"><option value="">Todos</option>
+    ${vals.map(v=>`<option value="${esc(v)}"${v===actual?' selected':''}>${esc(v)}</option>`).join('')}</select></label>`;
+  const filtros=`<div class="pd-filtros">
+    ${selector('cuartel','Cuartel',opciones('codigo'),filtroCal.cuartel)}
+    ${selector('cultivo','Cultivo',opciones('cultivo'),filtroCal.cultivo)}
+    ${selector('caseta','Caseta',opciones('caseta'),filtroCal.caseta)}
+    ${selector('equipo','Equipo',opciones('equipo'),filtroCal.equipo)}
+    ${Object.values(filtroCal).some(Boolean)?'<button type="button" class="pd-filtro-limpiar" data-cal-filtro="limpiar">Quitar filtros</button>':''}
   </div>`;
 
-  const raices=new Map(),compact=new Map();
-  observaciones.forEach(o=>{
-    const m=o.categoria==='raices'?raices:o.categoria==='estructura_compactacion'?compact:null;
-    if(m&&o.opcion_etiqueta)m.set(o.opcion_etiqueta,(m.get(o.opcion_etiqueta)||0)+1);
+  if(!sel.length)return filtros+vacio('Ningún registro cumple con ese filtro. Quita alguno para volver a ver datos.');
+
+  const idsSel=new Set(sel.map(k=>k.id));
+  const medidas=lecturas.filter(l=>idsSel.has(l.calicata_id)&&l.estado!=='no_realizada');
+  const valorDe=(cal,perfil,prof,campoDato)=>{
+    const l=medidas.find(x=>x.calicata_id===cal.id&&x.perfil===perfil&&Number(x.profundidad_cm)===prof);
+    return l&&esNum(l[campoDato])?Number(l[campoDato]):null;
+  };
+  const profsSel=[...new Set(medidas.map(l=>Number(l.profundidad_cm)).filter(Number.isFinite))].sort((a,b)=>a-b);
+
+  // --- Indicadores de la selección: hechos, no promedios entre cuarteles ---
+  const cuartelesSel=new Set(sel.map(k=>k.cuartel_id));
+  const ultima=sel[0];
+  const rangoEn=(prof,dato)=>{
+    const v=medidas.filter(l=>Number(l.profundidad_cm)===prof&&esNum(l[dato])).map(l=>Number(l[dato]));
+    return v.length?{min:Math.min(...v),max:Math.max(...v),n:v.length}:null;
+  };
+  const profMax=profsSel.at(-1);
+  const hMax=profMax!=null?rangoEn(profMax,'humedad_pct'):null;
+  const ceMax=profMax!=null?rangoEn(profMax,'ce_ms_cm'):null;
+  const raices=sel.map(k=>Number(k.profundidad_efectiva_raices_cm)).filter(Number.isFinite);
+
+  const kpis=`<div class="pd-kpis">
+    ${kpi('Calicatas en la selección',n0(sel.length),`${n0(cuartelesSel.size)} ${cuartelesSel.size===1?'cuartel':'cuarteles'} de ${n0(cuarteles.length)}`,'cafe')}
+    ${kpi('Última evaluación',fecha(ultima.fecha),esc(cuartelDe(ultima).codigo||''),'verde',true)}
+    ${hMax?kpi(`Humedad a ${n0(profMax)} cm`,`${n1(hMax.min)}–${n1(hMax.max)}<span class="pd-de">%</span>`,`rango entre ${n0(hMax.n)} lecturas`,'azul',true):''}
+    ${ceMax?kpi(`CE a ${n0(profMax)} cm`,`${n2(ceMax.min)}–${n2(ceMax.max)}<span class="pd-de">mS/cm</span>`,'rango, sin promediar cuarteles','terracota',true):''}
+    ${raices.length?kpi('Raíces efectivas',`${n0(Math.min(...raices))}–${n0(Math.max(...raices))}<span class="pd-de">cm</span>`,'profundidad declarada','verde',true):''}
+  </div>`;
+
+  // --- Perfiles: uno por calicata, nunca uno solo promediado ---
+  const perfilesDe=(cal,dato,unidad)=>PUNTOS.map(p=>({
+    nombre:p.nombre,color:p.color,
+    puntos:profsSel.map(pr=>({prof:pr,valor:valorDe(cal,p.clave,pr,dato)})).filter(x=>x.valor!==null)
+  })).filter(s=>s.puntos.length);
+
+  // Con un cuartel elegido se ve el detalle; sin filtro, un perfil por cuartel
+  // (su calicata más reciente) para poder compararlos de un vistazo.
+  const porCuartelUltima=[...cuartelesSel].map(id=>sel.find(k=>k.cuartel_id===id));
+  const detalle=filtroCal.cuartel||porCuartelUltima.length===1;
+  const muestras=detalle?sel.slice(0,4):porCuartelUltima.slice(0,6);
+
+  /* Dominio común: se calcula sobre TODAS las muestras que se van a dibujar,
+     así los perfiles de dos cuarteles se pueden poner uno al lado del otro. */
+  const dominioDe=dato=>{
+    const v=muestras.flatMap(cal=>PUNTOS.flatMap(p=>profsSel.map(pr=>valorDe(cal,p.clave,pr,dato))))
+      .filter(x=>x!==null&&Number.isFinite(x));
+    if(!v.length)return null;
+    const max=Math.max(...v);
+    return [0, max*1.05||1];
+  };
+  const domHum=dominioDe('humedad_pct'), domCe=dominioDe('ce_ms_cm');
+
+  const perfiles=muestras.map(cal=>{
+    const q=cuartelDe(cal);
+    const ctx=[q.cultivo,q.variedad,q.caseta?`Caseta ${q.caseta}`:null,q.equipo].filter(Boolean).join(' · ');
+    const hum=perfilesDe(cal,'humedad_pct');
+    const ce=perfilesDe(cal,'ce_ms_cm');
+    const nota=[
+      esNum(cal.horas_desde_ultimo_riego)?`${n0(cal.horas_desde_ultimo_riego)} h desde el último riego`:null,
+      esNum(cal.duracion_ultimo_riego_h)?`riego de ${n1(cal.duracion_ultimo_riego_h)} h`:null,
+      UNION[cal.union_bulbos]||null,
+      esNum(cal.profundidad_efectiva_raices_cm)?`raíces a ${n0(cal.profundidad_efectiva_raices_cm)} cm`:null
+    ].filter(Boolean).join(' · ');
+    return `<div class="pd-perfil"><div class="pd-perfil-cab">
+        <strong>${esc(q.codigo||'Sin código')}</strong>
+        <span>${esc(ctx)} · ${fecha(cal.fecha)}</span></div>
+      ${perfilVertical('Humedad por profundidad','Perfil del bulbo',hum,' %',nota||null,domHum)}
+      ${perfilVertical('CE por profundidad','Conductividad eléctrica',ce,' mS/cm',null,domCe)}
+    </div>`;
+  }).join('');
+
+  // --- Comparación entre cuarteles (no promedio del campo) ---
+  const compara=[...cuartelesSel].map(id=>{
+    const cal=sel.find(k=>k.cuartel_id===id);
+    const q=porCuartel.get(id)||{};
+    const h=prof=>{const v=PUNTOS.map(p=>valorDe(cal,p.clave,prof,'humedad_pct')).filter(x=>x!==null);
+      return v.length?prom(v):null};
+    const ce=prof=>{const v=PUNTOS.map(p=>valorDe(cal,p.clave,prof,'ce_ms_cm')).filter(x=>x!==null);
+      return v.length?prom(v):null};
+    const sup=profsSel[0], fondo=profsSel.at(-1);
+    return {codigo:q.codigo||'—', cultivo:q.cultivo||'', fecha:cal.fecha,
+      hSup:h(sup), hFondo:h(fondo), ceSup:ce(sup), ceFondo:ce(fondo),
+      caida:(h(sup)!==null&&h(fondo)!==null)?h(sup)-h(fondo):null,
+      salto:(ce(sup)!==null&&ce(fondo)!==null)?ce(fondo)-ce(sup):null};
+  }).sort((a,b)=>(b.salto??-99)-(a.salto??-99));
+
+  const sup=profsSel[0], fondo=profsSel.at(-1);
+  const barrasComparacion=(compara.length>1&&fondo!==sup)?
+    barrasDivergentes(`Cambio de CE entre ${n0(sup)} y ${n0(fondo)} cm`,'Comparación entre cuarteles',
+      compara.filter(c=>c.salto!==null).map(c=>({etiqueta:c.codigo,valor:c.salto,
+        texto:`${c.salto>0?'+':'−'}${n2(Math.abs(c.salto))} mS/cm`})),
+      'A la derecha, la CE sube con la profundidad: hay sales acumulándose bajo la zona de raíces.')
+    +barrasDivergentes(`Cambio de humedad entre ${n0(sup)} y ${n0(fondo)} cm`,'Comparación entre cuarteles',
+      compara.filter(c=>c.caida!==null).map(c=>({etiqueta:c.codigo,valor:-c.caida,
+        texto:`${c.caida>0?'−':'+'}${n1(Math.abs(c.caida))} pp`})),
+      'A la izquierda, el suelo se seca hacia abajo: el bulbo no está llegando a esa profundidad.')
+    :'';
+
+  // --- Tendencia: solo si un cuartel tiene más de una fecha ---
+  const fechasPorCuartel=new Map();
+  sel.forEach(k=>{const a=fechasPorCuartel.get(k.cuartel_id)||[];a.push(k);fechasPorCuartel.set(k.cuartel_id,a)});
+  const conHistoria=[...fechasPorCuartel.entries()].filter(([,ks])=>new Set(ks.map(k=>k.fecha)).size>1);
+  const tendencia=conHistoria.length?tabla('Evolución por fecha','Tendencia',
+    ['Cuartel','Fecha',`Humedad ${n0(sup)} cm`,`Humedad ${n0(fondo)} cm`,`CE ${n0(fondo)} cm`],
+    conHistoria.flatMap(([id,ks])=>ks.sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha))).map(k=>{
+      const q=porCuartel.get(id)||{};
+      const h=prof=>{const v=PUNTOS.map(p=>valorDe(k,p.clave,prof,'humedad_pct')).filter(x=>x!==null);return v.length?n1(prom(v))+' %':'—'};
+      const c=prof=>{const v=PUNTOS.map(p=>valorDe(k,p.clave,prof,'ce_ms_cm')).filter(x=>x!==null);return v.length?n2(prom(v)):'—'};
+      return [esc(q.codigo||'—'),fecha(k.fecha),h(sup),h(fondo),c(fondo)];
+    })),'Cada fila es una calicata completa; los valores son el promedio de los tres puntos de ESA calicata.'):'';
+
+  // --- Anillo: unión de bulbos, que sí es parte de un todo ---
+  const unionCuenta=new Map();
+  sel.forEach(k=>{const u=UNION[k.union_bulbos]||'Sin registrar';unionCuenta.set(u,(unionCuenta.get(u)||0)+1)});
+  /* Un anillo de una sola porción no dice nada: cuando todas las calicatas
+     coinciden, el dato cabe en una frase. */
+  const anilloUnion=unionCuenta.size>1
+    ? anillo('Unión de bulbos','Continuidad de la franja húmeda',
+        [...unionCuenta.entries()].map(([etiqueta,valor],i)=>({etiqueta,valor,color:RAMPA[RAMPA.length-1-i]||RAMPA[0]})),
+        'Cuando los bulbos no se unen quedan franjas secas entre goteros.')
+    : `<section class="pd-card"><div class="pd-kicker">Continuidad de la franja húmeda</div>
+       <h3 class="pd-card-title">Unión de bulbos</h3>
+       <p class="pd-dato-suelto">${esc([...unionCuenta.keys()][0]||'Sin registrar')}</p>
+       <p class="pd-nota">Las ${n0(sel.length)} calicatas de la selección coinciden.</p></section>`;
+
+  // --- Observaciones de perfil ---
+  const cuentaObs=cat=>{const m=new Map();
+    observaciones.filter(o=>idsSel.has(o.calicata_id)&&o.categoria===cat&&o.opcion_etiqueta)
+      .forEach(o=>m.set(o.opcion_etiqueta,(m.get(o.opcion_etiqueta)||0)+1));
+    return [...m.entries()].map(([etiqueta,valor])=>({etiqueta,valor,texto:n0(valor)})).sort((a,b)=>b.valor-a.valor)};
+  const obsRaices=cuentaObs('raices'), obsComp=cuentaObs('estructura_compactacion');
+
+  // --- Tabla completa: cada lectura, sin agregar nada ---
+  const detalleFilas=sel.slice(0,6).flatMap(cal=>{
+    const q=cuartelDe(cal);
+    return profsSel.map(pr=>[esc(q.codigo||'—'),fecha(cal.fecha),`${n0(pr)} cm`,
+      ...PUNTOS.map(p=>{const v=valorDe(cal,p.clave,pr,'humedad_pct');return v===null?'—':n1(v)+' %'}),
+      (()=>{const v=valorDe(cal,'punto_cero',pr,'ce_ms_cm');return v===null?'—':n2(v)})()]);
   });
-  const aFilas=m=>[...m.entries()].map(([k,v])=>({etiqueta:k,valor:v,texto:n0(v)})).sort((a,b)=>b.valor-a.valor);
 
-  const porCuartelFilas=[...conCalicata].map(id=>{
-    const suyas=calicatas.filter(c=>c.cuartel_id===id).map(c=>c.id);
-    const v=medidas.filter(l=>suyas.includes(l.calicata_id)&&esNum(l.humedad_pct)).map(l=>Number(l.humedad_pct));
-    return {etiqueta:porCuartel.get(id)?.codigo||'—', valor:v.length?prom(v):0, texto:v.length?n1(prom(v))+'%':'—'};
-  }).sort((a,b)=>b.valor-a.valor);
+  const leyenda=`<div class="pd-leyenda pd-ancho">${PUNTOS.map(p=>
+    `<span class="pd-leyenda-item"><i style="background:${p.color}"></i>${esc(p.nombre)}</span>`).join('')}
+    <span class="pd-leyenda-nota">${muestras.length>1?'Todos los perfiles comparten la misma escala.':'Escala del cuartel.'}</span></div>`;
 
-  return kpis+
-    columnas('Humedad promedio por profundidad','Perfil descriptivo',porProf('humedad_pct'),'Promedio de todos los perfiles medidos del campo. Las profundidades sin mediciones no aparecen.','#3f7a4f')+
-    columnas('CE promedio por profundidad','Conductividad eléctrica',porProf('ce_ms_cm'),'Milisiemens por centímetro.','#8c6847')+
-    (porCuartelFilas.length?barras('Humedad promedio por cuartel','Comparación',porCuartelFilas):'')+
-    (raices.size?barras('Estado de raíces','Observaciones',aFilas(raices)):'')+
-    (compact.size?barras('Compactación','Observaciones',aFilas(compact)):'');
+  return filtros+kpis+leyenda+
+    `<div class="pd-perfiles">${perfiles}</div>`+
+    barrasComparacion+
+    anilloUnion+
+    (obsRaices.length?barras('Estado de raíces','Observaciones',obsRaices):'')+
+    (obsComp.length?barras('Compactación','Observaciones',obsComp):'')+
+    tendencia+
+    tabla('Todas las lecturas','Detalle',
+      ['Cuartel','Fecha','Prof.','Centro','Izquierda','Derecha','CE centro'],detalleFilas,
+      detalle?null:'Se muestran hasta seis cuarteles. Filtra por cuartel para ver todas sus fechas.');
 }
-
 
 /* ---------- Ácido peracético y descole ----------
    Los dos salen de la misma tabla, que es la copia en la base del registro de
@@ -419,12 +706,27 @@ function pintarTodos(d){
     ${resumen.some(r=>!r.superficieMedida)?'<p class="pd-nota">* Superficie de referencia del campo: todavía falta cargarla cuartel por cuartel.</p>':''}
   </section>`;
 
+  /* Cobertura del monitoreo: cuántos cuarteles tienen al menos una calicata.
+     Es parte de un todo real -- evaluado o no evaluado -- así que el anillo
+     dice algo; las barras con todo en cero, no. */
+  const evaluadosTot=resumen.reduce((t,r)=>t+r.cuartelesConCalicata,0);
+  const anilloCobertura=totCuarteles?anillo('Cobertura del monitoreo','Calicatas',[
+    {etiqueta:'Cuarteles con calicata',valor:evaluadosTot,color:'#2a78d6'},
+    {etiqueta:'Todavía sin evaluar',valor:Math.max(0,totCuarteles-evaluadosTot),color:'#cde2fb'}
+  ],'Sobre el total de cuarteles cargados en los campos que puedes ver.'):'';
+
+  /* El avance del aforo se dibuja solo cuando hay alguno: con todo en cero son
+     cuatro barras vacías que hacen parecer roto un panel que solo espera datos. */
+  const hayAforos=resumen.some(r=>r.aforos>0);
+
   return kpis+
-    barras('Avance del aforo por campo','Comparación',filaAvance)+
+    (hayAforos?barras('Avance del aforo por campo','Comparación',filaAvance):'')+
     barras('Superficie por campo','Comparación',filaSup)+
-    (filaCal.length?barras('Cuarteles con calicata','Comparación',filaCal):'')+
+    anilloCobertura+
+    (filaCal.some(f=>f.valor>0)?barras('Cuarteles con calicata','Comparación',filaCal):'')+
     (conAcido.length?barras('Ácido peracético aplicado','Comparación',
       conAcido.map(r=>({etiqueta:r.nombre,valor:r.acidoAvance,texto:`${n1(r.acidoAvance)}%`}))):'')+
+    (hayAforos?'':`<p class="pd-nota pd-ancho">Todavía no hay aforos registrados en ningún campo: por eso no aparece la comparación de avance. En cuanto se registre el primero, este panel la muestra.</p>`)+
     tabla;
 }
 
@@ -504,6 +806,24 @@ function claveDe(href){
   if(/#descole/.test(href))return 'descoles';
   return null;
 }
+/* Los filtros del panel de Calicatas se dibujan con el resto del contenido, así
+   que se escucha en el contenedor: da igual cuándo aparezcan. */
+function enlazarFiltros(){
+  const host=$('#yoyePanelVista');
+  if(!host||host.dataset.pdFiltros)return;
+  host.dataset.pdFiltros='1';
+  host.addEventListener('change',ev=>{
+    const s=ev.target.closest('select[data-cal-filtro]');
+    if(!s)return;
+    filtroCal[s.dataset.calFiltro]=s.value;
+    if(panelAbierto)abrirPanel(panelAbierto,{desdeHash:true});
+  });
+  host.addEventListener('click',ev=>{
+    if(!ev.target.closest('[data-cal-filtro="limpiar"]'))return;
+    filtroCal={cuartel:'',caseta:'',equipo:'',cultivo:''};
+    if(panelAbierto)abrirPanel(panelAbierto,{desdeHash:true});
+  });
+}
 function enlazarLista(){
   const lista=$('#yoyePanelesList');
   if(!lista||lista.dataset.pdEnlazado)return;
@@ -543,8 +863,9 @@ function abrirCuandoSePueda(intentos=25){
   if(intentos>0)setTimeout(()=>abrirCuandoSePueda(intentos-1),120);
 }
 addEventListener('yoye-auth-ready',e=>{db=e.detail.client;abrirCuandoSePueda()});
-addEventListener('DOMContentLoaded',()=>{enlazarLista();abrirCuandoSePueda()});
+addEventListener('DOMContentLoaded',()=>{enlazarLista();enlazarFiltros();abrirCuandoSePueda()});
 document.addEventListener('yoye-campo-changed',()=>{
+  filtroCal={cuartel:'',caseta:'',equipo:'',cultivo:''};
   // Cambiar de campo con un dashboard abierto lo recarga con los datos del
   // campo nuevo, en vez de dejar a la vista los números del anterior.
   if(panelAbierto)abrirPanel(panelAbierto,{desdeHash:true}); else cerrarPanel({desdeHash:true});
