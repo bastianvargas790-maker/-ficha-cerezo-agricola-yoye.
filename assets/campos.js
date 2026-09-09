@@ -239,15 +239,22 @@ function hojaCamposHtml(){
     <span class="yoye-sheet-handle"></span>
     <h3 class="yoye-sheet-title">Campos</h3>
     <p class="yoye-sheet-copy">Toca un campo para abrirlo.</p>
-    <div class="yb-grid yoye-sheet-grid">${campos.map(c=>`
-      <div class="yoye-campo-card ${c.slug===activo.slug?'is-active':''}">
-        <span class="yb-photo">${c.foto_url?`<img src="${root()}${esc(c.foto_url)}" alt="${esc(c.nombre)}" loading="lazy">`:''}</span>
-        <button type="button" class="yoye-campo-card-body" data-slug="${esc(c.slug)}">
-          <span class="yoye-campo-card-head"><span class="yb-card-name">${esc(c.nombre)}</span>${c.slug===activo.slug?'<span class="yoye-check">✓</span>':''}</span>
+    <!-- La tarjeta entera es el botón. Antes la foto quedaba fuera del botón:
+         ocupaba la mayor parte de la tarjeta y no seleccionaba nada, así que
+         había que apuntarle al borde del texto. Y en fila, no en reja: cambiar
+         de campo es leer un nombre y tocarlo; la foto es para reconocerlo de
+         un vistazo, no para llenar la pantalla. -->
+    <div class="yoye-sheet-lista">${campos.map(c=>`
+      <button type="button" class="yoye-campo-fila ${c.slug===activo.slug?'is-active':''}" data-slug="${esc(c.slug)}"
+              ${c.slug===activo.slug?'aria-current="true"':''}>
+        <span class="yoye-campo-mini">${c.foto_url?`<img src="${root()}${esc(c.foto_url)}" alt="" loading="lazy">`:''}</span>
+        <span class="yoye-campo-texto">
+          <span class="yb-card-name">${esc(c.nombre)}</span>
           <span class="yb-card-summary">${fmtHa(c.superficie_ha)} ha · ${resumenCuarteles(c)}</span>
           <span class="yoye-campo-modulos">${(c.alcance||[]).map(m=>MODULO_LABEL[m]||m).join(' · ')}</span>
-        </button>
-      </div>`).join('')}</div>
+        </span>
+        <span class="yoye-campo-marca" aria-hidden="true">${c.slug===activo.slug?'✓':'›'}</span>
+      </button>`).join('')}</div>
   </div></div>`;
 }
 function registrosDisponibles(campo){

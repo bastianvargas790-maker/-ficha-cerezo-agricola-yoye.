@@ -108,3 +108,27 @@ test('la cabecera de Calicatas no duplica el estado de conexión', () => {
   assert.ok(css.includes('grid-template-areas:"volver perfil" "campo estado"'),
     'en el teléfono la cabecera va en dos filas');
 });
+
+test('en el teléfono se pueden llenar humedad, CE y temperatura', () => {
+  // La fila de lecturas era una reja de 5 columnas con min-width:500px y
+  // .depth-block la recortaba con overflow:hidden: CE y T °C quedaban fuera de
+  // la pantalla y el contenedor de scroll ni se enteraba de que había más a la
+  // derecha. No eran incómodas: eran inalcanzables.
+  const css = leer('../assets/calicatas.css');
+  assert.match(css, /@media\(max-width:640px\)\{[\s\S]*?\.reading-row\{[^}]*grid-template-areas:"punto estado estado" "hume ce temp"/);
+  assert.match(css, /@media\(max-width:640px\)\{[\s\S]*?\.reading-row\{[^}]*min-width:0/);
+  assert.ok(/@media\(max-width:640px\)\{[\s\S]*?\.readings-wrap\{overflow:visible/.test(css),
+    'sin desbordar, no hay nada que desplazar');
+});
+
+test('en la hoja de campo, toda la fila selecciona', () => {
+  // La foto quedaba fuera del botón: ocupaba la mayor parte de la tarjeta y no
+  // seleccionaba nada, así que había que apuntarle al borde del texto.
+  const js = leer('../assets/campos.js');
+  assert.match(js, /<button type="button" class="yoye-campo-fila[^"]*" data-slug=/,
+    'la fila entera debe ser el botón');
+  assert.ok(!js.includes('yoye-campo-card-body'), 'ya no debe haber un botón interior');
+  const css = leer('../assets/campos.css');
+  assert.match(css, /\.yoye-campo-mini\{[^}]*width:52px;height:52px/, 'la foto va como miniatura');
+  assert.match(css, /\.yoye-campo-fila\{[^}]*min-height:72px/);
+});

@@ -58,3 +58,31 @@
   .cal-top.yoye-header-injected .yoye-conn-btn{grid-area:estado;align-self:center}
   .cal-top.yoye-header-injected .cal-logo{display:none}
 }
+
+/* ---------- Mediciones en el teléfono ----------
+   La fila de lecturas era una reja de cinco columnas con min-width:500px. En un
+   teléfono de 390 px eso deja CE y temperatura fuera de la pantalla, y como
+   .depth-block recorta con overflow:hidden, el contenedor de scroll ni siquiera
+   se entera de que hay algo más a la derecha: las columnas quedaban
+   inalcanzables, no solo incómodas.
+   En vez de obligar a arrastrar de lado -- de pie, con una mano y a veces con
+   guante -- cada lectura se apila: arriba el punto y su estado, abajo los tres
+   valores en una fila. Cabe entero desde 320 px y no hay nada que desplazar.
+   Los placeholders (H %, mS/cm, °C) hacen de encabezado, por eso se oculta la
+   cabecera de columnas. */
+@media(max-width:640px){
+  .reading-head{display:none}
+  .readings-wrap{overflow:visible;padding:0 6px 6px}
+  .reading-row{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    grid-template-areas:"punto estado estado" "hume ce temp";
+    gap:8px;padding:11px 8px;min-width:0}
+  .reading-row>*{min-width:0}
+  .reading-row>:nth-child(1){grid-area:punto;align-self:center}
+  .reading-row>:nth-child(2){grid-area:estado}
+  .reading-row>:nth-child(3){grid-area:hume}
+  .reading-row>:nth-child(4){grid-area:ce}
+  .reading-row>:nth-child(5){grid-area:temp}
+  .reading-row input{text-align:center}
+  .profile-name{font-size:.85rem}
+}
