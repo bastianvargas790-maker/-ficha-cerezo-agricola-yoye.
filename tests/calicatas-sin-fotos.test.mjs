@@ -27,9 +27,9 @@ test('la app confirma cuando la calicata llegó a la base', () => {
   // Antes el rótulo se quedaba en "Guardado localmente" aunque ya estuviera
   // sincronizada: quien registra en terreno no sabía si había llegado.
   const js = readFileSync(new URL('../assets/calicatas.js', import.meta.url), 'utf8');
-  assert.ok(js.includes('estadoTrasSincronizar'), 'debe revisar el estado tras sincronizar');
-  assert.ok(js.includes('Guardada y sincronizada'), 'debe confirmar el envío');
-  assert.ok(js.includes('pendiente de envío'), 'y avisar cuando quedó pendiente');
+  assert.ok(js.includes('function quedoSincronizada'), 'debe revisar si llegó a la base');
+  assert.ok(js.includes('Sincronizada con la base.'), 'debe confirmar el envío');
+  assert.ok(js.includes('se enviará sola al recuperar señal'), 'y avisar cuando quedó en el teléfono');
 });
 
 test('no queda el aviso de "inicia sesión" con la sesión ya cargada', () => {

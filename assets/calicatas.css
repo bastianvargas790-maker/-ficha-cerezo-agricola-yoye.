@@ -92,3 +92,19 @@
    consulta sus nodos, pero no debe aparecer nunca. */
 #historyView{display:none !important}
 .action-card{display:block;text-decoration:none}
+
+/* Aviso tras guardar: arriba del formulario ya limpio, para que se vea al
+   instante qué se guardó y si llegó a la base o quedó en el teléfono. */
+.guardada{display:grid;grid-template-columns:auto 1fr;gap:10px 12px;align-items:start;
+  margin:0 0 14px;padding:14px;border-radius:16px;border:1px solid #9cc5a8;background:#eef7f0}
+.guardada.pendiente{border-color:#d7c29c;background:#fff8e8}
+.guardada-icono{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
+  background:var(--green);color:#fff;font-weight:900}
+.guardada.pendiente .guardada-icono{background:#a8752d}
+.guardada-texto{display:grid;gap:3px;min-width:0}
+.guardada-titulo{font:800 1.02rem Georgia,serif;color:var(--ink)}
+.guardada-detalle{font-size:.84rem;color:var(--muted);line-height:1.45}
+.guardada-acciones{grid-column:1 / -1;display:flex;gap:8px;align-items:center}
+.guardada-acciones .secondary{flex:1;min-height:44px}
+.guardada-cerrar{min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:12px;
+  background:#fff;color:var(--muted);font-weight:800;cursor:pointer}
