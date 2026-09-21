@@ -118,3 +118,5 @@
 .pd-div-valor{font-size:.82rem;font-weight:800;color:var(--ink,#17352c);white-space:nowrap}
 .pd-leyenda-nota{font-size:.72rem;color:var(--text-secondary,#645c50);margin-left:auto}
 .pd-dato-suelto{font:800 1.4rem var(--font-heading,Georgia,serif);color:var(--ink,#17352c);margin:.2em 0 0}
+.pd-perfil-cab .pd-totales{flex-basis:100%;font-size:.8rem;color:var(--text-secondary,#645c50)}
+.pd-perfil-cab .pd-totales b{color:var(--ink,#17352c);font-weight:800}

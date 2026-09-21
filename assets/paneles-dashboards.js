@@ -394,6 +394,35 @@ function pintarCalicatas(d,campo){
     ${raices.length?kpi('Raíces efectivas',`${n0(Math.min(...raices))}–${n0(Math.max(...raices))}<span class="pd-de">cm</span>`,'profundidad declarada','verde',true):''}
   </div>`;
 
+  /* --- Totales de cada calicata ---
+     Dentro de UNA calicata: primero el promedio de los tres puntos en cada
+     profundidad y después el promedio de esas profundidades, así cada
+     profundidad pesa lo mismo aunque falte un punto. Nunca se mezclan
+     calicatas ni cuarteles. */
+  const totalesDe=cal=>{
+    const porProf=dato=>profsSel.map(pr=>{
+      const v=PUNTOS.map(p=>valorDe(cal,p.clave,pr,dato)).filter(x=>x!==null&&Number.isFinite(x));
+      return {prof:pr,valor:v.length?prom(v):null};
+    });
+    const total=arr=>prom(arr.map(x=>x.valor).filter(x=>x!==null));
+    const h=porProf('humedad_pct'),ce=porProf('ce_ms_cm'),t=porProf('temperatura_c');
+    return {h,ce,t,hTot:total(h),ceTot:total(ce),tTot:total(t)};
+  };
+  const conUnidad=(v,f,u)=>v===null||v===undefined?'—':f(v)+u;
+  const totalesFilas=sel.slice(0,40).map(cal=>{
+    const q=cuartelDe(cal),tt=totalesDe(cal);
+    // Los tres totales van primero: en el teléfono son lo que se ve sin deslizar.
+    return [`<strong>${esc(q.codigo||'—')}</strong>`,`<span title="${fecha(cal.fecha)}">${String(fecha(cal.fecha)).slice(0,5)}</span>`,
+      `<strong>${conUnidad(tt.hTot,n1,'')}</strong>`,
+      `<strong>${conUnidad(tt.ceTot,n2,'')}</strong>`,
+      `<strong>${conUnidad(tt.tTot,n1,'')}</strong>`,
+      ...tt.h.map(x=>conUnidad(x.valor,n1,''))];
+  });
+  const tablaTotales=tabla('Totales por calicata','Humedad, CE y temperatura del paño',
+    ['Cuartel','Fecha','Hum. %','CE','T °C',...profsSel.map(pr=>`H% ${n0(pr)} cm`)],
+    totalesFilas,
+    'CE en mS/cm. Total = promedio de las profundidades, y cada profundidad es el promedio de sus tres puntos (centro, izquierda y derecha). Es el dato de UNA calicata; no se mezclan cuarteles.');
+
   // --- Perfiles: uno por calicata, nunca uno solo promediado ---
   const perfilesDe=(cal,dato,unidad)=>PUNTOS.map(p=>({
     nombre:p.nombre,color:p.color,
@@ -430,7 +459,8 @@ function pintarCalicatas(d,campo){
     ].filter(Boolean).join(' · ');
     return `<div class="pd-perfil"><div class="pd-perfil-cab">
         <strong>${esc(q.codigo||'Sin código')}</strong>
-        <span>${esc(ctx)} · ${fecha(cal.fecha)}</span></div>
+        <span>${esc(ctx)} · ${fecha(cal.fecha)}</span>
+        ${(()=>{const tt=totalesDe(cal);return `<span class="pd-totales">Total: <b>${conUnidad(tt.hTot,n1,' %')}</b> humedad · <b>${conUnidad(tt.ceTot,n2,' mS/cm')}</b> CE · <b>${conUnidad(tt.tTot,n1,' °C')}</b></span>`})()}</div>
       ${perfilVertical('Humedad por profundidad','Perfil del bulbo',hum,' %',nota||null,domHum)}
       ${perfilVertical('CE por profundidad','Conductividad eléctrica',ce,' mS/cm',null,domCe)}
     </div>`;
@@ -509,7 +539,7 @@ function pintarCalicatas(d,campo){
     `<span class="pd-leyenda-item"><i style="background:${p.color}"></i>${esc(p.nombre)}</span>`).join('')}
     <span class="pd-leyenda-nota">${muestras.length>1?'Todos los perfiles comparten la misma escala.':'Escala del cuartel.'}</span></div>`;
 
-  return filtros+kpis+leyenda+
+  return filtros+kpis+tablaTotales+leyenda+
     `<div class="pd-perfiles">${perfiles}</div>`+
     barrasComparacion+
     anilloUnion+

@@ -108,3 +108,8 @@
 .guardada-acciones .secondary{flex:1;min-height:44px}
 .guardada-cerrar{min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:12px;
   background:#fff;color:var(--muted);font-weight:800;cursor:pointer}
+.guardada-totales{grid-column:1 / -1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.guardada-totales span{display:grid;gap:2px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.7);font-size:.72rem;color:var(--muted);min-width:0}
+.guardada-totales strong{font:800 1.02rem Georgia,serif;color:var(--ink);overflow-wrap:anywhere}
+.report-depths small{display:block;font-size:.72rem;color:var(--muted);font-weight:600;margin-top:2px}
+.report-grid{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}

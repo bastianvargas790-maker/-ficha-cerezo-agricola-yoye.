@@ -18,7 +18,7 @@ test('el panel filtra por cuartel, cultivo, caseta y equipo', () => {
 
 test('los filtros están arriba y alcanzan a todos los gráficos', () => {
   // Un filtro dentro de una tarjeta deja cada gráfico mostrando otra cosa.
-  assert.match(js, /return filtros\+kpis\+leyenda\+/);
+  assert.match(js, /return filtros\+kpis\+(tablaTotales\+)?leyenda\+/);
   assert.match(css, /\.pd-filtros\{display:flex/);
 });
 
