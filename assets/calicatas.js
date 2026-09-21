@@ -12,13 +12,14 @@
   const localDate=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
   const localTime=()=>{const d=new Date();return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};
   const uuid=()=>globalThis.crypto?.randomUUID?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0,v=c==='x'?r:r&3|8;return v.toString(16)});
-  const num=id=>{const v=$(id)?.value;return v===''||v==null?null:Number(v)};
+  const aNumero=v=>{if(v===''||v==null)return null;const t=String(v).trim().replace(/\s+/g,'').replace(',','.');return t===''?null:Number(t)};
+  const num=id=>aNumero($(id)?.value);
   const profileLabel=k=>PROFILES.find(p=>p.key===k)?.label||(k==='Perfil principal'?'Centro':k||'Sin punto');
   const status=t=>{if($('#calSync'))$('#calSync').textContent=t};
   const showProfile=()=>{if($('#calProfile'))$('#calProfile').textContent=profile?`${profile.nombre_completo||'Usuario'} · ${profile.rol||'Sin cargo'}`:'Perfil no disponible'};
   const msg=(t,error=false)=>{const el=$('#formMessage');if(el){el.textContent=t;el.classList.toggle('error',error)}};
   const isNumber=v=>v!==null&&v!==''&&Number.isFinite(Number(v));
-  const readValue=(row,cls)=>{const v=row.querySelector(cls)?.value;return v===''||v==null?null:Number(v)};
+  const readValue=(row,cls)=>aNumero(row.querySelector(cls)?.value);
   function openLocalDb(){
     if(localDb)return Promise.resolve(localDb);
     if(!('indexedDB' in window))return Promise.reject(new Error('Este navegador no permite almacenamiento local.'));
@@ -54,7 +55,7 @@ async function cacheQuarters(list,orgId){const scope=alcanceKey(orgId);await Pro
   function addReadingRow(parent,depth,key,reading={}){
     const row=document.createElement('div');row.className='reading-row';row.dataset.depth=depth;row.dataset.profile=key;
     const state=reading.estado||((isNumber(reading.humedad_pct)||isNumber(reading.ce_ms_cm)||isNumber(reading.temperatura_c))?'medida':'no_realizada');
-    row.innerHTML=`<span class="profile-name">${esc(profileLabel(key))}</span><select class="reading-state" aria-label="Estado ${esc(profileLabel(key))} a ${depth} cm"><option value="medida" ${state==='medida'?'selected':''}>Medida</option><option value="no_realizada" ${state==='no_realizada'?'selected':''}>No realizada</option></select><input class="humidity" type="number" min="0" max="100" step="0.1" inputmode="decimal" aria-label="Humedad ${esc(profileLabel(key))} a ${depth} cm" placeholder="H %" value="${esc(reading.humedad_pct??'')}"><input class="ce" type="number" min="0" step="0.01" inputmode="decimal" aria-label="CE ${esc(profileLabel(key))} a ${depth} cm" placeholder="mS/cm" value="${esc(reading.ce_ms_cm??'')}"><input class="temp" type="number" step="0.1" inputmode="decimal" aria-label="Temperatura ${esc(profileLabel(key))} a ${depth} cm" placeholder="°C" value="${esc(reading.temperatura_c??'')}">`;
+    row.innerHTML=`<span class="profile-name">${esc(profileLabel(key))}</span><select class="reading-state" aria-label="Estado ${esc(profileLabel(key))} a ${depth} cm"><option value="medida" ${state==='medida'?'selected':''}>Medida</option><option value="no_realizada" ${state==='no_realizada'?'selected':''}>No realizada</option></select><input class="humidity" type="text" inputmode="decimal" autocomplete="off" pattern="[0-9]*[.,]?[0-9]*" aria-label="Humedad ${esc(profileLabel(key))} a ${depth} cm" placeholder="H %" value="${esc(reading.humedad_pct??'')}"><input class="ce" type="text" inputmode="decimal" autocomplete="off" pattern="[0-9]*[.,]?[0-9]*" aria-label="CE ${esc(profileLabel(key))} a ${depth} cm" placeholder="mS/cm" value="${esc(reading.ce_ms_cm??'')}"><input class="temp" type="text" inputmode="decimal" autocomplete="off" pattern="-?[0-9]*[.,]?[0-9]*" aria-label="Temperatura ${esc(profileLabel(key))} a ${depth} cm" placeholder="°C" value="${esc(reading.temperatura_c??'')}">`;
     const toggle=()=>{const disabled=row.querySelector('.reading-state').value==='no_realizada';['.humidity','.ce','.temp'].forEach(s=>{row.querySelector(s).disabled=disabled})};row.querySelector('.reading-state').onchange=toggle;toggle();parent.append(row);
   }
   function addDepthBlock(depth,values=[]){

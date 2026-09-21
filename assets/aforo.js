@@ -165,16 +165,22 @@ function estadoInicial(campo){
   };
 }
 
+/* El teclado del teléfono en español pone coma decimal y un campo numérico del navegador
+   la descarta en silencio: una presión de "1,2" bar llegaba como 12. Los campos
+   medidos son de texto con teclado decimal, y la coma se convierte acá. */
+const MEDIDOS=new Set(['volumen_cc','tiempo_segundos','presion_entrada','presion_salida']);
+const decimal=v=>String(v??'').trim().replace(/\s+/g,'').replace(',','.');
 function readStepInputs(host){
   if(!state)return;
   $$('[data-f]',host).forEach(el=>{
     const f=el.dataset.f;
+    const valor=MEDIDOS.has(f)?decimal(el.value):el.value;
     if(f==='volumen_cc'||f==='tiempo_segundos'){
       const i=Number(el.dataset.i);
-      if(state.emisores[i])state.emisores[i][f]=el.value;
+      if(state.emisores[i])state.emisores[i][f]=valor;
     }else if(f==='presion_entrada'||f==='presion_salida'){
       const i=Number(el.dataset.i);
-      if(state.presiones[i])state.presiones[i][f==='presion_entrada'?'entrada':'salida']=el.value;
+      if(state.presiones[i])state.presiones[i][f==='presion_entrada'?'entrada':'salida']=valor;
     }else state[f]=el.value;
   });
 }
@@ -241,8 +247,8 @@ function pasoPresiones(){
     :r.pct<=20?'Pérdida aceptable':'Revisar presión';
   const filas=state.presiones.map((p,i)=>`<tr>
       <th scope="row">Válvula ${i+1}</th>
-      <td><input data-f="presion_entrada" data-i="${i}" type="number" step="0.1" min="0" inputmode="decimal" placeholder="—" value="${esc(p.entrada)}"></td>
-      <td><input data-f="presion_salida" data-i="${i}" type="number" step="0.1" min="0" inputmode="decimal" placeholder="—" value="${esc(p.salida)}"></td>
+      <td><input data-f="presion_entrada" data-i="${i}" type="text" inputmode="decimal" autocomplete="off" pattern="[0-9]*[.,]?[0-9]*" placeholder="—" value="${esc(p.entrada)}"></td>
+      <td><input data-f="presion_salida" data-i="${i}" type="text" inputmode="decimal" autocomplete="off" pattern="[0-9]*[.,]?[0-9]*" placeholder="—" value="${esc(p.salida)}"></td>
     </tr>`).join('');
   return `
     <div class="yoye-af-card">
@@ -274,7 +280,7 @@ function bloqueEmisores(posicion){
   const idx=l=>indiceEmisor(posicion,l);
   const celda=(l,campo,ph)=>{
     const i=idx(l),e=state.emisores[i];
-    return `<td><input data-f="${campo}" data-i="${i}" type="number" min="0" step="${campo==='volumen_cc'?'1':'0.1'}" inputmode="decimal" placeholder="${ph}" value="${esc(e[campo])}"></td>`;
+    return `<td><input data-f="${campo}" data-i="${i}" type="text" inputmode="decimal" autocomplete="off" pattern="[0-9]*[.,]?[0-9]*" placeholder="${ph}" value="${esc(e[campo])}"></td>`;
   };
   const caudal=l=>{
     const e=state.emisores[idx(l)];
