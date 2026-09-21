@@ -12,10 +12,10 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const STORAGE_KEY='yoye_campo_activo';
 
 const CAMPOS_FALLBACK=[
- {slug:'rinconada-plano',nombre:'Rinconada Plano',superficie_ha:78.44,cuarteles_referencia:36,cultivos_referencia:6,alcance:['riego','descoles','acido','aforos','calicatas'],encargado_nombre:'Rodrigo Abarca',encargado_iniciales:'RA',encargado_cargo:'Jefe de campo',foto_url:'assets/campos/rinconada-plano.png',orden:1},
- {slug:'rinconada-cerro',nombre:'Rinconada Cerro',superficie_ha:41.20,cuarteles_referencia:55,cultivos_referencia:3,alcance:['aforos','calicatas'],encargado_nombre:'Pedro Velásquez',encargado_iniciales:'PV',encargado_cargo:'Jefe de campo',foto_url:'assets/campos/rinconada-cerro.png',orden:2},
- {slug:'mirador-plano',nombre:'Mirador Plano',superficie_ha:56.90,cuarteles_referencia:19,cultivos_referencia:4,alcance:['aforos','calicatas'],encargado_nombre:'Joaquín Quiroga',encargado_iniciales:'JQ',encargado_cargo:'Jefe de campo',foto_url:'assets/campos/mirador-plano.png',orden:3},
- {slug:'mirador-cerro',nombre:'Mirador Cerro',superficie_ha:33.50,cuarteles_referencia:33,cultivos_referencia:4,alcance:['aforos','calicatas'],encargado_nombre:'Eladio León',encargado_iniciales:'EL',encargado_cargo:'Jefe de campo',foto_url:'assets/campos/mirador-cerro.png',orden:4}
+ {id:'80aceca7-e61a-441a-b803-d60496a3d36f',slug:'rinconada-plano',nombre:'Rinconada Plano',superficie_ha:78.44,cuarteles_referencia:36,cultivos_referencia:6,alcance:['riego','descoles','acido','aforos','calicatas'],encargado_nombre:'Rodrigo Abarca',encargado_iniciales:'RA',encargado_cargo:'Jefe de campo',foto_url:'assets/campos/rinconada-plano.png',orden:1},
+ {id:'00373fa7-274e-4c95-893a-81497b2c100b',slug:'rinconada-cerro',nombre:'Rinconada Cerro',superficie_ha:41.20,cuarteles_referencia:55,cultivos_referencia:3,alcance:['aforos','calicatas'],encargado_nombre:'Pedro Velásquez',encargado_iniciales:'PV',encargado_cargo:'Jefe de campo',foto_url:'assets/campos/rinconada-cerro.png',orden:2},
+ {id:'4bfa28ed-481f-4f0f-8d32-813bfae69849',slug:'mirador-plano',nombre:'Mirador Plano',superficie_ha:56.90,cuarteles_referencia:19,cultivos_referencia:4,alcance:['aforos','calicatas'],encargado_nombre:'Joaquín Quiroga',encargado_iniciales:'JQ',encargado_cargo:'Jefe de campo',foto_url:'assets/campos/mirador-plano.png',orden:3},
+ {id:'108e3908-ba2a-4e07-b66b-80e074c787dd',slug:'mirador-cerro',nombre:'Mirador Cerro',superficie_ha:33.50,cuarteles_referencia:33,cultivos_referencia:4,alcance:['aforos','calicatas'],encargado_nombre:'Eladio León',encargado_iniciales:'EL',encargado_cargo:'Jefe de campo',foto_url:'assets/campos/mirador-cerro.png',orden:4}
 ];
 const MODULO_LABEL={riego:'Riego',descoles:'Descoles',acido:'Ácido',aforos:'Aforos',calicatas:'Calicatas'};
 /* Catálogo de cultivos por campo (referencia de contenido, cada campo mantiene
@@ -29,7 +29,12 @@ const CULTIVOS_POR_CAMPO={
 window.yoyeCultivosCampo=slug=>CULTIVOS_POR_CAMPO[slug]||CULTIVOS_POR_CAMPO['rinconada-plano'];
 
 let db,session,profile;
-let campos=CAMPOS_FALLBACK.slice();
+/* Los campos llevan su id real también sin conexión. Antes el respaldo no tenía
+   id: si la consulta de campos fallaba o tardaba (señal débil en terreno), las
+   apps consultaban cuarteles sin filtro de campo y ofrecían los de todos. */
+const CAMPOS_CACHE_KEY='yoye_campos_cache';
+function camposGuardados(){try{const l=JSON.parse(localStorage.getItem(CAMPOS_CACHE_KEY)||'null');return Array.isArray(l)&&l.length&&l.every(c=>c&&c.id&&c.slug)?l:null}catch{return null}}
+let campos=camposGuardados()||CAMPOS_FALLBACK.slice();
 let online=navigator.onLine;
 let sheetOpen=null;
 
@@ -60,7 +65,8 @@ window.yoyeActiveCampo=activeCampo;
 
 async function loadCampos(){
   if(!db)return;
-  const {data,error}=await db.from('campos').select('*').eq('activo',true).order('orden');
+  let data,error;
+  try{({data,error}=await db.from('campos').select('*').eq('activo',true).order('orden'))}catch(e){error=e}
   if(error||!data||!data.length)return;
   campos=data.map(c=>({
     id:c.id,slug:c.slug,nombre:c.nombre,
@@ -70,7 +76,8 @@ async function loadCampos(){
     foto_url:c.foto_url,orden:c.orden
   }));
   window.yoyeCampos=campos;
-  await contarCuarteles();
+  try{localStorage.setItem(CAMPOS_CACHE_KEY,JSON.stringify(campos))}catch{}
+  try{await contarCuarteles()}catch{}
 }
 
 /* cuarteles_referencia es la cifra de la ficha del campo, no un conteo: Rinconada

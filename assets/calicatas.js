@@ -41,7 +41,7 @@
 function campoActivoId(){return globalThis.yoyeActiveCampo?.()?.id||null}
 function alcanceKey(orgId){const c=campoActivoId();return c?`${orgId}|${c}`:String(orgId)}
 function queryCuarteles(orgId){
-  let q=db.from('cuarteles').select('id,organizacion_id,codigo,cuartel,caseta,equipo,cultivo,variedad,superficie_ha').eq('activo',true);
+  let q=db.from('cuarteles').select('id,organizacion_id,campo_id,codigo,cuartel,caseta,equipo,cultivo,variedad,superficie_ha').eq('activo',true);
   if(orgId)q=q.eq('organizacion_id',orgId);
   const c=campoActivoId();
   if(c)q=q.eq('campo_id',c);
@@ -72,7 +72,8 @@ async function cacheQuarters(list,orgId){const scope=alcanceKey(orgId);await Pro
   function scheduleDraft(){clearTimeout(draftTimer);draftTimer=setTimeout(saveDraft,350)}
   async function restoreDraft(){if(!session)return;try{const d=await localGet(STORES.drafts,draftKey()),v=d?.value;if(!v)return;const map={cuartelId:'cuartel_id',fecha:'fecha',hora:'hora',horasRiego:'horasRiego',duracionRiego:'duracionRiego',profHoyo:'profHoyo',profRaices:'profRaices',unionBulbos:'unionBulbos',ubicacion:'ubicacion',raices:'raices',compactacion:'compactacion',observaciones:'observaciones'};Object.entries(map).forEach(([id,key])=>{if($('#'+id)&&v[key]!=null)$('#'+id).value=v[key]});seedDepths(v.readings||[]);msg('Borrador local recuperado. Continúa donde quedaste.')}catch(e){console.warn('No se pudo recuperar el borrador local',e)}}
   function resetForm(){const f=$('#calicataForm');f.reset();$('#fecha').value=localDate();$('#hora').value=localTime();seedDepths();$('#formState').textContent='Sin guardar';$('#saveCalicata').textContent='Guardar calicata';$('#reportCard').hidden=true;$('#registerView').hidden=false;currentReport=null;editingRecord=null}
-  function fillQuarters(){const rows=quarters.map(q=>`<option value="${esc(q.id)}">${esc(q.codigo||q.cuartel)} · ${esc(q.cultivo||'')} ${q.variedad?'· '+esc(q.variedad):''}</option>`).join('');$('#cuartelId').innerHTML='<option value="">Seleccionar cuartel…</option>'+rows;$('#historyQuarter').innerHTML='<option value="">Selecciona un cuartel</option>'+rows}
+  function delCampo(lista){const c=campoActivoId();return c?(lista||[]).filter(q=>!q.campo_id||q.campo_id===c):(lista||[])}
+  function fillQuarters(){quarters=delCampo(quarters);const rows=quarters.map(q=>`<option value="${esc(q.id)}">${esc(q.codigo||q.cuartel)} · ${esc(q.cultivo||'')} ${q.variedad?'· '+esc(q.variedad):''}</option>`).join('');$('#cuartelId').innerHTML='<option value="">Seleccionar cuartel…</option>'+rows;$('#historyQuarter').innerHTML='<option value="">Selecciona un cuartel</option>'+rows}
   async function loadProfile(){if(!db||!session)return false;try{const {data:p,error}=await db.from('perfiles').select('organizacion_id,nombre_completo,rol,estado').eq('id',session.user.id).maybeSingle();if(error)throw error;if(!p)throw new Error('Perfil no encontrado');profile=p;showProfile();await cacheProfile(p);const {data:q,error:qe}=await queryCuarteles(p.organizacion_id);if(qe)throw qe;quarters=Array.isArray(q)?q:[];await cacheQuarters(quarters,p.organizacion_id);fillQuarters();$('#retryProfile').hidden=true;
 /* Un campo sin cuarteles es un estado normal desde que la carga se acota por
    campo -- Rinconada Cerro y Mirador Cerro existen y todavia no tienen ninguno.
