@@ -377,23 +377,6 @@ function pintarCalicatas(d,campo){
   // --- Indicadores de la selección: hechos, no promedios entre cuarteles ---
   const cuartelesSel=new Set(sel.map(k=>k.cuartel_id));
   const ultima=sel[0];
-  const rangoEn=(prof,dato)=>{
-    const v=medidas.filter(l=>Number(l.profundidad_cm)===prof&&esNum(l[dato])).map(l=>Number(l[dato]));
-    return v.length?{min:Math.min(...v),max:Math.max(...v),n:v.length}:null;
-  };
-  const profMax=profsSel.at(-1);
-  const hMax=profMax!=null?rangoEn(profMax,'humedad_pct'):null;
-  const ceMax=profMax!=null?rangoEn(profMax,'ce_ms_cm'):null;
-  const raices=sel.map(k=>Number(k.profundidad_efectiva_raices_cm)).filter(Number.isFinite);
-
-  const kpis=`<div class="pd-kpis">
-    ${kpi('Calicatas en la selección',n0(sel.length),`${n0(cuartelesSel.size)} ${cuartelesSel.size===1?'cuartel':'cuarteles'} de ${n0(cuarteles.length)}`,'cafe')}
-    ${kpi('Última evaluación',fecha(ultima.fecha),esc(cuartelDe(ultima).codigo||''),'verde',true)}
-    ${hMax?kpi(`Humedad a ${n0(profMax)} cm`,`${n1(hMax.min)}–${n1(hMax.max)}<span class="pd-de">%</span>`,`rango entre ${n0(hMax.n)} lecturas`,'azul',true):''}
-    ${ceMax?kpi(`CE a ${n0(profMax)} cm`,`${n2(ceMax.min)}–${n2(ceMax.max)}<span class="pd-de">mS/cm</span>`,'rango, sin promediar cuarteles','terracota',true):''}
-    ${raices.length?kpi('Raíces efectivas',`${n0(Math.min(...raices))}–${n0(Math.max(...raices))}<span class="pd-de">cm</span>`,'profundidad declarada','verde',true):''}
-  </div>`;
-
   /* --- Totales de cada calicata ---
      Dentro de UNA calicata: primero el promedio de los tres puntos en cada
      profundidad y después el promedio de esas profundidades, así cada
@@ -409,6 +392,29 @@ function pintarCalicatas(d,campo){
     return {h,ce,t,hTot:total(h),ceTot:total(ce),tTot:total(t)};
   };
   const conUnidad=(v,f,u)=>v===null||v===undefined?'—':f(v)+u;
+  const raices=sel.map(k=>Number(k.profundidad_efectiva_raices_cm)).filter(Number.isFinite);
+  /* Indicadores con el TOTAL de cada calicata (promedio de 30, 60 y 90 cm),
+     no una profundidad suelta. Con varias calicatas se muestra el rango entre
+     sus totales; con una sola, su valor. */
+  const totalesSel=sel.map(totalesDe);
+  const rangoTot=(clave,f,u)=>{
+    const v=totalesSel.map(t=>t[clave]).filter(x=>x!==null&&Number.isFinite(x));
+    if(!v.length)return null;
+    const mn=Math.min(...v),mx=Math.max(...v);
+    return {valor:(v.length===1||f(mn)===f(mx)?f(mn):`${f(mn)}–${f(mx)}`)+`<span class="pd-de">${u}</span>`,n:v.length};
+  };
+  const pieTot=r=>r.n===1?'total de la calicata':`rango entre los totales de ${n0(r.n)} calicatas`;
+  const kH=rangoTot('hTot',n1,'%'),kCe=rangoTot('ceTot',n2,'mS/cm'),kT=rangoTot('tTot',n1,'°C');
+
+  const kpis=`<div class="pd-kpis">
+    ${kpi('Calicatas en la selección',n0(sel.length),`${n0(cuartelesSel.size)} ${cuartelesSel.size===1?'cuartel':'cuarteles'} de ${n0(cuarteles.length)}`,'cafe')}
+    ${kpi('Última evaluación',fecha(ultima.fecha),esc(cuartelDe(ultima).codigo||''),'verde',true)}
+    ${kH?kpi('Humedad total',kH.valor,pieTot(kH),'azul',true):''}
+    ${kCe?kpi('CE total',kCe.valor,pieTot(kCe)+' · sin promediar cuarteles','terracota',true):''}
+    ${kT?kpi('Temperatura total',kT.valor,pieTot(kT),'cafe',true):''}
+    ${raices.length?kpi('Raíces efectivas',`${Math.min(...raices)===Math.max(...raices)?n0(raices[0]):`${n0(Math.min(...raices))}–${n0(Math.max(...raices))}`}<span class="pd-de">cm</span>`,'profundidad declarada','verde',true):''}
+  </div>`;
+
   const totalesFilas=sel.slice(0,40).map(cal=>{
     const q=cuartelDe(cal),tt=totalesDe(cal);
     // Los tres totales van primero: en el teléfono son lo que se ve sin deslizar.

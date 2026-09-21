@@ -31,3 +31,9 @@ test('los totales se muestran al guardar, en el resumen y en Paneles', () => {
   assert.match(pan, /'Totales por calicata'/);
   assert.match(pan, /class="pd-totales">Total:/);
 });
+
+test('los indicadores de Paneles usan el total, no una profundidad suelta', () => {
+  const bloque = pan.slice(pan.indexOf('function pintarCalicatas'), pan.indexOf('/* ---------- Ácido'));
+  assert.ok(!/kpi\(`(Humedad|CE) a \$\{/.test(bloque), 'no debe quedar "Humedad a 90 cm" ni "CE a 90 cm"');
+  for (const t of ["'Humedad total'","'CE total'","'Temperatura total'"]) assert.ok(bloque.includes(t), t);
+});

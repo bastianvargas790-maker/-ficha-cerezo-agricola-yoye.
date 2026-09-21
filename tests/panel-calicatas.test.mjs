@@ -24,7 +24,7 @@ test('los filtros están arriba y alcanzan a todos los gráficos', () => {
 
 test('no se promedia entre cuarteles', () => {
   const bloque = js.slice(js.indexOf('function pintarCalicatas'), js.indexOf('/* ---------- Ácido'));
-  assert.ok(bloque.includes('rango, sin promediar cuarteles'), 'los indicadores deben ser rangos');
+  assert.ok(bloque.includes('rango entre los totales de') && bloque.includes('sin promediar cuarteles'), 'los indicadores son rangos de los totales de cada calicata');
   assert.ok(!/Humedad promedio por cuartel/.test(bloque), 'ya no debe existir el promedio del campo');
   assert.ok(bloque.includes('porCuartelUltima'), 'un perfil por cuartel, no uno agregado');
 });

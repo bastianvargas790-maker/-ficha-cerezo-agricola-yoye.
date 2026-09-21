@@ -1,15 +1,15 @@
-const CACHE='aforo-campo-v20260921-totales';
+const CACHE='aforo-campo-v20260921-kpitotal';
 const SHELL=[
   './',
   './index.html',
   './manifest.webmanifest',
-  '../assets/yoye-theme.css?v=20260921-totales',
-  '../assets/private-app.css?v=20260921-totales',
-  '../assets/campos.css?v=20260921-totales',
-  '../assets/supabase.js?v=20260921-totales',
-  '../assets/shared-auth.js?v=20260921-totales',
-  '../assets/campos.js?v=20260921-totales',
-  '../assets/aforo.js?v=20260921-totales',
+  '../assets/yoye-theme.css?v=20260921-kpitotal',
+  '../assets/private-app.css?v=20260921-kpitotal',
+  '../assets/campos.css?v=20260921-kpitotal',
+  '../assets/supabase.js?v=20260921-kpitotal',
+  '../assets/shared-auth.js?v=20260921-kpitotal',
+  '../assets/campos.js?v=20260921-kpitotal',
+  '../assets/aforo.js?v=20260921-kpitotal',
   '../assets/yoye-logo.png',
   '../assets/icons/favicon.svg',
   '../assets/icons/aforo-192.png',
