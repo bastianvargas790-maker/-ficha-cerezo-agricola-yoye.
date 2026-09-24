@@ -35,15 +35,42 @@ test('sin raíces declaradas, la zona de raíces son los primeros 60 cm', () => 
   assert.deepEqual(r.zonaRaices.profundidades, [30, 60]);
 });
 
-test('el agotamiento se calcula con la textura y marca el estado', () => {
-  // Franco: CC 26, PMP 12. Con 19% queda la mitad del agua aprovechable.
-  assert.equal(Math.round(agotamiento(19, 'franco')), 50);
+test('el agotamiento se calcula con la textura de la tabla del campo y marca el estado', () => {
+  // Franco de la tabla: CC 22 % y PMP 10 % en peso seco, Da 1,40 → en volumen,
+  // CC 30,8 % y PMP 14 %. La sonda mide volumen, así que ese es el par que manda.
+  assert.equal(TEXTURAS.franco.cc, 30.8);
+  assert.equal(TEXTURAS.franco.pmp, 14);
+  assert.equal(Math.round(agotamiento(22.4, 'franco')), 50, 'la mitad del agua aprovechable');
   assert.equal(agotamiento(19, 'textura_inventada'), null);
-  const seco = resumen(lecturas([[13, 13, 13], [13, 13, 13], [13, 13, 13]]), { textura: 'franco', raicesCm: 90 });
+  const seco = resumen(lecturas([[16, 16, 16], [16, 16, 16], [16, 16, 16]]), { textura: 'franco', raicesCm: 90 });
   assert.equal(seco.zonaRaices.estado.clave, 'critico');
   assert.ok(seco.diagnostico.acciones.some(a => /regar|alargar/i.test(a)));
-  const comodo = resumen(lecturas([[24, 24, 24], [24, 24, 24], [24, 24, 24]]), { textura: 'franco', raicesCm: 90 });
+  const comodo = resumen(lecturas([[29, 29, 29], [29, 29, 29], [29, 29, 29]]), { textura: 'franco', raicesCm: 90 });
   assert.equal(comodo.zonaRaices.estado.clave, 'ok');
+});
+
+test('la lámina en milímetros coincide con la capacidad de retención de la tabla', () => {
+  // CR de la tabla × profundidad tiene que dar lo mismo que (CC − PMP) × profundidad.
+  for (const [clave, t] of Object.entries(TEXTURAS)) {
+    const porCr = t.cr * 600;                       // 60 cm = 600 mm de suelo
+    const porDiferencia = (t.cc - t.pmp) / 100 * 600;
+    assert.ok(Math.abs(porCr - porDiferencia) < porCr * 0.06,
+      `${clave}: CR ${t.cr} mm/mm no calza con CC−PMP (${porCr.toFixed(1)} vs ${porDiferencia.toFixed(1)} mm)`);
+  }
+  const r = resumen(lecturas([[22, 22, 22], [22, 22, 22], [22, 22, 22]]), { textura: 'franco', raicesCm: 60 });
+  assert.equal(Math.round(r.zonaRaices.laminaUtil), 101, '60 cm de franco guardan ~101 mm');
+  assert.equal(Math.round(r.zonaRaices.laminaFaltante), 53, 'faltan ~53 mm para capacidad de campo');
+  assert.ok(r.diagnostico.puntos.some(p => p.clave === 'lamina' && /mm de agua/.test(p.texto)));
+});
+
+test('están las seis texturas de la tabla, con su densidad aparente', () => {
+  assert.deepEqual(Object.keys(TEXTURAS),
+    ['arenoso', 'franco_arenoso', 'franco', 'franco_arcilloso', 'arcillo_arenoso', 'arcilloso']);
+  assert.equal(TEXTURAS.arenoso.da, 1.65);
+  assert.equal(TEXTURAS.arcilloso.da, 1.25);
+  assert.equal(TEXTURAS.arcillo_arenoso.porosidad, 51);
+  assert.match(readFileSync(new URL('../calicatas/registro-v16.html', import.meta.url), 'utf8'),
+    /<option value="arcillo_arenoso">Arcillo arenoso<\/option>/);
 });
 
 test('sin textura no se inventa el agua aprovechable', () => {
@@ -95,7 +122,9 @@ test('las lecturas en blanco no entran en ningún cálculo', () => {
 test('las referencias por textura son coherentes entre sí', () => {
   for (const [clave, t] of Object.entries(TEXTURAS)) {
     assert.ok(t.cc > t.pmp, `${clave}: la capacidad de campo debe superar al punto de marchitez`);
-    assert.ok(t.cc <= 45 && t.pmp >= 2, `${clave}: valores fuera de rango razonable`);
+    assert.ok(t.cc <= 50 && t.pmp >= 2, `${clave}: valores fuera de rango razonable`);
+    assert.ok(t.cc < t.porosidad, `${clave}: no puede retener más agua que su porosidad total`);
+    assert.equal(t.haVolumen, Math.round((t.ccPeso - t.pmpPeso) * t.da * 10) / 10);
   }
 });
 
@@ -116,4 +145,14 @@ test('la app guarda la textura como observación de horizontes', () => {
   assert.match(html, /value="franco_arcilloso"/);
   assert.match(js, /categoria:'horizontes'/);
   assert.match(js, /\$\('#textura'\)\.value=\(record\.observations\|\|\[\]\)\.find\(o=>o\.categoria==='horizontes'\)\?\.opcion_codigo/);
+});
+
+test('el panel muestra los milímetros que faltan y de dónde salen', () => {
+  const js = readFileSync(new URL('../assets/paneles-dashboards.js', import.meta.url), 'utf8');
+  assert.match(js, /kpi\('Falta para capacidad de campo'/);
+  assert.match(js, /la zona de raíces guarda \$\{n0\(zUlt\.laminaUtil\)\} mm llena/);
+  // La ficha explica con qué números se calculó, incluida la conversión a volumen.
+  assert.match(js, /en humedad volumétrica/);
+  assert.match(js, /en peso seco, Da/);
+  assert.match(js, /capacidad de retención \$\{n2\(r\.textura\.cr\)\} mm\/mm/);
 });

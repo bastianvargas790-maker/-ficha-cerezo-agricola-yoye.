@@ -15,17 +15,27 @@
 (function(raiz){
   'use strict';
 
-  /* Capacidad de campo y punto de marchitez por textura, en humedad
-     volumétrica. Son rangos de referencia de literatura de riego, no un
-     análisis del suelo del cuartel: sirven para ubicar la lectura, y se
-     reemplazan en cuanto haya una curva de retención real. */
-  const TEXTURAS={
-    arenoso:{etiqueta:'Arenoso',cc:10,pmp:4},
-    franco_arenoso:{etiqueta:'Franco arenoso',cc:16,pmp:7},
-    franco:{etiqueta:'Franco',cc:26,pmp:12},
-    franco_arcilloso:{etiqueta:'Franco arcilloso',cc:32,pmp:18},
-    arcilloso:{etiqueta:'Arcilloso',cc:38,pmp:24}
+  /* Características hidráulicas por textura, de la tabla de referencia del
+     campo (Bastián, 25/09/2026). CC y PMP vienen en porcentaje de PESO SECO;
+     la sonda de terreno mide humedad VOLUMÉTRICA, así que se convierten
+     multiplicando por la densidad aparente:  θv = θpeso × Da.
+     CR es la capacidad de retención en mm de agua por mm de suelo, que es lo
+     que permite pasar de un porcentaje a milímetros de lámina. */
+  const TEXTURAS_BASE={
+    arenoso:          {etiqueta:'Arenoso',          porosidad:38, da:1.65, ccPeso:9,  pmpPeso:4,  cr:0.08, rangoCc:[6,12],  rangoPmp:[2,6]},
+    franco_arenoso:   {etiqueta:'Franco arenoso',   porosidad:43, da:1.50, ccPeso:14, pmpPeso:6,  cr:0.12, rangoCc:[10,18], rangoPmp:[4,8]},
+    franco:           {etiqueta:'Franco',           porosidad:47, da:1.40, ccPeso:22, pmpPeso:10, cr:0.17, rangoCc:[18,26], rangoPmp:[8,12]},
+    franco_arcilloso: {etiqueta:'Franco arcilloso', porosidad:49, da:1.35, ccPeso:27, pmpPeso:13, cr:0.19, rangoCc:[23,31], rangoPmp:[11,15]},
+    arcillo_arenoso:  {etiqueta:'Arcillo arenoso',  porosidad:51, da:1.30, ccPeso:31, pmpPeso:15, cr:0.21, rangoCc:[27,35], rangoPmp:[14,16]},
+    arcilloso:        {etiqueta:'Arcilloso',        porosidad:53, da:1.25, ccPeso:35, pmpPeso:17, cr:0.23, rangoCc:[31,39], rangoPmp:[15,19]}
   };
+  const redondeaUno=v=>Math.round(v*10)/10;
+  const TEXTURAS=Object.fromEntries(Object.entries(TEXTURAS_BASE).map(([k,t])=>[k,{
+    ...t,
+    cc:redondeaUno(t.ccPeso*t.da),        // capacidad de campo en humedad volumétrica
+    pmp:redondeaUno(t.pmpPeso*t.da),      // punto de marchitez en humedad volumétrica
+    haVolumen:redondeaUno((t.ccPeso-t.pmpPeso)*t.da)
+  }]));
 
   /* CE aparente de sonda directa. El umbral alto es conservador porque todo lo
      que hay en estos campos (cerezo, nogal, palto, cítricos, carozos) es
@@ -120,6 +130,18 @@
     return {clave:'critico',etiqueta:'En déficit',nota:'Cerca del punto de marchitez: hay estrés hídrico.'};
   }
 
+  /* Milímetros de agua en un espesor de suelo. profundidadCm en centímetros. */
+  function laminas(h,textura,profundidadCm){
+    const t=TEXTURAS[textura];
+    if(!t||!esNum(profundidadCm))return {laminaUtil:null,laminaFaltante:null,laminaActual:null};
+    const mm=Number(profundidadCm)*10;
+    const laminaUtil=(t.cc-t.pmp)/100*mm;
+    if(!esNum(h))return {laminaUtil,laminaFaltante:null,laminaActual:null};
+    const laminaActual=Math.max(0,(Number(h)-t.pmp)/100*mm);
+    const laminaFaltante=Math.max(0,(t.cc-Number(h))/100*mm);
+    return {laminaUtil,laminaActual,laminaFaltante};
+  }
+
   const ordenarProf=a=>[...new Set(a.map(Number).filter(Number.isFinite))].sort((x,y)=>x-y);
 
   /* Resumen completo de UNA calicata. */
@@ -147,6 +169,9 @@
     const bajoRaices={h:prom(fuera.map(x=>x.h).filter(esNum)),ce:prom(fuera.map(x=>x.ce).filter(esNum)),
       profundidades:fuera.map(x=>x.prof)};
     zonaRaices.agotamiento=agotamiento(zonaRaices.h,o.textura);
+    /* De porcentaje a milímetros: es lo que permite decir cuánto falta regar.
+       Lámina = (humedad faltante en % volumétrico / 100) × profundidad. */
+    Object.assign(zonaRaices,laminas(zonaRaices.h,o.textura,limite));
     zonaRaices.estado=estadoHumedad(zonaRaices.agotamiento,zonaRaices.h,o.textura);
     zonaRaices.banda=bandaCE(zonaRaices.ce);
 
@@ -204,7 +229,9 @@
     if(zr.estado){
       puntos.push({clave:'humedad',nivel:zr.estado.clave,
         texto:`Zona de raíces (${zr.profundidades.join(', ')} cm): ${fmt1(zr.h)} % de humedad, ${Math.round(zr.agotamiento)} % del agua aprovechable ya consumida. ${zr.estado.nota}`});
-      if(zr.estado.clave==='critico'||zr.estado.clave==='alerta')acciones.push('Regar antes de lo programado o alargar el próximo riego: la reserva en la zona de raíces está corta.');
+      if(esNumero(zr.laminaFaltante))puntos.push({clave:'lamina',nivel:'info',
+        texto:`Para volver a capacidad de campo en los primeros ${zr.limite} cm faltan ${fmt1(zr.laminaFaltante)} mm de agua (la zona de raíces guarda ${fmt1(zr.laminaUtil)} mm cuando está llena).`});
+      if(zr.estado.clave==='critico'||zr.estado.clave==='alerta')acciones.push(`Regar antes de lo programado o alargar el próximo riego: faltan ${fmt1(zr.laminaFaltante)} mm para dejar la zona de raíces en capacidad de campo.`);
       if(zr.estado.clave==='exceso')acciones.push('Acortar el tiempo de riego y repartirlo en más pulsos: el suelo ya está sobre capacidad de campo.');
     }else if(esNumero(zr.h)){
       puntos.push({clave:'humedad',nivel:'info',
@@ -276,6 +303,6 @@
   function fmt1(v){return v==null?'—':Number(v).toLocaleString('es-CL',{minimumFractionDigits:1,maximumFractionDigits:1})}
   function fmt2(v){return v==null?'—':Number(v).toLocaleString('es-CL',{minimumFractionDigits:2,maximumFractionDigits:2})}
 
-  raiz.YoyeAgro={TEXTURAS,CE_BANDAS,CULTIVOS,FACTOR_SONDA,resumen,agotamiento,estadoHumedad,bandaCE,cv,
+  raiz.YoyeAgro={TEXTURAS,TEXTURAS_BASE,laminas,CE_BANDAS,CULTIVOS,FACTOR_SONDA,resumen,agotamiento,estadoHumedad,bandaCE,cv,
     claveCultivo,referenciaCultivo,ceSondaDeAviso,redondear:{r1,r2}};
 })(typeof globalThis!=='undefined'?globalThis:window);

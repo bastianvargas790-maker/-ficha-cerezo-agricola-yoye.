@@ -549,8 +549,11 @@ function pintarCalicatas(d,campo){
   function diagnosticoCard(cal){
     const r=leer(cal);if(!r||!r.diagnostico.puntos.length)return '';
     const q=cuartelDe(cal);
-    const ref=r.textura?`${r.textura.etiqueta} · CC ${n0(r.textura.cc)}% · PMP ${n0(r.textura.pmp)}%`
-      :'Sin textura anotada: el agua aprovechable no se puede calcular.';
+    const ref=r.textura
+      ? `${r.textura.etiqueta}: CC ${n1(r.textura.cc)} % y PMP ${n1(r.textura.pmp)} % en humedad volumétrica `+
+        `(${n0(r.textura.ccPeso)} % y ${n0(r.textura.pmpPeso)} % en peso seco, Da ${n2(r.textura.da)} g/cc), `+
+        `capacidad de retención ${n2(r.textura.cr)} mm/mm.`
+      : 'Sin textura anotada: el agua aprovechable no se puede calcular.';
     return `<section class="pd-card pd-diag">
       <div class="pd-kicker">Lectura de la calicata</div>
       <h3 class="pd-card-title">${esc(q.codigo||'Sin código')} · ${fecha(cal.fecha)}</h3>
@@ -783,6 +786,9 @@ function pintarCalicatas(d,campo){
       delta(zUlt.ce,rPrev&&rPrev.zonaRaices.ce,n2,' mS/cm')||'sonda directa','cafe',true):''}
     ${esNum(delCuartel[0].profundidad_efectiva_raices_cm)?kpi('Raíces efectivas',
       `${n0(delCuartel[0].profundidad_efectiva_raices_cm)}<span class="pd-de">cm</span>`,'declarada en esta calicata','verde',true):''}
+    ${rUlt&&esNum(zUlt.laminaFaltante)?kpi('Falta para capacidad de campo',
+      `${n1(zUlt.laminaFaltante)}<span class="pd-de">mm</span>`,
+      `la zona de raíces guarda ${n0(zUlt.laminaUtil)} mm llena`,'azul',true):''}
     ${rUlt&&esNum(rUlt.bajoRaices.h)?kpi('Bajo las raíces',`${n1(rUlt.bajoRaices.h)}<span class="pd-de">%</span>`,
       `a ${rUlt.bajoRaices.profundidades.map(n0).join(', ')} cm · ahí ya casi no hay raíz efectiva`,'azul',true):''}
     ${rUlt&&rUlt.uniformidad?kpi('Uniformidad del bulbo',rUlt.uniformidad.etiqueta,
