@@ -18,13 +18,13 @@ test('el panel filtra por cuartel, cultivo, caseta y equipo', () => {
 
 test('los filtros están arriba y alcanzan a todos los gráficos', () => {
   // Un filtro dentro de una tarjeta deja cada gráfico mostrando otra cosa.
-  assert.match(js, /return filtros\+kpis\+(tablaTotales\+)?leyenda\+/);
+  assert.match(js, /return filtros\+kpis\+resumenAlertas\+ranking\+tablaTotales\+leyenda\+/);
   assert.match(css, /\.pd-filtros\{display:flex/);
 });
 
 test('no se promedia entre cuarteles', () => {
   const bloque = js.slice(js.indexOf('function pintarCalicatas'), js.indexOf('/* ---------- Ácido'));
-  assert.ok(bloque.includes('rango entre los totales de') && bloque.includes('sin promediar cuarteles'), 'los indicadores son rangos de los totales de cada calicata');
+  assert.ok(bloque.includes('rango entre ${n0(r.n)} calicatas') && bloque.includes('sin promediar cuarteles'), 'los indicadores son rangos entre calicatas, no un promedio del campo');
   assert.ok(!/Humedad promedio por cuartel/.test(bloque), 'ya no debe existir el promedio del campo');
   assert.ok(bloque.includes('porCuartelUltima'), 'un perfil por cuartel, no uno agregado');
 });
@@ -32,8 +32,8 @@ test('no se promedia entre cuarteles', () => {
 test('los perfiles comparten una escala común', () => {
   // Con cada tarjeta escalada a sus propios datos, un cuartel que va de 9 a 30 %
   // se ve igual que uno de 29 a 33 % y comparar deja de significar algo.
-  assert.ok(js.includes('const dominioDe=dato=>'), 'debe calcularse un dominio común');
-  assert.match(js, /perfilVertical\('Humedad por profundidad'[^)]*domHum\)/);
+  assert.ok(js.includes('const dominioDe=dato=>'), 'debe calcularse un dominio comun');
+  assert.match(js, /perfilVertical\('Humedad por profundidad'[^;]*domHum,/);
   assert.match(js, /perfilVertical\('CE por profundidad'[^)]*domCe\)/);
 });
 
@@ -80,4 +80,20 @@ test('el resumen de campos no dibuja barras vacías', () => {
   // solo está esperando el primer registro.
   assert.match(js, /const hayAforos=resumen\.some\(r=>r\.aforos>0\)/);
   assert.ok(js.includes('Cobertura del monitoreo'), 'la cobertura sí es parte de un todo');
+});
+
+test('el panel usa el mismo criterio agronómico que la app, no uno propio', () => {
+  const bloque = js.slice(js.indexOf('function pintarCalicatas'), js.indexOf('/* ---------- Ácido'));
+  assert.ok(bloque.includes('globalThis.YoyeAgro'), 'el criterio vive en calicatas-analisis.js');
+  assert.ok(bloque.includes("categoria==='horizontes'"), 'la textura viene de la observación guardada');
+  assert.ok(bloque.includes('diagnosticoCard'), 'cada calicata muestra su lectura, no solo gráficos');
+  assert.ok(bloque.includes("kpi('Humedad en zona de raíces'"), 'el indicador es la zona de raíces');
+  assert.ok(bloque.includes("kpi('Agua aprovechable consumida'"));
+  assert.ok(!/kpi\(`(Humedad|CE) a \$\{/.test(bloque), 'nada de "a 90 cm" como si fuera el resumen');
+});
+
+test('el perfil dibuja capacidad de campo y punto de marchitez cuando hay textura', () => {
+  assert.match(js, /function perfilVertical\(titulo,kicker,series,unidad,nota,dominio,referencia\)/);
+  assert.match(js, /const bandas=\(\(\)=>\{/);
+  assert.match(js, /perfilVertical\('Humedad por profundidad','Perfil del bulbo',hum,' %',nota\|\|null,domHum,leer\(cal\)\?\.textura\|\|null\)/);
 });

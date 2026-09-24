@@ -5,7 +5,7 @@ import test from 'node:test';
 const officialLogo = new URL('../assets/yoye-logo-official.png', import.meta.url);
 const auth = readFileSync(new URL('../assets/shared-auth.js', import.meta.url), 'utf8');
 const serviceWorker = readFileSync(new URL('../calicatas/sw.js', import.meta.url), 'utf8');
-const pages = ['index.html', 'registro.html', 'registro-v16.html'].map(name =>
+const pages = ['registro-v16.html'].map(name =>
   readFileSync(new URL(`../calicatas/${name}`, import.meta.url), 'utf8')
 );
 

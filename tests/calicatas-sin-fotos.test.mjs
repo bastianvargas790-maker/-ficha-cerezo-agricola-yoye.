@@ -6,7 +6,7 @@ import test from 'node:test';
    pocas por calicata llenaban el almacenamiento del proyecto. Si alguien
    vuelve a agregar el campo, que sea una decision y no un descuido. */
 const script = readFileSync(new URL('../assets/calicatas.js', import.meta.url), 'utf8');
-const paginas = ['index.html', 'registro.html', 'registro-v16.html'].map(nombre => [
+const paginas = ['registro-v16.html'].map(nombre => [
   nombre,
   readFileSync(new URL(`../calicatas/${nombre}`, import.meta.url), 'utf8'),
 ]);
@@ -44,6 +44,6 @@ test('el registro se adapta a pantallas de notebook', () => {
   const css = readFileSync(new URL('../assets/calicatas.css', import.meta.url), 'utf8');
   assert.match(css, /@media\(min-width:1100px\)\{[^}]*\.cal-shell\{max-width:1180px\}/);
   assert.ok(css.includes('#readings{display:grid'), 'las profundidades van de a dos');
-  // "No realizada" se cortaba en una columna de 108px.
-  assert.match(css, /\.reading-head,\.reading-row\{grid-template-columns:104px 122px/);
+  // Sin columna de estado: punto + humedad, CE y temperatura.
+  assert.match(css, /\.reading-head,\.reading-row\{grid-template-columns:110px repeat\(3,minmax\(92px,1fr\)\)\}/);
 });

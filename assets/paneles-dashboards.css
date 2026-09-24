@@ -1,5 +1,5 @@
 /* Dashboards dentro de la aplicación (Aforos y Calicatas). */
-.pd-volver{background:none;border:0;font:700 .85rem inherit;color:var(--ink,#17352c);padding:0 0 10px;cursor:pointer}
+.pd-volver{background:none;border:0;font:700 .9rem inherit;color:var(--ink,#17352c);padding:10px 12px 10px 0;margin:0 0 2px;min-height:44px;display:inline-flex;align-items:center;cursor:pointer}
 .pd-kicker{color:#7d5838;font-weight:850;letter-spacing:.1em;text-transform:uppercase;font-size:.72rem}
 .pd-titulo{font:800 clamp(1.6rem,5.5vw,2.2rem) var(--font-heading,Georgia,serif);margin:.1em 0 .2em;color:var(--ink,#17352c)}
 .pd-desc{margin:0 0 16px;color:var(--text-secondary,#645c50);font-size:.92rem;line-height:1.5}
@@ -120,3 +120,17 @@
 .pd-dato-suelto{font:800 1.4rem var(--font-heading,Georgia,serif);color:var(--ink,#17352c);margin:.2em 0 0}
 .pd-perfil-cab .pd-totales{flex-basis:100%;font-size:.8rem;color:var(--text-secondary,#645c50)}
 .pd-perfil-cab .pd-totales b{color:var(--ink,#17352c);font-weight:800}
+
+/* ---------- Diagnóstico de la calicata ---------- */
+.pd-diag-lista{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.pd-diag-lista li{position:relative;padding:8px 10px 8px 30px;border-radius:10px;font-size:.86rem;line-height:1.45;
+  background:var(--surface-alt,#f3efe4);color:var(--ink,#17352c)}
+.pd-diag-lista li::before{position:absolute;left:10px;top:8px;font-weight:900}
+.pd-diag-ok{background:#eaf4ec}.pd-diag-ok::before{content:"✓";color:#3f7a4f}
+.pd-diag-info::before{content:"·";color:#645c50}
+.pd-diag-atencion{background:#fdf3e3}.pd-diag-atencion::before{content:"!";color:#a8752d}
+.pd-diag-alerta{background:#fbeceb}.pd-diag-alerta::before{content:"!";color:#b1543a}
+.pd-diag-accion{margin-top:10px;border-top:1px solid var(--line,#e2dbc8);padding-top:9px}
+.pd-diag-accion b{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary,#645c50)}
+.pd-diag-accion ul{margin:6px 0 0;padding-left:18px;display:grid;gap:5px;font-size:.86rem;line-height:1.45}
+.pd-diag-lista li b{display:block;font-size:.74rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-secondary,#645c50);margin-bottom:2px}

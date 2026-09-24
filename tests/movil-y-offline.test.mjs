@@ -115,7 +115,7 @@ test('en el teléfono se pueden llenar humedad, CE y temperatura', () => {
   // la pantalla y el contenedor de scroll ni se enteraba de que había más a la
   // derecha. No eran incómodas: eran inalcanzables.
   const css = leer('../assets/calicatas.css');
-  assert.match(css, /@media\(max-width:640px\)\{[\s\S]*?\.reading-row\{[^}]*grid-template-areas:"punto estado estado" "hume ce temp"/);
+  assert.match(css, /@media\(max-width:640px\)\{[\s\S]*?\.reading-row\{[^}]*grid-template-areas:"punto punto punto" "hume ce temp"/);
   assert.match(css, /@media\(max-width:640px\)\{[\s\S]*?\.reading-row\{[^}]*min-width:0/);
   assert.ok(/@media\(max-width:640px\)\{[\s\S]*?\.readings-wrap\{overflow:visible/.test(css),
     'sin desbordar, no hay nada que desplazar');
@@ -131,4 +131,14 @@ test('en la hoja de campo, toda la fila selecciona', () => {
   const css = leer('../assets/campos.css');
   assert.match(css, /\.yoye-campo-mini\{[^}]*width:52px;height:52px/, 'la foto va como miniatura');
   assert.match(css, /\.yoye-campo-fila\{[^}]*min-height:72px/);
+});
+
+test('las lecturas se anotan directo: lo que se deja en blanco no se usó', () => {
+  // Había que marcar "Medida" en cada una de las 9 filas antes de poder
+  // escribir. En terreno, con guantes, eran 9 toques de más por calicata.
+  const js = leer('../assets/calicatas.js');
+  assert.ok(!js.includes('reading-state'), 'ya no existe el selector por fila');
+  assert.match(js, /medida=isNumber\(h\)\|\|isNumber\(c\)\|\|isNumber\(t\)/);
+  assert.match(js, /estado:medida\?'medida':'no_realizada'/);
+  assert.match(js, /if\(!readings\.some\(r=>r\.estado==='medida'\)\)return \{error:'Anota al menos una lectura\.'\}/);
 });

@@ -206,7 +206,7 @@ async function datosCalicatas(campo){
       const ids=calicatas.map(c=>c.id);
       const [l,o]=await Promise.all([
         db.from('lecturas_calicata').select('calicata_id,perfil,profundidad_cm,humedad_pct,ce_ms_cm,temperatura_c,estado').in('calicata_id',ids),
-        db.from('observaciones_calicata').select('calicata_id,categoria,opcion_etiqueta,perfil,profundidad_cm').in('calicata_id',ids)
+        db.from('observaciones_calicata').select('calicata_id,categoria,opcion_codigo,opcion_etiqueta,perfil,profundidad_cm').in('calicata_id',ids)
       ]);
       lecturas=l.data||[]; observaciones=o.data||[];
     }
@@ -221,7 +221,7 @@ async function datosCalicatas(campo){
    panel: si cada tarjeta se escala a sus propios datos, un cuartel que va de
    9 a 30 % se ve igual que uno que va de 29 a 33 %, y comparar deja de
    significar nada. */
-function perfilVertical(titulo,kicker,series,unidad,nota,dominio){
+function perfilVertical(titulo,kicker,series,unidad,nota,dominio,referencia){
   const profs=[...new Set(series.flatMap(s=>s.puntos.map(p=>p.prof)))].sort((a,b)=>a-b);
   const valores=series.flatMap(s=>s.puntos.map(p=>p.valor)).filter(Number.isFinite);
   if(!profs.length||!valores.length)return '';
@@ -255,6 +255,19 @@ function perfilVertical(titulo,kicker,series,unidad,nota,dominio){
     return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
       ${ps.map(p=>`<circle cx="${x(p.valor).toFixed(1)}" cy="${y(p.prof).toFixed(1)}" r="4" fill="${s.color}" stroke="var(--paper,#fffdf8)" stroke-width="2"><title>${esc(s.nombre)} · ${n0(p.prof)} cm · ${n1(p.valor)}${esc(unidad||'')}</title></circle>`).join('')}`;
   }).join('');
+  /* Referencias del suelo: capacidad de campo y punto de marchitez. Sin ellas
+     un 15 % de humedad no dice nada; con ellas se ve de inmediato si la
+     lectura está cómoda o al borde del estrés. */
+  const bandas=(()=>{
+    if(!referencia||!Number.isFinite(referencia.cc)||!Number.isFinite(referencia.pmp))return '';
+    const dentro=v=>v>=min&&v<=max;
+    const linea=(v,txt,color)=>dentro(v)?`<line x1="${x(v).toFixed(1)}" x2="${x(v).toFixed(1)}" y1="${pad.t-4}" y2="${h-pad.b}" stroke="${color}" stroke-width="1" stroke-dasharray="4 3"></line>
+      <text x="${x(v).toFixed(1)}" y="${pad.t-6}" class="pd-svg-eje" fill="${color}">${txt}</text>`:'';
+    const zona=dentro(referencia.pmp)||dentro(referencia.cc)
+      ? `<rect x="${x(Math.max(min,referencia.pmp)).toFixed(1)}" y="${pad.t}" width="${Math.max(0,x(Math.min(max,referencia.cc))-x(Math.max(min,referencia.pmp))).toFixed(1)}" height="${(h-pad.b-pad.t).toFixed(1)}" fill="#3f7a4f" opacity=".07"></rect>`:'';
+    return zona+linea(referencia.pmp,'PMP','#b1543a')+linea(referencia.cc,'CC','#2a78d6');
+  })();
+
   const rotulos=finales.map(f=>`<text x="${Math.min(w-3,f.px+9).toFixed(1)}" y="${(f.py+f.dy+3).toFixed(1)}"
     class="pd-svg-val" text-anchor="start" fill="${f.s.color}">${n1(f.p.valor)}</text>`).join('');
 
@@ -262,7 +275,7 @@ function perfilVertical(titulo,kicker,series,unidad,nota,dominio){
     <div class="pd-kicker">${esc(kicker)}</div>
     <h3 class="pd-card-title">${esc(titulo)}</h3>
     <div class="pd-svg-wrap"><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(titulo)}">
-      ${guias}${ejeX}${trazos}${rotulos}
+      ${guias}${ejeX}${bandas}${trazos}${rotulos}
     </svg></div>
     ${nota?`<p class="pd-nota">${esc(nota)}</p>`:''}
   </section>`;
@@ -377,57 +390,79 @@ function pintarCalicatas(d,campo){
   // --- Indicadores de la selección: hechos, no promedios entre cuarteles ---
   const cuartelesSel=new Set(sel.map(k=>k.cuartel_id));
   const ultima=sel[0];
-  /* --- Totales de cada calicata ---
-     Dentro de UNA calicata: primero el promedio de los tres puntos en cada
-     profundidad y después el promedio de esas profundidades, así cada
-     profundidad pesa lo mismo aunque falte un punto. Nunca se mezclan
-     calicatas ni cuarteles. */
+  /* --- Lectura agronómica de cada calicata ---
+     El criterio vive en assets/calicatas-analisis.js y es el mismo que usa la
+     app al guardar: zona de raíces, uniformidad del bulbo, movimiento del agua
+     y sales. Acá solo se dibuja. */
+  const agro=globalThis.YoyeAgro;
+  const texturaDe=cal=>observaciones.find(o=>o.calicata_id===cal.id&&o.categoria==='horizontes')?.opcion_codigo||null;
+  const lecturasDe=cal=>medidas.filter(l=>l.calicata_id===cal.id);
+  const cacheAgro=new Map();
+  const leer=cal=>{
+    if(!agro)return null;
+    if(!cacheAgro.has(cal.id))cacheAgro.set(cal.id,agro.resumen(lecturasDe(cal),{
+      textura:texturaDe(cal),raicesCm:cal.profundidad_efectiva_raices_cm,
+      unionBulbos:cal.union_bulbos,cultivo:cuartelDe(cal).cultivo}));
+    return cacheAgro.get(cal.id);
+  };
   const totalesDe=cal=>{
-    const porProf=dato=>profsSel.map(pr=>{
-      const v=PUNTOS.map(p=>valorDe(cal,p.clave,pr,dato)).filter(x=>x!==null&&Number.isFinite(x));
-      return {prof:pr,valor:v.length?prom(v):null};
+    const r=leer(cal);
+    if(!r)return {h:[],ce:[],t:[],hTot:null,ceTot:null,tTot:null};
+    const porProf=clave=>profsSel.map(pr=>{
+      const x=r.porProfundidad.find(y=>y.prof===pr);
+      return {prof:pr,valor:x&&Number.isFinite(x[clave])?x[clave]:null};
     });
-    const total=arr=>prom(arr.map(x=>x.valor).filter(x=>x!==null));
-    const h=porProf('humedad_pct'),ce=porProf('ce_ms_cm'),t=porProf('temperatura_c');
-    return {h,ce,t,hTot:total(h),ceTot:total(ce),tTot:total(t)};
+    return {h:porProf('h'),ce:porProf('ce'),t:porProf('t'),
+      hTot:r.total.h,ceTot:r.total.ce,tTot:r.total.t,zona:r.zonaRaices,resumen:r};
   };
   const conUnidad=(v,f,u)=>v===null||v===undefined?'—':f(v)+u;
   const raices=sel.map(k=>Number(k.profundidad_efectiva_raices_cm)).filter(Number.isFinite);
-  /* Indicadores con el TOTAL de cada calicata (promedio de 30, 60 y 90 cm),
-     no una profundidad suelta. Con varias calicatas se muestra el rango entre
-     sus totales; con una sola, su valor. */
-  const totalesSel=sel.map(totalesDe);
-  const rangoTot=(clave,f,u)=>{
-    const v=totalesSel.map(t=>t[clave]).filter(x=>x!==null&&Number.isFinite(x));
+
+  /* Indicadores: lo que se mide es la ZONA DE RAÍCES de cada calicata, no una
+     profundidad suelta ni un promedio del campo. Con varias calicatas se
+     muestra el rango entre ellas. */
+  const lecturasSel=sel.map(leer).filter(Boolean);
+  const rango=(valor,f,u)=>{
+    const v=lecturasSel.map(valor).filter(x=>x!==null&&x!==undefined&&Number.isFinite(x));
     if(!v.length)return null;
     const mn=Math.min(...v),mx=Math.max(...v);
     return {valor:(v.length===1||f(mn)===f(mx)?f(mn):`${f(mn)}–${f(mx)}`)+`<span class="pd-de">${u}</span>`,n:v.length};
   };
-  const pieTot=r=>r.n===1?'total de la calicata':`rango entre los totales de ${n0(r.n)} calicatas`;
-  const kH=rangoTot('hTot',n1,'%'),kCe=rangoTot('ceTot',n2,'mS/cm'),kT=rangoTot('tTot',n1,'°C');
+  const pieRango=r=>r.n===1?'en la zona de raíces':`rango entre ${n0(r.n)} calicatas`;
+  const kH=rango(r=>r.zonaRaices.h,n1,'%'),kCe=rango(r=>r.zonaRaices.ce,n2,'mS/cm'),
+    kAgo=rango(r=>r.zonaRaices.agotamiento,n0,'%');
+  /* Cada alerta lleva su cuartel y su fecha: una alerta sin saber de qué
+     calicata habla no sirve para ir a terreno. */
+  const alertas=sel.flatMap(cal=>{
+    const r=leer(cal);if(!r)return [];
+    return r.diagnostico.puntos.filter(p=>p.nivel==='alerta'||p.nivel==='critico')
+      .map(p=>({...p,cuartel:cuartelDe(cal).codigo||'—',fecha:cal.fecha}));
+  });
 
   const kpis=`<div class="pd-kpis">
     ${kpi('Calicatas en la selección',n0(sel.length),`${n0(cuartelesSel.size)} ${cuartelesSel.size===1?'cuartel':'cuarteles'} de ${n0(cuarteles.length)}`,'cafe')}
     ${kpi('Última evaluación',fecha(ultima.fecha),esc(cuartelDe(ultima).codigo||''),'verde',true)}
-    ${kH?kpi('Humedad total',kH.valor,pieTot(kH),'azul',true):''}
-    ${kCe?kpi('CE total',kCe.valor,pieTot(kCe)+' · sin promediar cuarteles','terracota',true):''}
-    ${kT?kpi('Temperatura total',kT.valor,pieTot(kT),'cafe',true):''}
+    ${kH?kpi('Humedad en zona de raíces',kH.valor,pieRango(kH),'azul',true):''}
+    ${kAgo?kpi('Agua aprovechable consumida',kAgo.valor,'0% = capacidad de campo · 100% = marchitez','terracota',true)
+      :kpi('Agua aprovechable','Sin textura','Anota la textura del suelo al registrar','terracota',true)}
+    ${kCe?kpi('CE en zona de raíces',kCe.valor,'sonda directa, sin promediar cuarteles','cafe',true):''}
     ${raices.length?kpi('Raíces efectivas',`${Math.min(...raices)===Math.max(...raices)?n0(raices[0]):`${n0(Math.min(...raices))}–${n0(Math.max(...raices))}`}<span class="pd-de">cm</span>`,'profundidad declarada','verde',true):''}
   </div>`;
 
   const totalesFilas=sel.slice(0,40).map(cal=>{
-    const q=cuartelDe(cal),tt=totalesDe(cal);
-    // Los tres totales van primero: en el teléfono son lo que se ve sin deslizar.
+    const q=cuartelDe(cal),tt=totalesDe(cal),z=tt.zona||{};
     return [`<strong>${esc(q.codigo||'—')}</strong>`,`<span title="${fecha(cal.fecha)}">${String(fecha(cal.fecha)).slice(0,5)}</span>`,
+      `<strong>${conUnidad(z.h,n1,'')}</strong>`,
+      z.agotamiento==null?'—':`<strong>${n0(z.agotamiento)}%</strong>`,
       `<strong>${conUnidad(tt.hTot,n1,'')}</strong>`,
       `<strong>${conUnidad(tt.ceTot,n2,'')}</strong>`,
       `<strong>${conUnidad(tt.tTot,n1,'')}</strong>`,
       ...tt.h.map(x=>conUnidad(x.valor,n1,''))];
   });
-  const tablaTotales=tabla('Totales por calicata','Humedad, CE y temperatura del paño',
-    ['Cuartel','Fecha','Hum. %','CE','T °C',...profsSel.map(pr=>`H% ${n0(pr)} cm`)],
+  const tablaTotales=tabla('Totales por calicata','Zona de raíces y perfil completo',
+    ['Cuartel','Fecha','H raíces %','Agotam.','Hum. %','CE','T °C',...profsSel.map(pr=>`H% ${n0(pr)} cm`)],
     totalesFilas,
-    'CE en mS/cm. Total = promedio de las profundidades, y cada profundidad es el promedio de sus tres puntos (centro, izquierda y derecha). Es el dato de UNA calicata; no se mezclan cuarteles.');
+    'H raíces es el promedio de las profundidades dentro de la zona de raíces declarada. Agotam. es cuánta del agua aprovechable ya se consumió (0% = capacidad de campo, 100% = punto de marchitez); necesita la textura anotada. CE en mS/cm, sonda directa. Cada fila es UNA calicata; no se mezclan cuarteles.');
 
   // --- Perfiles: uno por calicata, nunca uno solo promediado ---
   const perfilesDe=(cal,dato,unidad)=>PUNTOS.map(p=>({
@@ -452,6 +487,25 @@ function pintarCalicatas(d,campo){
   };
   const domHum=dominioDe('humedad_pct'), domCe=dominioDe('ce_ms_cm');
 
+  /* Diagnóstico por calicata: el texto que uno diría parado al lado del hoyo,
+     con el número que lo respalda. Cada frase sale de ESTA calicata. */
+  const NIVEL={critico:'alerta',alerta:'alerta',exceso:'alerta',atencion:'atencion',ok:'ok',info:'info'};
+  function diagnosticoCard(cal){
+    const r=leer(cal);if(!r||!r.diagnostico.puntos.length)return '';
+    const q=cuartelDe(cal);
+    const ref=r.textura?`${r.textura.etiqueta} · CC ${n0(r.textura.cc)}% · PMP ${n0(r.textura.pmp)}%`
+      :'Sin textura anotada: el agua aprovechable no se puede calcular.';
+    return `<section class="pd-card pd-diag">
+      <div class="pd-kicker">Lectura de la calicata</div>
+      <h3 class="pd-card-title">${esc(q.codigo||'Sin código')} · ${fecha(cal.fecha)}</h3>
+      <ul class="pd-diag-lista">${r.diagnostico.puntos.map(p=>
+        `<li class="pd-diag-${esc(NIVEL[p.nivel]||'info')}">${esc(p.texto)}</li>`).join('')}</ul>
+      ${r.diagnostico.acciones.length?`<div class="pd-diag-accion"><b>Qué hacer</b><ul>${
+        r.diagnostico.acciones.map(a=>`<li>${esc(a)}</li>`).join('')}</ul></div>`:''}
+      <p class="pd-nota">${esc(ref)}</p>
+    </section>`;
+  }
+
   const perfiles=muestras.map(cal=>{
     const q=cuartelDe(cal);
     const ctx=[q.cultivo,q.variedad,q.caseta?`Caseta ${q.caseta}`:null,q.equipo].filter(Boolean).join(' · ');
@@ -467,8 +521,9 @@ function pintarCalicatas(d,campo){
         <strong>${esc(q.codigo||'Sin código')}</strong>
         <span>${esc(ctx)} · ${fecha(cal.fecha)}</span>
         ${(()=>{const tt=totalesDe(cal);return `<span class="pd-totales">Total: <b>${conUnidad(tt.hTot,n1,' %')}</b> humedad · <b>${conUnidad(tt.ceTot,n2,' mS/cm')}</b> CE · <b>${conUnidad(tt.tTot,n1,' °C')}</b></span>`})()}</div>
-      ${perfilVertical('Humedad por profundidad','Perfil del bulbo',hum,' %',nota||null,domHum)}
+      ${perfilVertical('Humedad por profundidad','Perfil del bulbo',hum,' %',nota||null,domHum,leer(cal)?.textura||null)}
       ${perfilVertical('CE por profundidad','Conductividad eléctrica',ce,' mS/cm',null,domCe)}
+      ${diagnosticoCard(cal)}
     </div>`;
   }).join('');
 
@@ -545,7 +600,32 @@ function pintarCalicatas(d,campo){
     `<span class="pd-leyenda-item"><i style="background:${p.color}"></i>${esc(p.nombre)}</span>`).join('')}
     <span class="pd-leyenda-nota">${muestras.length>1?'Todos los perfiles comparten la misma escala.':'Escala del cuartel.'}</span></div>`;
 
-  return filtros+kpis+tablaTotales+leyenda+
+  /* Ranking: qué cuartel está más apretado de agua HOY. Es la pregunta con la
+     que uno entra al panel, y antes había que leer tres gráficos para saberlo. */
+  const ranking=(()=>{
+    const filas=[...cuartelesSel].map(id=>{
+      const cal=sel.find(k=>k.cuartel_id===id),r=leer(cal),q=porCuartel.get(id)||{};
+      if(!r||!esNum(r.zonaRaices.h))return null;
+      const ago=r.zonaRaices.agotamiento;
+      return {etiqueta:q.codigo||'—',valor:ago!=null?ago:r.zonaRaices.h,
+        texto:ago!=null?`${n0(ago)}% consumido · ${n1(r.zonaRaices.h)}%`:`${n1(r.zonaRaices.h)}%`,
+        orden:ago!=null?ago:-r.zonaRaices.h};
+    }).filter(Boolean).sort((a,b)=>b.orden-a.orden);
+    if(filas.length<2)return '';
+    const conAgo=lecturasSel.some(r=>r.zonaRaices.agotamiento!=null);
+    return barras(conAgo?'Agua aprovechable ya consumida, por cuartel':'Humedad en la zona de raíces, por cuartel',
+      'Comparación entre cuarteles',filas);
+  })();
+
+  const resumenAlertas=alertas.length?`<section class="pd-card pd-ancho pd-diag">
+    <div class="pd-kicker">Lo que hay que mirar</div>
+    <h3 class="pd-card-title">${n0(alertas.length)} ${alertas.length===1?'punto crítico':'puntos críticos'} en la selección</h3>
+    <ul class="pd-diag-lista">${alertas.slice(0,6).map(p=>
+      `<li class="pd-diag-alerta"><b>${esc(p.cuartel)} · ${fecha(p.fecha)}</b> ${esc(p.texto)}</li>`).join('')}
+    </ul>${alertas.length>6?`<p class="pd-nota">Se muestran 6 de ${n0(alertas.length)}. Filtra por cuartel para verlas todas.</p>`:''}
+  </section>`:'';
+
+  return filtros+kpis+resumenAlertas+ranking+tablaTotales+leyenda+
     `<div class="pd-perfiles">${perfiles}</div>`+
     barrasComparacion+
     anilloUnion+
