@@ -220,7 +220,7 @@ function pasoIdentificacion(campo,cuarteles){
       <div class="yoye-field"><label>Fecha de evaluación *</label><div class="yoye-input"><input data-f="fecha_evaluacion" type="date" value="${esc(state.fecha_evaluacion)}"></div></div>
       <div class="yoye-field"><label>Temporada *</label><div class="yoye-input"><input data-f="temporada" type="number" inputmode="numeric" min="2000" max="2100" value="${esc(state.temporada)}"></div></div>
       <div class="yoye-field"><label>Evaluador</label><div class="yoye-input"><input data-f="evaluador_nombre" type="text" value="${esc(state.evaluador_nombre)}"></div></div>
-      <div class="yoye-field"><label>Cantidad de válvulas</label><div class="yoye-input"><input data-f="cantidad_valvulas" type="number" inputmode="numeric" min="0" max="5" value="${esc(state.cantidad_valvulas)}"></div></div>
+      <div class="yoye-field"><label>Cantidad de válvulas</label><div class="yoye-input"><input data-f="cantidad_valvulas" type="number" inputmode="numeric" min="0" max="20" value="${esc(state.cantidad_valvulas)}"></div></div>
       <div class="yoye-field"><label>Tipo de línea</label><div class="yoye-input"><select data-f="tipo_linea">
         <option value="">Sin especificar</option>
         ${['Cinta','Manguera','Polietileno','Otro'].map(o=>`<option ${state.tipo_linea===o?'selected':''}>${o}</option>`).join('')}

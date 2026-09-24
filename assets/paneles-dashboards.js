@@ -221,7 +221,7 @@ async function datosCalicatas(campo){
    panel: si cada tarjeta se escala a sus propios datos, un cuartel que va de
    9 a 30 % se ve igual que uno que va de 29 a 33 %, y comparar deja de
    significar nada. */
-function perfilVertical(titulo,kicker,series,unidad,nota,dominio,referencia){
+function perfilVertical(titulo,kicker,series,unidad,nota,dominio,referencia,raicesCm){
   const profs=[...new Set(series.flatMap(s=>s.puntos.map(p=>p.prof)))].sort((a,b)=>a-b);
   const valores=series.flatMap(s=>s.puntos.map(p=>p.valor)).filter(Number.isFinite);
   if(!profs.length||!valores.length)return '';
@@ -268,6 +268,17 @@ function perfilVertical(titulo,kicker,series,unidad,nota,dominio,referencia){
     return zona+linea(referencia.pmp,'PMP','#b1543a')+linea(referencia.cc,'CC','#2a78d6');
   })();
 
+  /* Hasta dónde llegan las raíces: bajo esa línea el agua medida ya no la toma
+     el árbol. Se dibuja siempre que la profundidad declarada caiga dentro del
+     rango del hoyo, para no perder de vista qué parte del perfil manda. */
+  const lineaRaices=(()=>{
+    const r=Number(raicesCm);
+    if(!Number.isFinite(r)||r<minProf||r>maxProf)return '';
+    const yr=y(r).toFixed(1);
+    return `<line x1="${pad.l}" x2="${w-pad.r}" y1="${yr}" y2="${yr}" stroke="#7d5838" stroke-width="1.4" stroke-dasharray="6 4"></line>
+      <text x="${pad.l+4}" y="${(Number(yr)-5).toFixed(1)}" class="pd-svg-eje" text-anchor="start" fill="#7d5838">fin de raíces</text>`;
+  })();
+
   const rotulos=finales.map(f=>`<text x="${Math.min(w-3,f.px+9).toFixed(1)}" y="${(f.py+f.dy+3).toFixed(1)}"
     class="pd-svg-val" text-anchor="start" fill="${f.s.color}">${n1(f.p.valor)}</text>`).join('');
 
@@ -275,7 +286,7 @@ function perfilVertical(titulo,kicker,series,unidad,nota,dominio,referencia){
     <div class="pd-kicker">${esc(kicker)}</div>
     <h3 class="pd-card-title">${esc(titulo)}</h3>
     <div class="pd-svg-wrap"><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(titulo)}">
-      ${guias}${ejeX}${bandas}${trazos}${rotulos}
+      ${guias}${ejeX}${bandas}${lineaRaices}${trazos}${rotulos}
     </svg></div>
     ${nota?`<p class="pd-nota">${esc(nota)}</p>`:''}
   </section>`;
@@ -498,12 +509,16 @@ function pintarCalicatas(d,campo){
       `<strong>${conUnidad(tt.hTot,n1,'')}</strong>`,
       `<strong>${conUnidad(tt.ceTot,n2,'')}</strong>`,
       `<strong>${conUnidad(tt.tTot,n1,'')}</strong>`,
-      ...tt.h.map(x=>conUnidad(x.valor,n1,''))];
+      ...tt.h.map(x=>{
+        const texto=conUnidad(x.valor,n1,'');
+        const fuera=esNum(cal.profundidad_efectiva_raices_cm)&&x.prof>Number(cal.profundidad_efectiva_raices_cm);
+        return fuera?`<span class="pd-fuera" title="Bajo la zona de raíces: medido, pero el árbol no lo aprovecha">${texto}</span>`:texto;
+      })];
   });
   const tablaTotales=tabla('Totales por calicata','Zona de raíces y perfil completo',
     ['Cuartel','Fecha','H raíces %','Agotam.','Hum. %','CE','T °C',...profsSel.map(pr=>`H% ${n0(pr)} cm`)],
     totalesFilas,
-    'H raíces es el promedio de las profundidades dentro de la zona de raíces declarada. Agotam. es cuánta del agua aprovechable ya se consumió (0% = capacidad de campo, 100% = punto de marchitez); necesita la textura anotada. CE en mS/cm, sonda directa. Cada fila es UNA calicata; no se mezclan cuarteles.');
+    'Las profundidades en gris quedan bajo la zona de raíces: se miden igual, pero esa agua no la toma el árbol. H raíces es el promedio de las profundidades dentro de la zona de raíces declarada. Agotam. es cuánta del agua aprovechable ya se consumió (0% = capacidad de campo, 100% = punto de marchitez); necesita la textura anotada. CE en mS/cm, sonda directa. Cada fila es UNA calicata; no se mezclan cuarteles.');
 
   // --- Perfiles: uno por calicata, nunca uno solo promediado ---
   const perfilesDe=(cal,dato,unidad)=>PUNTOS.map(p=>({
@@ -562,8 +577,8 @@ function pintarCalicatas(d,campo){
         <strong>${esc(q.codigo||'Sin código')}</strong>
         <span>${esc(ctx)} · ${fecha(cal.fecha)}</span>
         ${(()=>{const tt=totalesDe(cal);return `<span class="pd-totales">Total: <b>${conUnidad(tt.hTot,n1,' %')}</b> humedad · <b>${conUnidad(tt.ceTot,n2,' mS/cm')}</b> CE · <b>${conUnidad(tt.tTot,n1,' °C')}</b></span>`})()}</div>
-      ${perfilVertical('Humedad por profundidad','Perfil del bulbo',hum,' %',nota||null,domHum,leer(cal)?.textura||null)}
-      ${perfilVertical('CE por profundidad','Conductividad eléctrica',ce,' mS/cm',null,domCe)}
+      ${perfilVertical('Humedad por profundidad','Perfil del bulbo',hum,' %',nota||null,domHum,leer(cal)?.textura||null,cal.profundidad_efectiva_raices_cm)}
+      ${perfilVertical('CE por profundidad','Conductividad eléctrica',ce,' mS/cm',null,domCe,null,cal.profundidad_efectiva_raices_cm)}
       ${diagnosticoCard(cal)}
     </div>`;
   }).join('');
@@ -768,6 +783,8 @@ function pintarCalicatas(d,campo){
       delta(zUlt.ce,rPrev&&rPrev.zonaRaices.ce,n2,' mS/cm')||'sonda directa','cafe',true):''}
     ${esNum(delCuartel[0].profundidad_efectiva_raices_cm)?kpi('Raíces efectivas',
       `${n0(delCuartel[0].profundidad_efectiva_raices_cm)}<span class="pd-de">cm</span>`,'declarada en esta calicata','verde',true):''}
+    ${rUlt&&esNum(rUlt.bajoRaices.h)?kpi('Bajo las raíces',`${n1(rUlt.bajoRaices.h)}<span class="pd-de">%</span>`,
+      `a ${rUlt.bajoRaices.profundidades.map(n0).join(', ')} cm · ahí ya casi no hay raíz efectiva`,'azul',true):''}
     ${rUlt&&rUlt.uniformidad?kpi('Uniformidad del bulbo',rUlt.uniformidad.etiqueta,
       `${n0(rUlt.uniformidad.peor)}% de variación entre los tres puntos`,
       rUlt.uniformidad.clave==='ok'?'verde':'terracota',true):''}

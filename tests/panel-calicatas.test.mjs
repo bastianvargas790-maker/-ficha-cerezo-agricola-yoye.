@@ -36,7 +36,7 @@ test('los perfiles comparten una escala común', () => {
   // se ve igual que uno de 29 a 33 % y comparar deja de significar algo.
   assert.ok(js.includes('const dominioDe=dato=>'), 'debe calcularse un dominio comun');
   assert.match(js, /perfilVertical\('Humedad por profundidad'[^;]*domHum,/);
-  assert.match(js, /perfilVertical\('CE por profundidad'[^)]*domCe\)/);
+  assert.match(js, /perfilVertical\('CE por profundidad'[^;]*domCe,/);
 });
 
 test('el perfil se dibuja con la profundidad hacia abajo', () => {
@@ -95,7 +95,7 @@ test('el panel usa el mismo criterio agronómico que la app, no uno propio', () 
 });
 
 test('el perfil dibuja capacidad de campo y punto de marchitez cuando hay textura', () => {
-  assert.match(js, /function perfilVertical\(titulo,kicker,series,unidad,nota,dominio,referencia\)/);
+  assert.match(js, /function perfilVertical\(titulo,kicker,series,unidad,nota,dominio,referencia,raicesCm\)/);
   assert.match(js, /const bandas=\(\(\)=>\{/);
-  assert.match(js, /perfilVertical\('Humedad por profundidad','Perfil del bulbo',hum,' %',nota\|\|null,domHum,leer\(cal\)\?\.textura\|\|null\)/);
+  assert.match(js, /perfilVertical\('Humedad por profundidad','Perfil del bulbo',hum,' %',nota\|\|null,domHum,leer\(cal\)\?\.textura\|\|null,cal\.profundidad_efectiva_raices_cm\)/);
 });

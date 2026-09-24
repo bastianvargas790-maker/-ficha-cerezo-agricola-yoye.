@@ -210,6 +210,15 @@
       puntos.push({clave:'humedad',nivel:'info',
         texto:`Zona de raíces (${zr.profundidades.join(', ')} cm): ${fmt1(zr.h)} % de humedad. Anota la textura del suelo para saber cuánta agua aprovechable queda.`});
     }
+    /* Lo que hay bajo la zona de raíces se muestra siempre: es agua medida y
+       dice si el riego se está pasando o dónde se van las sales. Lo que no
+       corresponde es contarla como agua disponible para el árbol. */
+    if(esNumero(br.h)||esNumero(br.ce)){
+      const partes=[esNumero(br.h)?`${fmt1(br.h)} % de humedad`:null,
+        esNumero(br.ce)?`${fmt2(br.ce)} mS/cm de CE`:null].filter(Boolean).join(' y ');
+      puntos.push({clave:'bajo-raices',nivel:'info',
+        texto:`Bajo la zona de raíces (${br.profundidades.join(', ')} cm): ${partes}. Ahí ya casi no hay raíz efectiva, así que esa agua no la toma el árbol; sirve para ver si el riego se pasa de largo y dónde se acumulan las sales.`});
+    }
     if(r.frente&&r.frente.clave==='percola'){
       puntos.push({clave:'frente',nivel:'atencion',
         texto:`Bajo las raíces (${br.profundidades.join(', ')} cm) hay ${fmt1(r.frente.diferencia)} puntos más de humedad que en la zona de raíces: parte del riego se está yendo en profundidad.`});

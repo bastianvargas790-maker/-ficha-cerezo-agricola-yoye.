@@ -154,3 +154,5 @@
 .pd-chip-critico{background:#f3ded9;color:#8e3d20}
 .pd-chip-info{background:#eceadf;color:#645c50}
 .pd-ficha .pd-card-title{font-size:1.4rem}
+/* Profundidades bajo la zona de raíces: se muestran, pero no compiten con lo que sí toma el árbol. */
+.pd-fuera{color:var(--text-secondary,#645c50);opacity:.85;border-bottom:1px dotted var(--line,#cfc8b6)}
