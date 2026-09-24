@@ -124,7 +124,8 @@ return true}catch(error){try{const fallback=await queryCuarteles();if(!fallback.
     }
     msg('');
   }
-  async function save(e){e.preventDefault();const built=buildItem();if(built.error)return msg(built.error,true);const button=$('#saveCalicata');button.disabled=true;$('#formState').textContent='Guardando en el dispositivo…';try{await localPut(STORES.queue,built.value);await localDelete(STORES.drafts,draftKey());$('#formState').textContent='Guardado localmente';msg(navigator.onLine?'Calicata guardada localmente. Sincronizando…':'Calicata guardada en el dispositivo. Se enviará al recuperar internet.');const cuartelGuardado=selectedQuarter(built.value.calicata.cuartel_id),reporte=reportFor(built.value,cuartelGuardado);await refreshSyncLabel();let sincronizada=false;if(navigator.onLine){await syncQueue();sincronizada=await quedoSincronizada(built.value.id)}limpiarTrasGuardar(built.value,cuartelGuardado,reporte,sincronizada)}catch(error){console.error(error);$('#formState').textContent='No guardada';msg('No se pudo guardar en el dispositivo. Intenta nuevamente.',true)}finally{button.disabled=false}}
+  let guardando=false;
+  async function save(e){e.preventDefault();if(guardando)return;const built=buildItem();if(built.error)return msg(built.error,true);const button=$('#saveCalicata');guardando=true;button.disabled=true;$('#formState').textContent='Guardando en el dispositivo…';try{await localPut(STORES.queue,built.value);await localDelete(STORES.drafts,draftKey());$('#formState').textContent='Guardado localmente';msg(navigator.onLine?'Calicata guardada localmente. Sincronizando…':'Calicata guardada en el dispositivo. Se enviará al recuperar internet.');const cuartelGuardado=selectedQuarter(built.value.calicata.cuartel_id),reporte=reportFor(built.value,cuartelGuardado);await refreshSyncLabel();let sincronizada=false;if(navigator.onLine){await syncQueue();sincronizada=await quedoSincronizada(built.value.id)}limpiarTrasGuardar(built.value,cuartelGuardado,reporte,sincronizada);await cargarRecientes()}catch(error){console.error(error);$('#formState').textContent='No guardada';msg('No se pudo guardar en el dispositivo. Intenta nuevamente.',true)}finally{guardando=false;button.disabled=false}}
   async function syncItem(item){if(!db||!session)throw new Error('Sesión no disponible');let r=await db.from('calicatas').upsert(item.calicata,{onConflict:'id'});if(r.error)throw r.error;if(item.readings.length){r=await db.from('lecturas_calicata').upsert(item.readings,{onConflict:'id'});if(r.error)throw r.error}if(item.observations.length){r=await db.from('observaciones_calicata').upsert(item.observations,{onConflict:'id'});if(r.error)throw r.error}if(item.removedReadingIds?.length){r=await db.from('lecturas_calicata').delete().in('id',item.removedReadingIds).eq('calicata_id',item.id);if(r.error)throw r.error}if(item.removedObservationIds?.length){r=await db.from('observaciones_calicata').delete().in('id',item.removedObservationIds).eq('calicata_id',item.id);if(r.error)throw r.error}
     /* Envío automático a la hoja de Google del campo. No bloquea el guardado:
        si falla, la calicata ya quedó en la base y la Edge Function marca
@@ -141,9 +142,63 @@ return true}catch(error){try{const fallback=await queryCuarteles();if(!fallback.
   function renderPanels(){const vals=depthValues('humedad_pct');$('#depthAveragePanel').innerHTML=vals.length?vals.map(x=>`<div class="bar-row"><b>${x.depth} cm</b><span><i style="width:${Math.max(0,Math.min(100,x.value))}%"></i></span><strong>${fmt(x.value)}%</strong></div>`).join(''):'<p class="empty-note">Sin humedad registrada.</p>';$('#pointComparisonPanel').innerHTML=vals.length?vals.map(x=>{const rs=historyRows.flatMap(c=>c.readings).filter(r=>Number(r.profundidad_cm)===x.depth&&r.estado!=='no_realizada'&&isNumber(r.humedad_pct));return `<div class="point-group"><b>${x.depth} cm</b>${PROFILES.map(p=>{const r=rs.filter(v=>v.perfil===p.key),v=r.length?r.reduce((a,b)=>a+Number(b.humedad_pct),0)/r.length:null;return `<span>${p.label}: <strong>${v==null?'—':fmt(v)+'%'}</strong></span>`}).join('')}</div>`}).join(''):'<p class="empty-note">Sin datos por punto.</p>';const vertical=vals.length?`<div class="vertical-axis"><span>Superficie</span>${vals.map(x=>`<div class="vertical-dot" style="top:${Math.max(2,Math.min(98,x.depth/(Math.max(...vals.map(v=>v.depth))*1.05)*100))}%;left:${Math.max(2,Math.min(98,x.value))}%" title="${x.depth} cm · ${fmt(x.value)}%"><b>${x.depth} cm</b></div>`).join('')}<span>Profundo</span></div>`:'<p class="empty-note">Sin perfil vertical disponible.</p>';$('#verticalProfilePanel').innerHTML=vertical}
   function trend(v){if(v.length<2)return{txt:'—',cls:'flat'};const d=v.at(-1)-v[0];return Math.abs(d)<.05?{txt:'→',cls:'flat'}:d>0?{txt:'↑',cls:'up'}:{txt:'↓',cls:'down'}}
   function openRegisterForEdit(record){editingRecord=record;const values={cuartelId:record.cuartel_id,fecha:record.fecha,hora:record.hora,ubicacion:record.ubicacion,horasRiego:record.horas_desde_ultimo_riego,duracionRiego:record.duracion_ultimo_riego_h,profHoyo:record.profundidad_hoyo_cm,profRaices:record.profundidad_efectiva_raices_cm,unionBulbos:record.union_bulbos,observaciones:record.observaciones_generales};Object.entries(values).forEach(([id,value])=>{if($('#'+id))$('#'+id).value=value??''});const roots=(record.observations||[]).find(o=>o.categoria==='raices'),compaction=(record.observations||[]).find(o=>o.categoria==='estructura_compactacion');$('#raices').value=roots?.opcion_etiqueta||'';$('#compactacion').value=compaction?.opcion_etiqueta||'';seedDepths(record.readings||[]);$('#formState').textContent=`Editando calicata del ${record.fecha}`;$('#saveCalicata').textContent='Guardar cambios';$('#reportCard').hidden=true;$$('.action-card').forEach(b=>b.classList.toggle('active',b.dataset.view==='register'));$$('.view').forEach(v=>v.classList.toggle('active',v.id==='registerView'));$('#registerView').scrollIntoView({behavior:'smooth',block:'start'});msg('Edita los datos y presiona “Guardar cambios”.')}
-  async function editHistoryRecord(id){const record=historyRows.find(item=>item.id===id);if(!record)return;if(!record.localItem&&!navigator.onLine)return alert('Conéctate a internet para editar esta calicata sincronizada.');openRegisterForEdit(record)}
-  async function deleteHistoryRecord(id){const record=historyRows.find(item=>item.id===id);if(!record)return;const pending=record.localItem&&record.localItem.status!=='synced';const question=pending?'¿Eliminar esta calicata guardada en el dispositivo antes de sincronizarla?':`¿Eliminar la calicata del ${record.fecha}?\n\nSe ocultará del historial y gráficos, pero podrá recuperarse desde Supabase.`;if(!confirm(question))return;if(pending){await localDelete(STORES.queue,id);if(editingRecord?.id===id)resetForm();return loadHistory($('#historyQuarter').value)}if(!db||!session||!navigator.onLine)return alert('Conéctate a internet para eliminar esta calicata sincronizada.');status('Eliminando calicata…');const {data,error}=await db.from('calicatas').update({activo:false,actualizado_por:session.user.id}).eq('id',id).eq('organizacion_id',profile.organizacion_id).select('id').maybeSingle();if(error||!data)return alert('No fue posible eliminar la calicata: '+(error?.message||'el registro no está disponible para editar.'));await localDelete(STORES.queue,id);if(editingRecord?.id===id)resetForm();await loadHistory($('#historyQuarter').value)}
+  async function editHistoryRecord(id){const record=buscarCalicata(id);if(!record)return;if(!record.localItem&&!navigator.onLine)return alert('Conéctate a internet para editar esta calicata sincronizada.');openRegisterForEdit(record)}
+  async function deleteHistoryRecord(id){const record=buscarCalicata(id);if(!record)return;const pending=record.localItem&&record.localItem.status!=='synced';const question=pending?'¿Eliminar esta calicata guardada en el dispositivo antes de sincronizarla?':`¿Eliminar la calicata del ${record.fecha}?\n\nSe ocultará del historial y gráficos, pero podrá recuperarse desde Supabase.`;if(!confirm(question))return;if(pending){await localDelete(STORES.queue,id);if(editingRecord?.id===id)resetForm();return refrescarListas()}if(!db||!session||!navigator.onLine)return alert('Conéctate a internet para eliminar esta calicata sincronizada.');status('Eliminando calicata…');const {data,error}=await db.from('calicatas').update({activo:false,actualizado_por:session.user.id}).eq('id',id).eq('organizacion_id',profile.organizacion_id).select('id').maybeSingle();if(error||!data)return alert('No fue posible eliminar la calicata: '+(error?.message||'el registro no está disponible para editar.'));await localDelete(STORES.queue,id);if(editingRecord?.id===id)resetForm();await refrescarListas();status('Calicata descartada.')}
   async function renderHistory(){const current=$('#historyDepth').value,depths=[...new Set(historyRows.flatMap(c=>c.readings.map(r=>Number(r.profundidad_cm))))].sort((a,b)=>a-b);$('#historyDepth').innerHTML='<option value="">Todas</option>'+depths.map(d=>`<option value="${d}">${d} cm</option>`).join('');if(depths.some(d=>String(d)===current))$('#historyDepth').value=current;const hp=points('humedad_pct'),cp=points('ce_ms_cm'),tp=points('temperatura_c'),latest=historyRows.at(-1),ht=trend(hp.map(p=>p.value));$('#historyKpis').innerHTML=`<article class="kpi"><span>Calicatas</span><strong>${historyRows.length}</strong></article><article class="kpi"><span>Última evaluación</span><strong>${latest?latest.fecha:'—'}</strong></article><article class="kpi"><span>Humedad</span><strong>${hp.length?fmt(hp.at(-1).value)+'%':'—'} <i class="trend ${ht.cls}">${ht.txt}</i></strong></article><article class="kpi"><span>Profundidades</span><strong>${depths.length}</strong></article>`;renderPanels();chart($('#chartCE'),cp,'mS/cm');chart($('#chartTemp'),tp,'°C');const ordered=[...historyRows].reverse();$('#historyList').innerHTML=historyRows.length?ordered.map(c=>{const li=c.localItem,badge=li&&li.status!=='synced'?`<span class="pending-badge">${li.status==='error'?'Reintento pendiente':'Guardado local'}</span>`:'';return `<details class="history-item"><summary>${esc(c.fecha)} · ${esc(c.responsable||'Sin responsable')} ${badge}</summary><div class="history-meta">${esc(c.ubicacion||'Sin ubicación')} · Bulbos: ${esc(c.union_bulbos||'—')}</div><div class="reading-chips">${c.readings.map(r=>`<span class="chip">${fmt(r.profundidad_cm)} cm · ${esc(profileLabel(r.perfil))} · ${r.estado==='no_realizada'?'No realizada':`H ${fmtPct(r.humedad_pct)} · CE ${fmt(r.ce_ms_cm)} · T ${fmt(r.temperatura_c)}°C`}</span>`).join('')||'<span class="chip">Sin mediciones</span>'}</div>${c.observaciones_generales?`<p>${esc(c.observaciones_generales)}</p>`:''}<div class="history-actions"><button type="button" class="secondary" data-edit-calicata="${esc(c.id)}">Editar</button><button type="button" class="history-delete" data-delete-calicata="${esc(c.id)}">Eliminar</button></div></details>`}).join(''):'<p class="empty-note">Este cuartel aún no tiene calicatas registradas.</p>';$$('[data-edit-calicata]',$('#historyList')).forEach(button=>button.onclick=event=>{event.preventDefault();editHistoryRecord(button.dataset.editCalicata)});$$('[data-delete-calicata]',$('#historyList')).forEach(button=>button.onclick=event=>{event.preventDefault();deleteHistoryRecord(button.dataset.deleteCalicata)})}
+  /* ---- Últimas calicatas: editar o descartar sin salir del registro ----
+     El historial completo vive en Paneles; aquí solo se listan las últimas
+     para corregir un dato o sacar una copia repetida en el mismo momento. */
+  let recientes=[];
+  function idsCuarteles(){return quarters.map(q=>q.id)}
+  async function cargarRecientes(){
+    const cont=$('#calRecientes');if(!cont)return;
+    const aviso=$('#calRecientesAviso');
+    let remotas=[];
+    if(db&&session&&navigator.onLine&&idsCuarteles().length){
+      try{
+        const {data,error}=await db.from('calicatas')
+          .select('id,client_uuid,cuartel_id,fecha,hora,ubicacion,horas_desde_ultimo_riego,duracion_ultimo_riego_h,profundidad_hoyo_cm,profundidad_efectiva_raices_cm,union_bulbos,responsable,observaciones_generales,creado_por,creado_en')
+          .in('cuartel_id',idsCuarteles()).eq('activo',true).order('creado_en',{ascending:false}).limit(12);
+        if(error)throw error;
+        const ids=(data||[]).map(x=>x.id);
+        let lect=[],obs=[];
+        if(ids.length){
+          const rl=await db.from('lecturas_calicata').select('id,client_uuid,calicata_id,perfil,profundidad_cm,humedad_pct,ce_ms_cm,temperatura_c,estado,creado_por').in('calicata_id',ids);
+          if(!rl.error)lect=rl.data||[];
+          const ro=await db.from('observaciones_calicata').select('id,client_uuid,calicata_id,categoria,opcion_codigo,opcion_etiqueta,creado_por').in('calicata_id',ids);
+          if(!ro.error)obs=ro.data||[];
+        }
+        remotas=(data||[]).map(c=>({...c,readings:lect.filter(r=>r.calicata_id===c.id),observations:obs.filter(o=>o.calicata_id===c.id)}));
+      }catch(e){console.warn('No se pudieron cargar las últimas calicatas',e)}
+    }
+    let locales=[];
+    try{locales=(await localAll(STORES.queue)).filter(i=>!i.deleted&&i.status!=='synced'&&i.calicata)
+      .map(i=>({...i.calicata,readings:i.readings||[],observations:i.observations||[],localItem:i}))}catch{}
+    const vistos=new Set(locales.map(x=>x.id));
+    recientes=[...locales,...remotas.filter(x=>!vistos.has(x.id))]
+      .sort((a,b)=>String(b.fecha+(b.hora||'')).localeCompare(String(a.fecha+(a.hora||'')))).slice(0,12);
+    if(aviso)aviso.textContent=(!navigator.onLine&&!remotas.length)?'Sin conexión: se muestran solo las que esperan sincronizarse.':'';
+    renderRecientes();
+  }
+  function renderRecientes(){
+    const cont=$('#calRecientes'),lista=$('#calRecientesLista');if(!cont||!lista)return;
+    cont.hidden=!recientes.length;
+    lista.innerHTML=recientes.map(c=>{
+      const q=selectedQuarter(c.cuartel_id),av=averages(c.readings||[]),li=c.localItem,
+        pend=li&&li.status!=='synced'?`<span class="recientes-pend">${li.status==='error'?'Reintento pendiente':'En el teléfono'}</span>`:'';
+      return `<li class="recientes-item"><div class="recientes-datos">
+        <strong>${esc(q.codigo||q.cuartel||'Cuartel')}</strong> ${pend}
+        <span>${esc(String(c.fecha||'').split('-').reverse().join('/'))}${c.hora?' · '+esc(String(c.hora).slice(0,5)):''}</span>
+        <small>H ${fmtPct(av.total)} · CE ${av.ce==null?'—':fmt(av.ce)+' mS/cm'} · T ${av.temp==null?'—':fmt(av.temp)+' °C'}</small></div>
+        <div class="recientes-acciones">
+        <button type="button" class="secondary" data-edit-calicata="${esc(c.id)}">Editar</button>
+        <button type="button" class="history-delete" data-delete-calicata="${esc(c.id)}">Descartar</button></div></li>`;
+    }).join('');
+    $$('[data-edit-calicata]',lista).forEach(b=>b.onclick=e=>{e.preventDefault();editHistoryRecord(b.dataset.editCalicata)});
+    $$('[data-delete-calicata]',lista).forEach(b=>b.onclick=e=>{e.preventDefault();deleteHistoryRecord(b.dataset.deleteCalicata)});
+  }
+  function buscarCalicata(id){return recientes.find(x=>x.id===id)||historyRows.find(x=>x.id===id)||null}
+  async function refrescarListas(){await cargarRecientes();const q=$('#historyQuarter')?.value;if(q&&!$('#historyView')?.hidden)await loadHistory(q)}
   async function copyReport(){if(!currentReport)return;try{await navigator.clipboard.writeText(currentReport.report)}catch{const t=document.createElement('textarea');t.value=currentReport.report;document.body.append(t);t.select();document.execCommand('copy');t.remove()}msg('Reporte copiado. Ya puedes pegarlo en WhatsApp.')}
   async function shareReport(){if(!currentReport)return;if(navigator.share)try{await navigator.share({title:'Resumen de calicata',text:currentReport.report})}catch{}else await copyReport()}
   function nav(){$$('.action-card').forEach(b=>b.onclick=()=>{$$('.action-card').forEach(x=>x.classList.toggle('active',x===b));$$('.view').forEach(v=>v.classList.toggle('active',v.id===b.dataset.view+'View'));if(b.dataset.view==='history'&&$('#historyQuarter').value)loadHistory($('#historyQuarter').value)})}
@@ -162,7 +217,9 @@ return true}catch(error){try{const fallback=await queryCuarteles();if(!fallback.
     quarters=profile?await cachedQuarters(profile.organizacion_id):[];
     fillQuarters();
     if(navigator.onLine)await loadProfile();
+    await cargarRecientes();
   }
+  $('#calRecientesActualizar')?.addEventListener('click',()=>cargarRecientes());
   document.addEventListener('yoye-campo-ready',recargarPorCampo);
   document.addEventListener('yoye-campo-changed',recargarPorCampo);[0,300,1200,3000,6000,10000].forEach(ms=>setTimeout(syncAuthState,ms));
 })();
