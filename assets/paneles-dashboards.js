@@ -284,6 +284,47 @@ function perfilVertical(titulo,kicker,series,unidad,nota,dominio,referencia){
 /* Barras divergentes: sube o baja respecto de cero. Con barras normales, "la CE
    bajó 0,64" se dibujaba como una barra diminuta hacia el mismo lado que "subió
    4,03", que es justo lo contrario de lo que pasó. */
+/* Evolución de un mismo cuartel entre fechas. Una calicata sirve para decidir
+   el riego de hoy; la serie de calicatas del mismo cuartel es la que muestra si
+   el suelo se está secando, si las sales se acumulan o si un cambio de pauta
+   funcionó. */
+function serieTiempo(titulo,kicker,fechas,series,nota,referencia){
+  const puntos=series.flatMap(s=>s.valores.filter(v=>Number.isFinite(v)));
+  if(fechas.length<2||!puntos.length)return '';
+  const w=320,h=190,pad={l:38,r:14,t:16,b:34};
+  const vals=puntos.concat(referencia?[referencia.cc,referencia.pmp].filter(Number.isFinite):[]);
+  const max=Math.max(...vals)*1.08||1, min=Math.min(0,Math.min(...vals));
+  const x=i=>pad.l+(fechas.length===1?0:i/(fechas.length-1))*(w-pad.l-pad.r);
+  const y=v=>h-pad.b-((v-min)/((max-min)||1))*(h-pad.t-pad.b);
+  const guias=[min,(min+max)/2,max].map(v=>`<line x1="${pad.l}" x2="${w-pad.r}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" class="pd-svg-guia"></line>
+    <text x="${pad.l-6}" y="${(y(v)+3).toFixed(1)}" class="pd-svg-eje" text-anchor="end">${n1(v)}</text>`).join('');
+  const banda=referencia&&Number.isFinite(referencia.cc)&&Number.isFinite(referencia.pmp)
+    ? `<rect x="${pad.l}" y="${y(referencia.cc).toFixed(1)}" width="${(w-pad.l-pad.r).toFixed(1)}" height="${Math.max(0,y(referencia.pmp)-y(referencia.cc)).toFixed(1)}" fill="#3f7a4f" opacity=".08"></rect>
+       <text x="${w-pad.r}" y="${(y(referencia.cc)-4).toFixed(1)}" class="pd-svg-eje" text-anchor="end">CC</text>
+       <text x="${w-pad.r}" y="${(y(referencia.pmp)+11).toFixed(1)}" class="pd-svg-eje" text-anchor="end">PMP</text>`:'';
+  const ejeX=fechas.map((f,i)=>`<text x="${x(i).toFixed(1)}" y="${h-pad.b+16}" class="pd-svg-eje">${esc(String(f))}</text>`).join('');
+  const dibujadas=series.map(s=>({s,ps:s.valores.map((v,i)=>({v,i})).filter(p=>Number.isFinite(p.v))}))
+    .filter(d=>d.ps.length);
+  /* Los rótulos del final se pisaban cuando dos profundidades terminan con
+     valores parecidos, que es lo normal. Se separan en vertical. */
+  const finales=dibujadas.map(d=>({d,px:x(d.ps.at(-1).i),py:y(d.ps.at(-1).v),dy:0}))
+    .sort((a,b)=>a.py-b.py);
+  finales.forEach((f,i)=>{for(let j=0;j<i;j++)
+    if(Math.abs(finales[j].px-f.px)<46&&Math.abs((finales[j].py+finales[j].dy)-(f.py+f.dy))<12)f.dy=(finales[j].dy||0)+12;});
+  const trazos=dibujadas.map(({s,ps})=>{
+    const d=ps.map((p,k)=>`${k?'L':'M'}${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ');
+    return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
+      ${ps.map(p=>`<circle cx="${x(p.i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="4" fill="${s.color}" stroke="var(--paper,#fffdf8)" stroke-width="2"><title>${esc(s.nombre)} · ${esc(fechas[p.i])} · ${n1(p.v)}${esc(s.unidad||'')}</title></circle>`).join('')}`;
+  }).join('');
+  const rotulos=finales.map(f=>`<text x="${(f.px-6).toFixed(1)}" y="${(f.py+f.dy-8).toFixed(1)}"
+    class="pd-svg-val" text-anchor="end" fill="${f.d.s.color}">${n1(f.d.ps.at(-1).v)}</text>`).join('');
+  return `<section class="pd-card"><div class="pd-kicker">${esc(kicker)}</div>
+    <h3 class="pd-card-title">${esc(titulo)}</h3>
+    <div class="pd-svg-wrap"><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(titulo)}">${guias}${banda}${ejeX}${trazos}${rotulos}</svg></div>
+    <div class="pd-leyenda">${series.map(s=>`<span class="pd-leyenda-item"><i style="background:${s.color}"></i>${esc(s.nombre)}</span>`).join('')}</div>
+    ${nota?`<p class="pd-nota">${esc(nota)}</p>`:''}</section>`;
+}
+
 function barrasDivergentes(titulo,kicker,filas,nota){
   const vals=filas.map(f=>f.valor).filter(Number.isFinite);
   if(!vals.length)return '';
@@ -625,16 +666,125 @@ function pintarCalicatas(d,campo){
     </ul>${alertas.length>6?`<p class="pd-nota">Se muestran 6 de ${n0(alertas.length)}. Filtra por cuartel para verlas todas.</p>`:''}
   </section>`:'';
 
-  return filtros+kpis+resumenAlertas+ranking+tablaTotales+leyenda+
+  /* --- Elegir cuartel ---
+     Cada cuartel tiene su suelo, su cultivo y su historia: mezclarlos en un
+     solo resumen no dice nada. Sin cuartel elegido, el panel ofrece la lista
+     para entrar a uno; con cuartel elegido, muestra su ficha y su evolución. */
+  const tarjetasCuartel=[...cuartelesSel].map(id=>{
+    const cal=sel.find(k=>k.cuartel_id===id),r=leer(cal),q=porCuartel.get(id)||{};
+    const n=sel.filter(k=>k.cuartel_id===id).length;
+    const est=r&&r.zonaRaices.estado;
+    const chip=est?`<span class="pd-chip pd-chip-${esc(est.clave)}">${esc(est.etiqueta)}</span>`
+      :'<span class="pd-chip pd-chip-info">Sin textura</span>';
+    const ctx=[q.cultivo,q.variedad].filter(Boolean).join(' · ');
+    return `<button type="button" class="pd-cuartel" data-cal-cuartel="${esc(q.codigo||'')}">
+      <span class="pd-cuartel-cab"><strong>${esc(q.codigo||'—')}</strong>${chip}</span>
+      <span class="pd-cuartel-ctx">${esc(ctx||'Sin cultivo declarado')}</span>
+      <span class="pd-cuartel-datos">
+        <b>${r&&esNum(r.zonaRaices.h)?n1(r.zonaRaices.h)+' %':'—'}</b> en raíces ·
+        <b>${r&&esNum(r.zonaRaices.ce)?n2(r.zonaRaices.ce):'—'}</b> mS/cm</span>
+      <span class="pd-cuartel-pie">${fecha(cal.fecha)} · ${n0(n)} ${n===1?'calicata':'calicatas'}</span>
+    </button>`;
+  }).join('');
+  const eleccion=`<section class="pd-card pd-ancho"><div class="pd-kicker">Empieza por acá</div>
+    <h3 class="pd-card-title">Elige un cuartel</h3>
+    <p class="pd-nota" style="margin:0 0 10px">Cada cuartel se lee por separado: su suelo, su cultivo y su
+      historia de calicatas. Toca uno para ver su ficha completa y cómo viene cambiando.</p>
+    <div class="pd-cuarteles">${tarjetasCuartel}</div></section>`;
+
+  if(!filtroCal.cuartel){
+    return filtros+kpis+resumenAlertas+eleccion+ranking+tablaTotales+
+      tabla('Todas las lecturas','Detalle',
+        ['Cuartel','Fecha','Prof.','Centro','Izquierda','Derecha','CE centro'],detalleFilas,
+        'Se muestran hasta seis cuarteles. Entra a un cuartel para ver todas sus fechas y su evolución.');
+  }
+
+  /* --- Ficha del cuartel elegido --- */
+  const delCuartel=sel.slice().sort((a,b)=>String(b.fecha+(b.hora||'')).localeCompare(String(a.fecha+(a.hora||''))));
+  const qSel=cuartelDe(delCuartel[0]),rUlt=leer(delCuartel[0]);
+  const fichaCab=`<section class="pd-card pd-ancho pd-ficha"><div class="pd-kicker">Cuartel</div>
+    <h3 class="pd-card-title">${esc(qSel.codigo||'—')}</h3>
+    <p class="pd-nota" style="margin:0">${esc([qSel.cultivo,qSel.variedad,qSel.caseta?`Caseta ${qSel.caseta}`:null,qSel.equipo].filter(Boolean).join(' · ')||'Sin datos del cuartel')}
+      · ${n0(delCuartel.length)} ${delCuartel.length===1?'calicata registrada':'calicatas registradas'}
+      ${rUlt&&rUlt.referenciaCultivo?`· ${esc(rUlt.referenciaCultivo.etiqueta)}: umbral de sales ${n1(rUlt.referenciaCultivo.umbral)} dS/m (CEe)`:''}</p>
+    <button type="button" class="pd-filtro-limpiar" data-cal-filtro="limpiar" style="margin-top:10px">Ver otro cuartel</button></section>`;
+
+  /* Evolución: una línea por profundidad, con la banda de suelo si hay textura. */
+  const cronologia=delCuartel.slice().reverse();
+  /* Dos calicatas del mismo día quedaban como dos "07/09" iguales en el eje;
+     cuando pasa, la hora las distingue. */
+  const fechasSerie=cronologia.map((k,i,a)=>{
+    const d=String(fecha(k.fecha)).slice(0,5);
+    const repetida=a.some((o,j)=>j!==i&&o.fecha===k.fecha);
+    return repetida&&k.hora?`${d} ${String(k.hora).slice(0,5)}`:d;
+  });
+  const valorProf=(cal,prof,clave)=>{const r=leer(cal);const x=r&&r.porProfundidad.find(y=>y.prof===prof);
+    return x&&Number.isFinite(x[clave])?x[clave]:null};
+  const COLORES=[PUNTOS[0].color,PUNTOS[1].color,PUNTOS[2].color,'#8c6847','#39798a'];
+  const serieHum=serieTiempo('Humedad por fecha','Evolución del cuartel',fechasSerie,
+    profsSel.map((pr,i)=>({nombre:`${n0(pr)} cm`,color:COLORES[i%COLORES.length],unidad:' %',
+      valores:cronologia.map(k=>valorProf(k,pr,'h'))})),
+    'Cada línea es una profundidad, promediando los tres puntos de esa calicata. La franja verde es el agua aprovechable del suelo según la textura anotada.',
+    rUlt&&rUlt.textura?{cc:rUlt.textura.cc,pmp:rUlt.textura.pmp}:null);
+  const serieCe=serieTiempo('CE por fecha','Evolución del cuartel',fechasSerie,
+    profsSel.map((pr,i)=>({nombre:`${n0(pr)} cm`,color:COLORES[i%COLORES.length],unidad:' mS/cm',
+      valores:cronologia.map(k=>valorProf(k,pr,'ce'))})),
+    'Si la CE sube fecha a fecha en la misma profundidad, hay sales acumulándose; conviene confirmarlo con extracto de saturación.');
+  const sinHistoria=delCuartel.length<2
+    ? `<section class="pd-card"><div class="pd-kicker">Evolución del cuartel</div>
+       <h3 class="pd-card-title">Falta una segunda calicata</h3>
+       <p class="pd-nota">Con una sola fecha se puede leer el perfil de hoy, pero no si el cuartel se está
+       secando o salinizando. La comparación aparece sola cuando registres la siguiente.</p></section>`:'';
+
+  const filasCuartel=delCuartel.map(cal=>{
+    const r=leer(cal),z=r?r.zonaRaices:{};
+    return [`<span title="${fecha(cal.fecha)}">${String(fecha(cal.fecha)).slice(0,5)}</span>`,
+      esNum(z.h)?`<strong>${n1(z.h)}</strong>`:'—',
+      z.agotamiento==null?'—':`<strong>${n0(z.agotamiento)}%</strong>`,
+      esNum(z.ce)?n2(z.ce):'—',
+      r&&esNum(r.total.t)?n1(r.total.t):'—',
+      esNum(cal.profundidad_efectiva_raices_cm)?n0(cal.profundidad_efectiva_raices_cm):'—',
+      esc(UNION[cal.union_bulbos]||'—')];
+  });
+
+  /* En la ficha, los indicadores son la ÚLTIMA calicata del cuartel y cuánto
+     cambió respecto de la anterior: el estado de hoy y hacia dónde va. */
+  const rPrev=delCuartel[1]?leer(delCuartel[1]):null;
+  const delta=(ahora,antes,f,u)=>{
+    if(!esNum(ahora)||!esNum(antes))return null;
+    const d=ahora-antes;
+    return `${d>0?'+':'−'}${f(Math.abs(d))}${u} desde ${fecha(delCuartel[1].fecha)}`;
+  };
+  const zUlt=rUlt?rUlt.zonaRaices:{};
+  const kpisCuartel=`<div class="pd-kpis">
+    ${kpi('Última evaluación',fecha(delCuartel[0].fecha),`${n0(delCuartel.length)} ${delCuartel.length===1?'calicata':'calicatas'} en este cuartel`,'verde',true)}
+    ${esNum(zUlt.h)?kpi('Humedad en zona de raíces',`${n1(zUlt.h)}<span class="pd-de">%</span>`,
+      delta(zUlt.h,rPrev&&rPrev.zonaRaices.h,n1,' pp')||`hasta ${n0(zUlt.limite)} cm`,'azul',true):''}
+    ${zUlt.agotamiento!=null
+      ? kpi('Agua aprovechable consumida',`${n0(zUlt.agotamiento)}<span class="pd-de">%</span>`,
+          zUlt.estado?zUlt.estado.etiqueta:'0% = capacidad de campo','terracota',true)
+      : kpi('Agua aprovechable','Sin textura','Anota la textura del suelo al registrar','terracota',true)}
+    ${esNum(zUlt.ce)?kpi('CE en zona de raíces',`${n2(zUlt.ce)}<span class="pd-de">mS/cm</span>`,
+      delta(zUlt.ce,rPrev&&rPrev.zonaRaices.ce,n2,' mS/cm')||'sonda directa','cafe',true):''}
+    ${esNum(delCuartel[0].profundidad_efectiva_raices_cm)?kpi('Raíces efectivas',
+      `${n0(delCuartel[0].profundidad_efectiva_raices_cm)}<span class="pd-de">cm</span>`,'declarada en esta calicata','verde',true):''}
+    ${rUlt&&rUlt.uniformidad?kpi('Uniformidad del bulbo',rUlt.uniformidad.etiqueta,
+      `${n0(rUlt.uniformidad.peor)}% de variación entre los tres puntos`,
+      rUlt.uniformidad.clave==='ok'?'verde':'terracota',true):''}
+  </div>`;
+
+  return filtros+kpisCuartel+fichaCab+resumenAlertas+
+    (serieHum||sinHistoria)+serieCe+
+    tabla('Historia del cuartel','Calicata por calicata',
+      ['Fecha','H raíces %','Agotam.','CE','T °C','Raíces cm','Bulbos'],filasCuartel,
+      'Cada fila es una calicata completa de este cuartel. H raíces y agotamiento se miden solo hasta la profundidad de raíces declarada ese día.')+
+    leyenda+
     `<div class="pd-perfiles">${perfiles}</div>`+
-    barrasComparacion+
-    anilloUnion+
     (obsRaices.length?barras('Estado de raíces','Observaciones',obsRaices):'')+
     (obsComp.length?barras('Compactación','Observaciones',obsComp):'')+
-    tendencia+
     tabla('Todas las lecturas','Detalle',
       ['Cuartel','Fecha','Prof.','Centro','Izquierda','Derecha','CE centro'],detalleFilas,
-      detalle?null:'Se muestran hasta seis cuarteles. Filtra por cuartel para ver todas sus fechas.');
+      'Las lecturas tal cual se anotaron, sin promediar nada.');
 }
 
 /* ---------- Ácido peracético y descole ----------
@@ -935,6 +1085,12 @@ function enlazarFiltros(){
     if(panelAbierto)abrirPanel(panelAbierto,{desdeHash:true});
   });
   host.addEventListener('click',ev=>{
+    const tarjeta=ev.target.closest('[data-cal-cuartel]');
+    if(tarjeta){
+      filtroCal.cuartel=tarjeta.dataset.calCuartel;
+      if(panelAbierto)abrirPanel(panelAbierto,{desdeHash:true});
+      return;
+    }
     if(!ev.target.closest('[data-cal-filtro="limpiar"]'))return;
     filtroCal={cuartel:'',caseta:'',equipo:'',cultivo:''};
     if(panelAbierto)abrirPanel(panelAbierto,{desdeHash:true});
@@ -960,10 +1116,19 @@ function enlazarLista(){
    navegador -- que en el teléfono es el gesto de volver -- la URL retrocedía y
    el dashboard seguía en pantalla; un enlace a otro panel desde uno abierto no
    hacía nada. Ahora la URL es la única fuente de verdad y la pantalla la sigue. */
-const claveDelHash=()=>(location.hash.match(/^#panel-(campos|aforos|calicatas|acido|descoles)$/)||[])[1]||null;
+/* El hash puede traer además el cuartel: #panel-calicatas:C-5. Así la app de
+   Calicatas enlaza directo a la ficha del cuartel que se acaba de registrar. */
+const HASH_RE=/^#panel-(campos|aforos|calicatas|acido|descoles)(?::([^#?/]+))?$/;
+const claveDelHash=()=>(location.hash.match(HASH_RE)||[])[1]||null;
+const cuartelDelHash=()=>{const m=location.hash.match(HASH_RE);
+  return m&&m[2]?decodeURIComponent(m[2]):null};
 
 function sincronizarConHash(){
-  const clave=claveDelHash();
+  const clave=claveDelHash(),cuartel=cuartelDelHash();
+  if(clave==='calicatas'&&cuartel&&filtroCal.cuartel!==cuartel){
+    filtroCal.cuartel=cuartel;
+    if(clave===panelAbierto)return abrirPanel(clave,{desdeHash:true});
+  }
   if(clave){ if(clave!==panelAbierto)abrirPanel(clave,{desdeHash:true}) }
   else if(panelAbierto)cerrarPanel({desdeHash:true});
 }

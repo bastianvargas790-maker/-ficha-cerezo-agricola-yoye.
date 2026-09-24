@@ -212,6 +212,7 @@ return true}catch(error){try{const fallback=await queryCuarteles();if(!fallback.
         <span>${esc(String(c.fecha||'').split('-').reverse().join('/'))}${c.hora?' · '+esc(String(c.hora).slice(0,5)):''}</span>
         <small>H ${fmtPct(av.total)} · CE ${av.ce==null?'—':fmt(av.ce)+' mS/cm'} · T ${av.temp==null?'—':fmt(av.temp)+' °C'}</small></div>
         <div class="recientes-acciones">
+        <a class="secondary recientes-panel" href="../paneles/#panel-calicatas:${encodeURIComponent(q.codigo||q.cuartel||'')}">Ver en Paneles</a>
         <button type="button" class="secondary" data-edit-calicata="${esc(c.id)}">Editar</button>
         <button type="button" class="history-delete" data-delete-calicata="${esc(c.id)}">Descartar</button></div></li>`;
     }).join('');

@@ -134,3 +134,23 @@
 .pd-diag-accion b{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary,#645c50)}
 .pd-diag-accion ul{margin:6px 0 0;padding-left:18px;display:grid;gap:5px;font-size:.86rem;line-height:1.45}
 .pd-diag-lista li b{display:block;font-size:.74rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-secondary,#645c50);margin-bottom:2px}
+
+/* ---------- Elegir cuartel ---------- */
+.pd-cuarteles{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
+.pd-cuartel{display:grid;gap:4px;text-align:left;cursor:pointer;min-height:44px;
+  background:var(--surface-alt,#f5f1e6);border:1px solid var(--line,#e2dbc8);border-radius:12px;padding:11px 12px;font:inherit;color:inherit}
+.pd-cuartel:hover{border-color:var(--ink,#17352c)}
+.pd-cuartel-cab{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.pd-cuartel-cab strong{font:800 1.05rem var(--font-heading,Georgia,serif)}
+.pd-cuartel-ctx{font-size:.78rem;color:var(--text-secondary,#645c50)}
+.pd-cuartel-datos{font-size:.84rem;color:var(--text-secondary,#645c50)}
+.pd-cuartel-datos b{color:var(--ink,#17352c);font-weight:800}
+.pd-cuartel-pie{font-size:.74rem;color:var(--text-secondary,#645c50)}
+.pd-chip{font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;
+  padding:3px 8px;border-radius:999px;white-space:nowrap}
+.pd-chip-ok{background:#e3f0e6;color:#2f6b47}
+.pd-chip-atencion{background:#fbf0dc;color:#8a6420}
+.pd-chip-alerta,.pd-chip-exceso{background:#f8e5e1;color:#a9552f}
+.pd-chip-critico{background:#f3ded9;color:#8e3d20}
+.pd-chip-info{background:#eceadf;color:#645c50}
+.pd-ficha .pd-card-title{font-size:1.4rem}

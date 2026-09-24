@@ -38,6 +38,46 @@
     {hasta:Infinity,clave:'alerta',etiqueta:'Alta',nota:'Alta para frutales sensibles. Confirmar con extracto de saturación antes de decidir un lavado.'}
   ];
 
+  /* Umbrales de salinidad por especie, en CE del EXTRACTO DE SATURACIÓN (CEe,
+     dS/m): el valor a partir del cual la especie empieza a perder rendimiento,
+     y cuánto pierde por cada dS/m por encima (modelo Maas & Hoffman, que es el
+     que usan las tablas de FAO y las guías de riego).
+
+     Son de laboratorio. La sonda de terreno mide CE aparente del suelo, que a
+     capacidad de campo suele ser del orden de tres veces menor, y además sube y
+     baja con la humedad. Por eso el panel avisa "conviene medir extracto" en
+     vez de declarar un problema de salinidad: la sonda sirve para detectar la
+     tendencia, el laboratorio para decidir un lavado. */
+  const FACTOR_SONDA=3;
+  const CULTIVOS={
+    cerezo:{etiqueta:'Cerezo',umbral:1.5,pendiente:22,clase:'Sensible',fuente:'IVIA/Agrosal'},
+    ciruelo:{etiqueta:'Ciruelo',umbral:1.5,pendiente:18,clase:'Sensible',fuente:'IVIA/Agrosal (FAO indica 2,6 para ciruelo/ciruela seca)'},
+    duraznero:{etiqueta:'Duraznero',umbral:1.7,pendiente:21,clase:'Sensible',fuente:'FAO / Maas & Hoffman'},
+    nectarino:{etiqueta:'Nectarino',umbral:1.7,pendiente:21,clase:'Sensible',fuente:'FAO (se usa el valor de duraznero)'},
+    nogal:{etiqueta:'Nogal',umbral:1.5,pendiente:null,clase:'Sensible',fuente:'FAO lo clasifica sensible sin umbral experimental; 1,5 es referencia conservadora'},
+    naranjo:{etiqueta:'Naranjo',umbral:1.3,pendiente:13,clase:'Sensible',fuente:'FAO / Maas & Hoffman (Agrosal indica 1,7)'},
+    mandarino:{etiqueta:'Mandarino',umbral:1.3,pendiente:13,clase:'Sensible',fuente:'FAO, cítricos'},
+    palto:{etiqueta:'Palto',umbral:1.3,pendiente:24,clase:'Sensible',fuente:'FAO / IVIA (1,3–1,6 según fuente)'},
+    almendro:{etiqueta:'Almendro',umbral:1.5,pendiente:19,clase:'Sensible',fuente:'FAO / Maas & Hoffman'}
+  };
+  /* Los cuarteles traen el cultivo escrito de varias formas: "Cerezo",
+     "cerezos", "nectarines". Se normaliza antes de buscar el umbral. */
+  function claveCultivo(nombre){
+    const t=String(nombre||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+    if(!t)return null;
+    const reglas=[[/cerez/,'cerezo'],[/ciruel/,'ciruelo'],[/durazn|melocoton/,'duraznero'],
+      [/nectarin/,'nectarino'],[/nogal|nuez|nueces/,'nogal'],[/naranj/,'naranjo'],
+      [/mandarin|clementin/,'mandarino'],[/palt|aguacate/,'palto'],[/almendr/,'almendro']];
+    return (reglas.find(([re])=>re.test(t))||[])[1]||null;
+  }
+  function referenciaCultivo(nombre){const k=claveCultivo(nombre);return k?{clave:k,...CULTIVOS[k]}:null}
+  /* CE de sonda a la que conviene mandar una muestra al laboratorio: el umbral
+     del cultivo llevado a orden de magnitud de sonda. */
+  function ceSondaDeAviso(nombre){
+    const r=referenciaCultivo(nombre);
+    return r&&r.umbral?Math.round(r.umbral/FACTOR_SONDA*100)/100:null;
+  }
+
   const esNum=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v));
   const prom=a=>a.length?a.reduce((x,y)=>x+Number(y),0)/a.length:null;
   const r1=v=>v==null?null:Math.round(v*10)/10;
@@ -147,10 +187,12 @@
       return {...base,clave:'parejo',etiqueta:'Perfil parejo en profundidad'};
     })();
 
+    const refCultivo=referenciaCultivo(o.cultivo);
     return {profundidades:profs,porProfundidad,total,zonaRaices,bajoRaices,uniformidad,sales,frente,
-      textura:TEXTURAS[o.textura]||null,cultivo:o.cultivo||null,unionBulbos:o.unionBulbos||null,
+      textura:TEXTURAS[o.textura]||null,cultivo:o.cultivo||null,referenciaCultivo:refCultivo,
+      unionBulbos:o.unionBulbos||null,
       diagnostico:diagnostico({porProfundidad,total,zonaRaices,bajoRaices,uniformidad,sales,frente,
-        textura:TEXTURAS[o.textura]||null,unionBulbos:o.unionBulbos})};
+        textura:TEXTURAS[o.textura]||null,unionBulbos:o.unionBulbos,referenciaCultivo:refCultivo})};
   }
 
   /* Frases de diagnóstico y una recomendación de manejo. Cada frase sale de un
@@ -203,6 +245,15 @@
           texto:`La CE es más alta arriba que abajo (${fmt2(Math.abs(r.sales.diferencia))} mS/cm de diferencia): las sales se están quedando en la zona de raíces.`});
         acciones.push('Aplicar un riego de lavado y revisar la conductividad del agua y la carga de fertilizante.');
       }
+      const ref=r.referenciaCultivo;
+      if(ref&&ref.umbral&&esNum(r.sales.enRaices)){
+        const aviso=ref.umbral/FACTOR_SONDA;
+        puntos.push({clave:'sales-cultivo',nivel:r.sales.enRaices>=aviso?'atencion':'info',
+          texto:`${ref.etiqueta} es sensible a sales: pierde rendimiento sobre ${fmt1(ref.umbral)} dS/m de CE en extracto de saturación`+
+            (ref.pendiente?` (−${Math.round(ref.pendiente)} % por cada dS/m de más)`:'')+
+            `. Con sonda, eso equivale más o menos a ${fmt2(aviso)} mS/cm en suelo húmedo; hoy marca ${fmt2(r.sales.enRaices)}.`});
+        if(r.sales.enRaices>=aviso)acciones.push(`Mandar una muestra de la zona de raíces a extracto de saturación: la lectura de sonda ya está en el orden del umbral del ${ref.etiqueta.toLowerCase()}.`);
+      }
       if(r.sales.banda.clave==='alerta')acciones.push('Confirmar con un extracto de saturación de laboratorio antes de programar lavados: la sonda mide CE aparente y se dispara con el suelo húmedo.');
     }
     const fria=r.porProfundidad.filter(x=>esNumero(x.t)&&x.t<12);
@@ -216,5 +267,6 @@
   function fmt1(v){return v==null?'—':Number(v).toLocaleString('es-CL',{minimumFractionDigits:1,maximumFractionDigits:1})}
   function fmt2(v){return v==null?'—':Number(v).toLocaleString('es-CL',{minimumFractionDigits:2,maximumFractionDigits:2})}
 
-  raiz.YoyeAgro={TEXTURAS,CE_BANDAS,resumen,agotamiento,estadoHumedad,bandaCE,cv,redondear:{r1,r2}};
+  raiz.YoyeAgro={TEXTURAS,CE_BANDAS,CULTIVOS,FACTOR_SONDA,resumen,agotamiento,estadoHumedad,bandaCE,cv,
+    claveCultivo,referenciaCultivo,ceSondaDeAviso,redondear:{r1,r2}};
 })(typeof globalThis!=='undefined'?globalThis:window);
