@@ -21,7 +21,7 @@ test('con cuartel elegido, los indicadores son su última calicata y el cambio d
 });
 
 test('la evolución del cuartel se dibuja en el tiempo, con la franja de suelo', () => {
-  assert.match(js, /function serieTiempo\(titulo,kicker,fechas,series,nota,referencia\)/);
+  assert.match(js, /function serieTiempo\(titulo,kicker,fechas,series,nota,referencia,decimales\)/);
   assert.ok(bloque.includes("serieTiempo('Humedad por fecha'"));
   assert.ok(bloque.includes("serieTiempo('CE por fecha'"));
   assert.ok(bloque.includes('Falta una segunda calicata'), 'con una sola fecha hay que decirlo, no dibujar una línea sola');

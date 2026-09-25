@@ -212,15 +212,38 @@ function marcasEje(min,max,objetivo=4){
   for(let v=Math.ceil(min/paso)*paso; v<=max+paso*0.001; v+=paso)marcas.push(Math.round(v*1000)/1000);
   return marcas.length>1?marcas:[min,max];
 }
-/* Rótulos al final de cada trazo: cuando dos caen encima, se separan y se unen
-   a su punto con una línea guía, en vez de quedar flotando sin dueño. */
-function separarRotulos(puntos,alto=13,radio=48){
-  const orden=puntos.slice().sort((a,b)=>a.y-b.y);
-  orden.forEach((r,i)=>{r.ly=r.y;
-    for(let j=0;j<i;j++)if(Math.abs(orden[j].x-r.x)<radio&&Math.abs(orden[j].ly-r.ly)<alto)r.ly=orden[j].ly+alto;});
-  return puntos;
+/* Cada punto medido lleva su valor al lado. Para que ninguno se pise, cada
+   rótulo se prueba en cuatro posiciones -- derecha, izquierda, arriba y abajo --
+   y se queda en la primera que no choque con otro ya puesto ni se salga del
+   gráfico. Si ninguna sirve, ese valor queda solo en el tooltip del punto. */
+function rotulosPuntos(puntos,limiteDer,limiteIzq=2,limiteArr=2,limiteAba=1e4,reservadas=[]){
+  const alto=11, ancho=t=>String(t).length*5.6+4;
+  const puestos=reservadas.slice();
+  const choca=c=>puestos.some(o=>!(c.x1<=o.x0||c.x0>=o.x1||c.y1<=o.y0||c.y0>=o.y1));
+  const caja=(x,y,w,anchor)=>({x0:anchor==='end'?x-w:x,x1:anchor==='end'?x:x+w,y0:y-alto/2,y1:y+alto/2});
+  const salida=[];
+  puntos.slice().sort((a,b)=>a.x-b.x||a.y-b.y).forEach(p=>{
+    const w=ancho(p.texto);
+    const opciones=[
+      {lx:p.x+7,ly:p.y,anchor:'start'},
+      {lx:p.x-7,ly:p.y,anchor:'end'},
+      {lx:p.x,ly:p.y-11,anchor:'middle'},
+      {lx:p.x,ly:p.y+12,anchor:'middle'},
+      {lx:p.x+7,ly:p.y-11,anchor:'start'},
+      {lx:p.x-7,ly:p.y+12,anchor:'end'}
+    ];
+    const elegida=opciones.find(o=>{
+      const c=caja(o.anchor==='middle'?o.lx-w/2:o.lx,o.ly,w,o.anchor==='end'?'end':'start');
+      const dentro=c.x0>=limiteIzq&&c.x1<=limiteDer&&c.y0>=limiteArr&&c.y1<=limiteAba;
+      return dentro&&!choca(c);
+    });
+    if(!elegida)return;
+    puestos.push(caja(elegida.anchor==='middle'?elegida.lx-w/2:elegida.lx,elegida.ly,w,elegida.anchor==='end'?'end':'start'));
+    salida.push({...p,...elegida});
+  });
+  return salida;
 }
-const guia=(x1,y1,x2,y2)=>`<polyline points="${x1.toFixed(1)},${y1.toFixed(1)} ${((x1+x2)/2).toFixed(1)},${y2.toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".75"></polyline>`;
+const marcaValor=r=>`<text x="${r.lx.toFixed(1)}" y="${(r.ly+3.4).toFixed(1)}" class="pd-svg-punto" text-anchor="${r.anchor}">${r.texto}</text>`;
 
 const etiquetaPerfil=k=>PUNTOS.find(p=>p.clave===k)?.nombre||k;
 const UNION={unidos:'Bulbos unidos',parcialmente_unidos:'Parcialmente unidos',no_unidos:'Bulbos separados'};
@@ -258,7 +281,21 @@ async function datosCalicatas(campo){
    panel: si cada tarjeta se escala a sus propios datos, un cuartel que va de
    9 a 30 % se ve igual que uno que va de 29 a 33 %, y comparar deja de
    significar nada. */
-function perfilVertical(titulo,kicker,series,unidad,nota,dominio,referencia,raicesCm){
+/* Franja de agua aprovechable. Solo se dibuja con referencia.medida = true, es
+   decir, con capacidad de campo y punto de marchitez del análisis del suelo;
+   las estimaciones por textura no se dibujan como si fueran medición. */
+function bandaSuelo(ref,min,max,x,pad,w,h){
+  if(!ref||!Number.isFinite(ref.cc)||!Number.isFinite(ref.pmp))return '';
+  const dentro=v=>v>=min&&v<=max;
+  const izq=x(Math.max(min,ref.pmp)), der=x(Math.min(max,ref.cc));
+  const zona=(dentro(ref.pmp)||dentro(ref.cc))
+    ? `<rect x="${izq.toFixed(1)}" y="${pad.t}" width="${Math.max(0,der-izq).toFixed(1)}" height="${(h-pad.b-pad.t).toFixed(1)}" fill="#3f7a4f" opacity=".08"></rect>`:'';
+  const marca=(v,txt,color)=>dentro(v)?`<line x1="${x(v).toFixed(1)}" x2="${x(v).toFixed(1)}" y1="${pad.t}" y2="${h-pad.b}" stroke="${color}" stroke-width="1" opacity=".75"></line>
+    <text x="${x(v).toFixed(1)}" y="${pad.t-8}" class="pd-svg-ref" fill="${color}">${txt}</text>`:'';
+  return zona+marca(ref.pmp,'PMP','#b1543a')+marca(ref.cc,'CC','#2a78d6');
+}
+
+function perfilVertical(titulo,kicker,series,unidad,nota,dominio,referencia,raicesCm,decimales){
   const profs=[...new Set(series.flatMap(s=>s.puntos.map(p=>p.prof)))].sort((a,b)=>a-b);
   const valores=series.flatMap(s=>s.puntos.map(p=>p.valor)).filter(Number.isFinite);
   if(!profs.length||!valores.length)return '';
@@ -278,18 +315,11 @@ function perfilVertical(titulo,kicker,series,unidad,nota,dominio,referencia,raic
   const titulosEje=`<text x="${pad.l-8}" y="${pad.t-12}" class="pd-svg-eje" text-anchor="end">cm</text>
     <text x="${((pad.l+w-pad.r)/2).toFixed(1)}" y="${h-6}" class="pd-svg-eje">${esc((unidad||'').trim()||'valor')}</text>`;
 
-  /* Referencias del suelo: entre punto de marchitez y capacidad de campo está
-     el agua que la planta puede ocupar. Sin eso, un 15 % no dice nada. */
-  const bandas=(()=>{
-    if(!referencia||!Number.isFinite(referencia.cc)||!Number.isFinite(referencia.pmp))return '';
-    const dentro=v=>v>=min&&v<=max;
-    const izq=x(Math.max(min,referencia.pmp)), der=x(Math.min(max,referencia.cc));
-    const zona=(dentro(referencia.pmp)||dentro(referencia.cc))
-      ? `<rect x="${izq.toFixed(1)}" y="${pad.t}" width="${Math.max(0,der-izq).toFixed(1)}" height="${(h-pad.b-pad.t).toFixed(1)}" fill="#3f7a4f" opacity=".08"></rect>`:'';
-    const marca=(v,txt,color)=>dentro(v)?`<line x1="${x(v).toFixed(1)}" x2="${x(v).toFixed(1)}" y1="${pad.t}" y2="${h-pad.b}" stroke="${color}" stroke-width="1" opacity=".75"></line>
-      <text x="${x(v).toFixed(1)}" y="${pad.t-8}" class="pd-svg-ref" fill="${color}">${txt}</text>`:'';
-    return zona+marca(referencia.pmp,'PMP','#b1543a')+marca(referencia.cc,'CC','#2a78d6');
-  })();
+  /* Las referencias de capacidad de campo y punto de marchitez quedan fuera del
+     gráfico hasta tener las del suelo de cada cuartel: dibujar una estimación
+     como si fuera medición invita a leerla como dato duro. El parámetro sigue
+     aquí para cuando lleguen los análisis reales. */
+  const bandas=referencia&&referencia.medida?bandaSuelo(referencia,min,max,x,pad,w,h):'';
 
   /* Hasta dónde llegan las raíces: bajo esa línea el agua ya no la toma el árbol. */
   const lineaRaices=(()=>{
@@ -308,16 +338,11 @@ function perfilVertical(titulo,kicker,series,unidad,nota,dominio,referencia,raic
       ${ps.map(p=>`<circle cx="${x(p.valor).toFixed(1)}" cy="${y(p.prof).toFixed(1)}" r="4.5" fill="${s.color}" stroke="var(--paper,#fffdf8)" stroke-width="2"><title>${esc(s.nombre)} · ${n0(p.prof)} cm · ${n1(p.valor)}${esc(unidad||'')}</title></circle>`).join('')}`;
   }).join('');
 
-  /* Un solo rótulo por serie, en su punto más profundo, con línea guía si dos
-     terminan pegados. Un número sobre cada punto sería ilegible. */
-  const rotulos=separarRotulos(dibujadas.map(({s,ps})=>{
-    const p=ps[ps.length-1];
-    return {x:x(p.valor),y:y(p.prof),color:s.color,texto:n1(p.valor)};
-  })).map(r=>`<g style="color:${r.color}">
-      ${Math.abs(r.ly-r.y)>1?guia(r.x+6,r.y,w-pad.r+6,r.ly):''}
-      <circle cx="${(w-pad.r+10).toFixed(1)}" cy="${r.ly.toFixed(1)}" r="3" fill="${r.color}"></circle>
-      <text x="${(w-pad.r+17).toFixed(1)}" y="${(r.ly+3.5).toFixed(1)}" class="pd-svg-val" text-anchor="start">${r.texto}</text>
-    </g>`).join('');
+  /* Cada lectura con su número al lado: es lo que se anota en la libreta. */
+  const rotulos=rotulosPuntos(dibujadas.flatMap(({s,ps})=>ps.map(p=>({
+    x:x(p.valor),y:y(p.prof),texto:decimales===2?n2(p.valor):n1(p.valor)}))),
+    w-3,4,pad.t-14,h-pad.b+2,
+    profs.map(pr=>({x0:0,x1:pad.l-5,y0:y(pr)-6,y1:y(pr)+6}))).map(marcaValor).join('');
 
   return `<section class="pd-card pd-grafico">
     <div class="pd-kicker">${esc(kicker)}</div>
@@ -333,11 +358,11 @@ function perfilVertical(titulo,kicker,series,unidad,nota,dominio,referencia,raic
    el riego de hoy; la serie de calicatas del mismo cuartel es la que muestra si
    el suelo se está secando, si las sales se acumulan o si un cambio de pauta
    funcionó. */
-function serieTiempo(titulo,kicker,fechas,series,nota,referencia){
+function serieTiempo(titulo,kicker,fechas,series,nota,referencia,decimales){
   const puntos=series.flatMap(s=>s.valores.filter(v=>Number.isFinite(v)));
   if(fechas.length<2||!puntos.length)return '';
   const w=360,h=230,pad={l:44,r:58,t:26,b:42};
-  const conRef=referencia&&Number.isFinite(referencia.cc)&&Number.isFinite(referencia.pmp);
+  const conRef=referencia&&referencia.medida&&Number.isFinite(referencia.cc)&&Number.isFinite(referencia.pmp);
   const vals=puntos.concat(conRef?[referencia.cc,referencia.pmp]:[]);
   const marcas=marcasEje(Math.min(0,Math.min(...vals)),Math.max(...vals)*1.05||1);
   const min=marcas[0], max=Math.max(marcas[marcas.length-1],Math.max(...vals));
@@ -361,14 +386,11 @@ function serieTiempo(titulo,kicker,fechas,series,nota,referencia){
     return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
       ${ps.map((p,k)=>`<circle cx="${x(p.i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="${k===ps.length-1?5:4}" fill="${s.color}" stroke="var(--paper,#fffdf8)" stroke-width="2"><title>${esc(s.nombre)} · ${esc(fechas[p.i])} · ${n1(p.v)}${esc(s.unidad||'')}</title></circle>`).join('')}`;
   }).join('');
-  const rotulos=separarRotulos(dibujadas.map(({s,ps})=>{
-    const p=ps[ps.length-1];
-    return {x:x(p.i),y:y(p.v),color:s.color,texto:n1(p.v)};
-  })).map(r=>`<g style="color:${r.color}">
-      ${Math.abs(r.ly-r.y)>1?guia(r.x+6,r.y,w-pad.r+4,r.ly):''}
-      <circle cx="${(w-pad.r+8).toFixed(1)}" cy="${r.ly.toFixed(1)}" r="3" fill="${r.color}"></circle>
-      <text x="${(w-pad.r+15).toFixed(1)}" y="${(r.ly+3.5).toFixed(1)}" class="pd-svg-val" text-anchor="start">${r.texto}</text>
-    </g>`).join('');
+  /* Un valor por punto, acomodados para no pisarse. */
+  const rotulos=rotulosPuntos(dibujadas.flatMap(({s,ps})=>ps.map(p=>({
+    x:x(p.i),y:y(p.v),texto:decimales===2?n2(p.v):n1(p.v)}))),
+    w-3,4,pad.t-14,h-pad.b+2,
+    marcas.map(v=>({x0:0,x1:pad.l-5,y0:y(v)-6,y1:y(v)+6}))).map(marcaValor).join('');
   return `<section class="pd-card pd-grafico"><div class="pd-kicker">${esc(kicker)}</div>
     <h3 class="pd-card-title">${esc(titulo)}</h3>
     <div class="pd-svg-wrap"><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(titulo)}">${banda}${reja}${ejeX}${trazos}${rotulos}</svg></div>
@@ -620,8 +642,8 @@ function pintarCalicatas(d,campo){
         <strong>${esc(q.codigo||'Sin código')}</strong>
         <span>${esc(ctx)} · ${fecha(cal.fecha)}</span>
         ${(()=>{const tt=totalesDe(cal);return `<span class="pd-totales">Total: <b>${conUnidad(tt.hTot,n1,' %')}</b> humedad · <b>${conUnidad(tt.ceTot,n2,' mS/cm')}</b> CE · <b>${conUnidad(tt.tTot,n1,' °C')}</b></span>`})()}</div>
-      ${perfilVertical('Humedad por profundidad','Perfil del bulbo',hum,' %',nota||null,domHum,leer(cal)?.textura||null,cal.profundidad_efectiva_raices_cm)}
-      ${perfilVertical('CE por profundidad','Conductividad eléctrica',ce,' mS/cm',null,domCe,null,cal.profundidad_efectiva_raices_cm)}
+      ${perfilVertical('Humedad por profundidad','Perfil del bulbo',hum,' %',nota||null,domHum,null,cal.profundidad_efectiva_raices_cm,1)}
+      ${perfilVertical('CE por profundidad','Conductividad eléctrica',ce,' mS/cm',null,domCe,null,cal.profundidad_efectiva_raices_cm,2)}
       ${diagnosticoCard(cal)}
     </div>`;
   }).join('');
@@ -785,12 +807,12 @@ function pintarCalicatas(d,campo){
   const serieHum=serieTiempo('Humedad por fecha','Evolución del cuartel',fechasSerie,
     profsSel.map((pr,i)=>({nombre:`${n0(pr)} cm`,color:COLORES[i%COLORES.length],unidad:' %',
       valores:cronologia.map(k=>valorProf(k,pr,'h'))})),
-    'Cada línea es una profundidad, promediando los tres puntos de esa calicata. La franja verde es el agua aprovechable del suelo según la textura anotada.',
-    rUlt&&rUlt.textura?{cc:rUlt.textura.cc,pmp:rUlt.textura.pmp}:null);
+    'Cada línea es una profundidad, promediando los tres puntos de esa calicata.',
+    null,1);
   const serieCe=serieTiempo('CE por fecha','Evolución del cuartel',fechasSerie,
     profsSel.map((pr,i)=>({nombre:`${n0(pr)} cm`,color:COLORES[i%COLORES.length],unidad:' mS/cm',
       valores:cronologia.map(k=>valorProf(k,pr,'ce'))})),
-    'Si la CE sube fecha a fecha en la misma profundidad, hay sales acumulándose; conviene confirmarlo con extracto de saturación.');
+    'Si la CE sube fecha a fecha en la misma profundidad, hay sales acumulándose; conviene confirmarlo con extracto de saturación.',null,2);
   const sinHistoria=delCuartel.length<2
     ? `<section class="pd-card"><div class="pd-kicker">Evolución del cuartel</div>
        <h3 class="pd-card-title">Falta una segunda calicata</h3>

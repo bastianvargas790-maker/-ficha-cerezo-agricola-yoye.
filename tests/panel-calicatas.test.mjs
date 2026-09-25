@@ -45,14 +45,23 @@ test('el perfil se dibuja con la profundidad hacia abajo', () => {
   assert.match(js, /const y=p=>pad\.t\+\(p-minProf\)/);
 });
 
-test('los rótulos no se pisan entre sí, y se unen a su punto con una guía', () => {
-  // Con los tres puntos midiendo parecido quedaba "29,833,132,2" ilegible.
-  // Al separarlos, un rótulo suelto no dice de qué serie es: va con línea guía
-  // y con un punto del color de la serie, mientras el número queda en tinta.
-  assert.match(js, /function separarRotulos\(puntos,alto=13,radio=48\)/);
-  assert.match(js, /const guia=\(x1,y1,x2,y2\)=>/);
-  assert.match(js, /\$\{Math\.abs\(r\.ly-r\.y\)>1\?guia\(/);
-  assert.match(css, /\.pd-svg-val\{[^}]*fill:var\(--ink/);
+test('cada lectura lleva su valor al lado, sin que se pisen', () => {
+  // Con los tres puntos midiendo parecido quedaba "29,833,132,2" ilegible, y
+  // rotular solo el final escondía el resto de las mediciones.
+  assert.match(js, /function rotulosPuntos\(puntos,limiteDer,limiteIzq=2,limiteArr=2,limiteAba=1e4,reservadas=\[\]\)/);
+  assert.ok(js.includes("{lx:p.x+7,ly:p.y,anchor:'start'}"), 'debe probar varias posiciones');
+  assert.ok(js.includes('const choca=c=>puestos.some('), 'y descartar las que chocan');
+  // Los números de los ejes se reservan para que un valor no caiga encima.
+  assert.match(js, /reservadas=\[\]\)\{[\s\S]*const puestos=reservadas\.slice\(\)/);
+  assert.match(css, /\.pd-svg-punto\{[^}]*paint-order:stroke/);
+});
+
+test('capacidad de campo y punto de marchitez no se dibujan estimados', () => {
+  // Se muestran cuando existan los análisis del suelo de cada cuartel; una
+  // estimación por textura dibujada como línea se lee como dato duro.
+  assert.match(js, /const bandas=referencia&&referencia\.medida\?bandaSuelo\(/);
+  assert.match(js, /perfilVertical\('Humedad por profundidad','Perfil del bulbo',hum,' %',nota\|\|null,domHum,null,/);
+  assert.ok(js.includes('function bandaSuelo(ref,min,max,x,pad,w,h)'), 'la función queda lista para cuando lleguen');
 });
 
 test('los ejes van en números redondos', () => {
@@ -113,8 +122,9 @@ test('el panel usa el mismo criterio agronómico que la app, no uno propio', () 
   assert.ok(!/kpi\(`(Humedad|CE) a \$\{/.test(bloque), 'nada de "a 90 cm" como si fuera el resumen');
 });
 
-test('el perfil dibuja capacidad de campo y punto de marchitez cuando hay textura', () => {
-  assert.match(js, /function perfilVertical\(titulo,kicker,series,unidad,nota,dominio,referencia,raicesCm\)/);
-  assert.match(js, /const bandas=\(\(\)=>\{/);
-  assert.match(js, /perfilVertical\('Humedad por profundidad','Perfil del bulbo',hum,' %',nota\|\|null,domHum,leer\(cal\)\?\.textura\|\|null,cal\.profundidad_efectiva_raices_cm\)/);
+test('la franja de suelo queda lista, pero apagada hasta tener análisis', () => {
+  assert.match(js, /function perfilVertical\(titulo,kicker,series,unidad,nota,dominio,referencia,raicesCm,decimales\)/);
+  assert.match(js, /function bandaSuelo\(ref,min,max,x,pad,w,h\)/);
+  assert.ok(!/perfilVertical\('Humedad por profundidad'[^;]*leer\(cal\)\?\.textura/.test(js),
+    'el perfil ya no recibe la estimación por textura');
 });

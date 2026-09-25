@@ -173,3 +173,6 @@
   color:var(--text-secondary,#645c50);transform:translateX(-50%);white-space:nowrap;font-variant-numeric:tabular-nums}
 .pd-bar-escala-eje em:first-child{transform:none}
 .pd-bar-escala-eje em:last-child{transform:translateX(-100%)}
+/* El valor de cada lectura, legible aunque caiga sobre una línea. */
+.pd-svg-punto{font:700 9.5px var(--font-body,system-ui,sans-serif);font-variant-numeric:tabular-nums;
+  fill:var(--ink,#17352c);paint-order:stroke;stroke:var(--paper,#fffdf8);stroke-width:2.6px;stroke-linejoin:round}
