@@ -1119,12 +1119,18 @@ function enlazarFiltros(){
     if(panelAbierto)abrirPanel(panelAbierto,{desdeHash:true});
   });
 }
+/* El clic se escucha en el documento y se engancha apenas se carga el archivo,
+   no en DOMContentLoaded: si la lista todavía no existía, o el evento ya había
+   pasado cuando el navegador ejecutó este script (pasa con el service worker de
+   por medio), el enlace quedaba muerto y tocar "Todos los campos" no hacía
+   nada. Además el hash de esos enlaces ahora abre el panel por sí solo, así que
+   hay dos caminos y no uno. */
+let listaEnlazada=false;
 function enlazarLista(){
-  const lista=$('#yoyePanelesList');
-  if(!lista||lista.dataset.pdEnlazado)return;
-  lista.dataset.pdEnlazado='1';
-  lista.addEventListener('click',ev=>{
-    const a=ev.target.closest('a.yoye-panel-item');
+  if(listaEnlazada)return;
+  listaEnlazada=true;
+  document.addEventListener('click',ev=>{
+    const a=ev.target.closest&&ev.target.closest('a.yoye-panel-item');
     if(!a)return;
     const clave=claveDe(a.getAttribute('href')||'');
     if(!clave)return;
@@ -1132,6 +1138,7 @@ function enlazarLista(){
     abrirPanel(clave);
   });
 }
+enlazarLista();
 
 /* ---------- El hash manda ----------
    Antes la vista y la URL vivían cada una por su lado: al abrir un panel se
@@ -1142,7 +1149,11 @@ function enlazarLista(){
 /* El hash puede traer además el cuartel: #panel-calicatas:C-5. Así la app de
    Calicatas enlaza directo a la ficha del cuartel que se acaba de registrar. */
 const HASH_RE=/^#panel-(campos|aforos|calicatas|acido|descoles)(?::([^#?/]+))?$/;
-const claveDelHash=()=>(location.hash.match(HASH_RE)||[])[1]||null;
+/* Los enlaces de la lista usan su propio hash (#todos-los-campos, #acido,
+   #descole). Si por lo que sea no corre el clic de arriba, el navegador igual
+   cambia el hash: entonces el panel tiene que abrirse igual. */
+const ALIAS_HASH={'#todos-los-campos':'campos','#acido':'acido','#descole':'descoles','#descoles':'descoles','#historyView':'calicatas'};
+const claveDelHash=()=>(location.hash.match(HASH_RE)||[])[1]||ALIAS_HASH[location.hash]||null;
 const cuartelDelHash=()=>{const m=location.hash.match(HASH_RE);
   return m&&m[2]?decodeURIComponent(m[2]):null};
 
@@ -1167,7 +1178,11 @@ function abrirCuandoSePueda(intentos=25){
   if(intentos>0)setTimeout(()=>abrirCuandoSePueda(intentos-1),120);
 }
 addEventListener('yoye-auth-ready',e=>{db=e.detail.client;abrirCuandoSePueda()});
-addEventListener('DOMContentLoaded',()=>{enlazarLista();enlazarFiltros();abrirCuandoSePueda()});
+/* Si el archivo se ejecuta después de DOMContentLoaded -- caché, service worker
+   o red lenta -- ese evento ya no vuelve a dispararse: hay que arrancar igual. */
+function arrancarPaneles(){enlazarLista();enlazarFiltros();abrirCuandoSePueda()}
+if(document.readyState==='loading')addEventListener('DOMContentLoaded',arrancarPaneles);
+else arrancarPaneles();
 document.addEventListener('yoye-campo-changed',()=>{
   filtroCal={cuartel:'',caseta:'',equipo:'',cultivo:''};
   // Cambiar de campo con un dashboard abierto lo recarga con los datos del
