@@ -26,9 +26,17 @@ test('hay un aviso de lo guardado arriba del formulario', () => {
   assert.ok(html.indexOf('id="calGuardada"') < html.indexOf('id="calicataForm"'), 'el aviso va antes del formulario');
 });
 
-test('el resumen para WhatsApp sigue a un toque', () => {
-  assert.match(html, /id="calVerResumen"/);
-  assert.match(js, /\$\('#calVerResumen'\)\?\.addEventListener\('click',\(\)=>\{if\(ultimoGuardado\)renderReport\(/);
+test('el mensaje para WhatsApp aparece al guardar, listo para copiar', () => {
+  // Antes había una tarjeta de resumen aparte, que quedaba en pantalla aunque
+  // ya no se ocupara. El mensaje ahora vive en el aviso verde del guardado.
+  assert.match(html, /id="calMensaje"/);
+  assert.match(html, /Mensaje para enviar al grupo de WhatsApp/);
+  assert.match(html, /id="calCopiarMensaje"[^>]*>|>Copiar mensaje</);
+  assert.ok(!html.includes('id="reportCard"'), 'la tarjeta de resumen ya no existe');
+  assert.ok(!html.includes('calVerResumen'), 'ya no hay botón para abrirla');
+  assert.match(js, /if\(caja\)caja\.textContent=reporte\?\.report\|\|''/);
+  assert.match(js, /\$\('#calCopiarMensaje'\)\?\.addEventListener\('click',copyReport\)/);
+  assert.match(js, /Mensaje copiado\. Pégalo en el grupo de WhatsApp\./);
 });
 
 test('el aviso se va al empezar la siguiente', () => {
@@ -37,7 +45,9 @@ test('el aviso se va al empezar la siguiente', () => {
 
 test('ya no se ofrece volver al formulario ya guardado', () => {
   // "Editar observaciones" volvía a la calicata guardada y al guardar de nuevo
-  // creaba otra con otro identificador.
-  assert.match(html, /<button hidden[^>]*id="editObservations"/);
-  assert.match(html, /id="backToCalicata"[^>]*>Registrar otra calicata</);
+  // creaba otra con otro identificador. Esa tarjeta y sus botones ya no existen;
+  // para corregir algo está Editar en la lista de últimas calicatas.
+  for (const viejo of ['editObservations', 'backToCalicata', 'copyReport', 'shareReport'])
+    assert.ok(!html.includes(`id="${viejo}"`), `${viejo} debería haber desaparecido`);
+  assert.match(html, /data-edit-calicata|id="calRecientes"/);
 });
