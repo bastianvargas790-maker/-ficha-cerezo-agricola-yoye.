@@ -30,7 +30,7 @@ test('sin profundidades bajo las raíces no se inventa el dato', () => {
 test('el panel marca esas profundidades en vez de esconderlas', () => {
   assert.match(paneles, /kpi\('Bajo las raíces'/);
   assert.match(paneles, /ahí ya casi no hay raíz efectiva/);
-  assert.match(paneles, /fin de raíces<\/text>/);
+  assert.match(paneles, /fin de raíces \$\{n0\(r\)\} cm<\/text>/);
   assert.match(paneles, /class="pd-fuera" title="Bajo la zona de raíces/);
   assert.match(leer('../assets/paneles-dashboards.css'), /\.pd-fuera\{/);
 });

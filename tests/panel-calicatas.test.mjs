@@ -45,9 +45,28 @@ test('el perfil se dibuja con la profundidad hacia abajo', () => {
   assert.match(js, /const y=p=>pad\.t\+\(p-minProf\)/);
 });
 
-test('los rótulos no se pisan entre sí', () => {
+test('los rótulos no se pisan entre sí, y se unen a su punto con una guía', () => {
   // Con los tres puntos midiendo parecido quedaba "29,833,132,2" ilegible.
-  assert.match(js, /f\.dy=\(finales\[j\]\.dy\|\|0\)-11/);
+  // Al separarlos, un rótulo suelto no dice de qué serie es: va con línea guía
+  // y con un punto del color de la serie, mientras el número queda en tinta.
+  assert.match(js, /function separarRotulos\(puntos,alto=13,radio=48\)/);
+  assert.match(js, /const guia=\(x1,y1,x2,y2\)=>/);
+  assert.match(js, /\$\{Math\.abs\(r\.ly-r\.y\)>1\?guia\(/);
+  assert.match(css, /\.pd-svg-val\{[^}]*fill:var\(--ink/);
+});
+
+test('los ejes van en números redondos', () => {
+  // 0 · 10 · 20 · 30 se lee; 0 · 11,6 · 23,2 · 34,8 no.
+  assert.match(js, /function marcasEje\(min,max,objetivo=4\)/);
+  assert.match(js, /\[1,2,2\.5,5,10\]\.map\(m=>m\*exp\)/);
+  assert.ok(js.includes('const marcas=marcasEje('), 'los gráficos deben usarlo');
+});
+
+test('las barras llevan escala y el color solo cuando significa un estado', () => {
+  assert.match(js, /const ESTADO_COLOR=\{ok:'#3f7a4f',atencion:'#a8752d',alerta:'#b1543a',critico:'#8e3d20'/);
+  assert.match(js, /class="pd-bar-escala"/);
+  assert.match(css, /\.pd-bar-track\{height:12px/);
+  assert.match(css, /\.pd-bar-track i\{border-radius:3px 6px 6px 3px/);
 });
 
 test('subir y bajar se dibujan hacia lados distintos', () => {

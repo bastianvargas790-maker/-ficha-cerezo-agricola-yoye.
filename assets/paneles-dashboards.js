@@ -29,18 +29,35 @@ function kpi(label,valor,pie,tono,chico){
     ${pie?`<span class="pd-kpi-pie">${esc(pie)}</span>`:''}
   </article>`;
 }
-function barras(titulo,kicker,filas,sufijo){
+/* Colores de estado: se usan SOLO cuando el color significa un estado (cómodo,
+   al límite, en déficit), nunca para distinguir series. */
+const ESTADO_COLOR={ok:'#3f7a4f',atencion:'#a8752d',alerta:'#b1543a',critico:'#8e3d20',exceso:'#2a78d6'};
+const ESTADO_NOMBRE={ok:'Cómodo',atencion:'Consumiendo reserva',alerta:'Al límite',critico:'En déficit',exceso:'Sobre capacidad de campo'};
+
+function barras(titulo,kicker,filas,sufijo,pie){
   if(!filas.length)return '';
   const max=Math.max(...filas.map(f=>f.valor),0)||1;
+  /* La escala parte del máximo redondeado hacia arriba, y se rotula: una barra
+     sin referencia no dice si 30 es mucho o poco. */
+  const marcas=marcasEje(0,max);
+  const tope=Math.max(marcas[marcas.length-1],max);
+  const estados=[...new Set(filas.map(f=>f.estado).filter(Boolean))];
   return `<section class="pd-card">
     <div class="pd-kicker">${esc(kicker)}</div>
     <h3 class="pd-card-title">${esc(titulo)}</h3>
     <div class="pd-bars">${filas.map(f=>`
       <div class="pd-bar-row">
         <span class="pd-bar-label">${esc(f.etiqueta)}</span>
-        <span class="pd-bar-track"><i style="width:${Math.max(1,Math.round(f.valor/max*100))}%"></i></span>
+        <span class="pd-bar-track"><i style="width:${Math.max(2,Math.round(f.valor/tope*100))}%${f.estado?`;background:${ESTADO_COLOR[f.estado]||'var(--pd-barra,#3f7a4f)'}`:''}"></i></span>
         <b class="pd-bar-valor">${f.texto??(n1(f.valor)+(sufijo||''))}</b>
-      </div>`).join('')}</div>
+      </div>`).join('')}
+      <div class="pd-bar-escala" aria-hidden="true"><span></span>
+        <span class="pd-bar-escala-eje">${marcas.map(v=>`<em style="left:${(v/tope*100).toFixed(1)}%">${n0(v)}${esc(sufijo||'')}</em>`).join('')}</span>
+        <span></span></div>
+    </div>
+    ${estados.length>1?`<div class="pd-leyenda">${estados.map(e=>
+      `<span class="pd-leyenda-item"><i style="background:${ESTADO_COLOR[e]}"></i>${esc(ESTADO_NOMBRE[e]||e)}</span>`).join('')}</div>`:''}
+    ${pie?`<p class="pd-nota">${esc(pie)}</p>`:''}
   </section>`;
 }
 /* Barras verticales en SVG: sin librerías, se ve igual sin conexión. */
@@ -185,6 +202,26 @@ const PUNTOS=[
   {clave:'linea_derecha',   nombre:'Derecha',   color:'#199e70'}
 ];
 const RAMPA=['#cde2fb','#9ec5f4','#6da7ec','#3987e5','#256abf','#184f95'];
+/* Marcas de eje en números redondos: 0 · 10 · 20 · 30 lee mejor que
+   0 · 11,6 · 23,2 · 34,8, que era lo que salía de dividir el máximo en tres. */
+function marcasEje(min,max,objetivo=4){
+  if(!(max>min))return [min];
+  const bruto=(max-min)/objetivo, exp=Math.pow(10,Math.floor(Math.log10(bruto)));
+  const paso=[1,2,2.5,5,10].map(m=>m*exp).find(m=>m>=bruto)||10*exp;
+  const marcas=[];
+  for(let v=Math.ceil(min/paso)*paso; v<=max+paso*0.001; v+=paso)marcas.push(Math.round(v*1000)/1000);
+  return marcas.length>1?marcas:[min,max];
+}
+/* Rótulos al final de cada trazo: cuando dos caen encima, se separan y se unen
+   a su punto con una línea guía, en vez de quedar flotando sin dueño. */
+function separarRotulos(puntos,alto=13,radio=48){
+  const orden=puntos.slice().sort((a,b)=>a.y-b.y);
+  orden.forEach((r,i)=>{r.ly=r.y;
+    for(let j=0;j<i;j++)if(Math.abs(orden[j].x-r.x)<radio&&Math.abs(orden[j].ly-r.ly)<alto)r.ly=orden[j].ly+alto;});
+  return puntos;
+}
+const guia=(x1,y1,x2,y2)=>`<polyline points="${x1.toFixed(1)},${y1.toFixed(1)} ${((x1+x2)/2).toFixed(1)},${y2.toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".75"></polyline>`;
+
 const etiquetaPerfil=k=>PUNTOS.find(p=>p.clave===k)?.nombre||k;
 const UNION={unidos:'Bulbos unidos',parcialmente_unidos:'Parcialmente unidos',no_unidos:'Bulbos separados'};
 
@@ -225,76 +262,73 @@ function perfilVertical(titulo,kicker,series,unidad,nota,dominio,referencia,raic
   const profs=[...new Set(series.flatMap(s=>s.puntos.map(p=>p.prof)))].sort((a,b)=>a-b);
   const valores=series.flatMap(s=>s.puntos.map(p=>p.valor)).filter(Number.isFinite);
   if(!profs.length||!valores.length)return '';
-  const w=320,h=200,pad={l:36,r:54,t:14,b:28};
-  const min=dominio?dominio[0]:0, max=(dominio?dominio[1]:Math.max(...valores))||1;
+  const w=360,h=248,pad={l:46,r:62,t:30,b:38};
+  const min=dominio?dominio[0]:0;
+  const marcas=marcasEje(min,(dominio?dominio[1]:Math.max(...valores))||1);
+  const max=Math.max(marcas[marcas.length-1],(dominio?dominio[1]:Math.max(...valores))||1);
   const x=v=>pad.l+(v-min)/((max-min)||1)*(w-pad.l-pad.r);
   const maxProf=Math.max(...profs), minProf=Math.min(...profs);
   const y=p=>pad.t+(p-minProf)/((maxProf-minProf)||1)*(h-pad.t-pad.b);
 
-  const guias=profs.map(pr=>`<line x1="${pad.l}" x2="${w-pad.r}" y1="${y(pr).toFixed(1)}" y2="${y(pr).toFixed(1)}" class="pd-svg-guia"></line>
-    <text x="${pad.l-6}" y="${(y(pr)+3).toFixed(1)}" class="pd-svg-eje" text-anchor="end">${n0(pr)}</text>`).join('');
-  const ejeX=[min,(min+max)/2,max].map(v=>`<text x="${x(v).toFixed(1)}" y="${h-pad.b+16}" class="pd-svg-eje">${n1(v)}</text>`).join('');
+  /* Reja: una línea por profundidad medida, que es la que se lee en el hoyo. */
+  const rejaProf=profs.map(pr=>`<line x1="${pad.l}" x2="${w-pad.r}" y1="${y(pr).toFixed(1)}" y2="${y(pr).toFixed(1)}" class="pd-svg-guia"></line>
+    <text x="${pad.l-8}" y="${(y(pr)+3.5).toFixed(1)}" class="pd-svg-eje" text-anchor="end">${n0(pr)}</text>`).join('');
+  const rejaX=marcas.map(v=>`<line x1="${x(v).toFixed(1)}" x2="${x(v).toFixed(1)}" y1="${pad.t}" y2="${h-pad.b}" class="pd-svg-guia" opacity=".55"></line>
+    <text x="${x(v).toFixed(1)}" y="${h-pad.b+17}" class="pd-svg-eje">${n0(v)}</text>`).join('');
+  const titulosEje=`<text x="${pad.l-8}" y="${pad.t-12}" class="pd-svg-eje" text-anchor="end">cm</text>
+    <text x="${((pad.l+w-pad.r)/2).toFixed(1)}" y="${h-6}" class="pd-svg-eje">${esc((unidad||'').trim()||'valor')}</text>`;
 
-  /* Rótulos: cada serie lleva el suyo al final del trazo, pero cuando dos caen
-     casi encima -- que es lo normal cuando los tres puntos miden parecido -- se
-     separan en vertical. Antes se pisaban y quedaba "29,833,132,2" ilegible. */
-  const finales=series.map(s=>{
-    const ps=s.puntos.filter(p=>Number.isFinite(p.valor)).sort((a,b)=>a.prof-b.prof);
-    return ps.length?{s,p:ps.at(-1),px:x(ps.at(-1).valor),py:y(ps.at(-1).prof)}:null;
-  }).filter(Boolean).sort((a,b)=>a.px-b.px);
-  finales.forEach((f,i)=>{
-    f.dy=0;
-    for(let j=0;j<i;j++) if(Math.abs(finales[j].px-f.px)<42&&Math.abs((finales[j].py+finales[j].dy)-(f.py+f.dy))<11)
-      f.dy=(finales[j].dy||0)-11;
-  });
-
-  const trazos=series.map(s=>{
-    const ps=s.puntos.filter(p=>Number.isFinite(p.valor)).sort((a,b)=>a.prof-b.prof);
-    if(!ps.length)return '';
-    const d=ps.map((p,i)=>`${i?'L':'M'}${x(p.valor).toFixed(1)},${y(p.prof).toFixed(1)}`).join(' ');
-    return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
-      ${ps.map(p=>`<circle cx="${x(p.valor).toFixed(1)}" cy="${y(p.prof).toFixed(1)}" r="4" fill="${s.color}" stroke="var(--paper,#fffdf8)" stroke-width="2"><title>${esc(s.nombre)} · ${n0(p.prof)} cm · ${n1(p.valor)}${esc(unidad||'')}</title></circle>`).join('')}`;
-  }).join('');
-  /* Referencias del suelo: capacidad de campo y punto de marchitez. Sin ellas
-     un 15 % de humedad no dice nada; con ellas se ve de inmediato si la
-     lectura está cómoda o al borde del estrés. */
+  /* Referencias del suelo: entre punto de marchitez y capacidad de campo está
+     el agua que la planta puede ocupar. Sin eso, un 15 % no dice nada. */
   const bandas=(()=>{
     if(!referencia||!Number.isFinite(referencia.cc)||!Number.isFinite(referencia.pmp))return '';
     const dentro=v=>v>=min&&v<=max;
-    const linea=(v,txt,color)=>dentro(v)?`<line x1="${x(v).toFixed(1)}" x2="${x(v).toFixed(1)}" y1="${pad.t-4}" y2="${h-pad.b}" stroke="${color}" stroke-width="1" stroke-dasharray="4 3"></line>
-      <text x="${x(v).toFixed(1)}" y="${pad.t-6}" class="pd-svg-eje" fill="${color}">${txt}</text>`:'';
-    const zona=dentro(referencia.pmp)||dentro(referencia.cc)
-      ? `<rect x="${x(Math.max(min,referencia.pmp)).toFixed(1)}" y="${pad.t}" width="${Math.max(0,x(Math.min(max,referencia.cc))-x(Math.max(min,referencia.pmp))).toFixed(1)}" height="${(h-pad.b-pad.t).toFixed(1)}" fill="#3f7a4f" opacity=".07"></rect>`:'';
-    return zona+linea(referencia.pmp,'PMP','#b1543a')+linea(referencia.cc,'CC','#2a78d6');
+    const izq=x(Math.max(min,referencia.pmp)), der=x(Math.min(max,referencia.cc));
+    const zona=(dentro(referencia.pmp)||dentro(referencia.cc))
+      ? `<rect x="${izq.toFixed(1)}" y="${pad.t}" width="${Math.max(0,der-izq).toFixed(1)}" height="${(h-pad.b-pad.t).toFixed(1)}" fill="#3f7a4f" opacity=".08"></rect>`:'';
+    const marca=(v,txt,color)=>dentro(v)?`<line x1="${x(v).toFixed(1)}" x2="${x(v).toFixed(1)}" y1="${pad.t}" y2="${h-pad.b}" stroke="${color}" stroke-width="1" opacity=".75"></line>
+      <text x="${x(v).toFixed(1)}" y="${pad.t-8}" class="pd-svg-ref" fill="${color}">${txt}</text>`:'';
+    return zona+marca(referencia.pmp,'PMP','#b1543a')+marca(referencia.cc,'CC','#2a78d6');
   })();
 
-  /* Hasta dónde llegan las raíces: bajo esa línea el agua medida ya no la toma
-     el árbol. Se dibuja siempre que la profundidad declarada caiga dentro del
-     rango del hoyo, para no perder de vista qué parte del perfil manda. */
+  /* Hasta dónde llegan las raíces: bajo esa línea el agua ya no la toma el árbol. */
   const lineaRaices=(()=>{
     const r=Number(raicesCm);
     if(!Number.isFinite(r)||r<minProf||r>maxProf)return '';
-    const yr=y(r).toFixed(1);
-    return `<line x1="${pad.l}" x2="${w-pad.r}" y1="${yr}" y2="${yr}" stroke="#7d5838" stroke-width="1.4" stroke-dasharray="6 4"></line>
-      <text x="${pad.l+4}" y="${(Number(yr)-5).toFixed(1)}" class="pd-svg-eje" text-anchor="start" fill="#7d5838">fin de raíces</text>`;
+    const yr=y(r);
+    return `<line x1="${pad.l}" x2="${w-pad.r}" y1="${yr.toFixed(1)}" y2="${yr.toFixed(1)}" stroke="#7d5838" stroke-width="1.4" stroke-dasharray="6 4"></line>
+      <text x="${pad.l+4}" y="${(yr-6).toFixed(1)}" class="pd-svg-ref" fill="#7d5838" text-anchor="start">fin de raíces ${n0(r)} cm</text>`;
   })();
 
-  const rotulos=finales.map(f=>`<text x="${Math.min(w-3,f.px+9).toFixed(1)}" y="${(f.py+f.dy+3).toFixed(1)}"
-    class="pd-svg-val" text-anchor="start" fill="${f.s.color}">${n1(f.p.valor)}</text>`).join('');
+  const dibujadas=series.map(s=>({s,ps:s.puntos.filter(p=>Number.isFinite(p.valor)).sort((a,b)=>a.prof-b.prof)}))
+    .filter(d=>d.ps.length);
+  const trazos=dibujadas.map(({s,ps})=>{
+    const d=ps.map((p,i)=>`${i?'L':'M'}${x(p.valor).toFixed(1)},${y(p.prof).toFixed(1)}`).join(' ');
+    return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+      ${ps.map(p=>`<circle cx="${x(p.valor).toFixed(1)}" cy="${y(p.prof).toFixed(1)}" r="4.5" fill="${s.color}" stroke="var(--paper,#fffdf8)" stroke-width="2"><title>${esc(s.nombre)} · ${n0(p.prof)} cm · ${n1(p.valor)}${esc(unidad||'')}</title></circle>`).join('')}`;
+  }).join('');
 
-  return `<section class="pd-card">
+  /* Un solo rótulo por serie, en su punto más profundo, con línea guía si dos
+     terminan pegados. Un número sobre cada punto sería ilegible. */
+  const rotulos=separarRotulos(dibujadas.map(({s,ps})=>{
+    const p=ps[ps.length-1];
+    return {x:x(p.valor),y:y(p.prof),color:s.color,texto:n1(p.valor)};
+  })).map(r=>`<g style="color:${r.color}">
+      ${Math.abs(r.ly-r.y)>1?guia(r.x+6,r.y,w-pad.r+6,r.ly):''}
+      <circle cx="${(w-pad.r+10).toFixed(1)}" cy="${r.ly.toFixed(1)}" r="3" fill="${r.color}"></circle>
+      <text x="${(w-pad.r+17).toFixed(1)}" y="${(r.ly+3.5).toFixed(1)}" class="pd-svg-val" text-anchor="start">${r.texto}</text>
+    </g>`).join('');
+
+  return `<section class="pd-card pd-grafico">
     <div class="pd-kicker">${esc(kicker)}</div>
     <h3 class="pd-card-title">${esc(titulo)}</h3>
     <div class="pd-svg-wrap"><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(titulo)}">
-      ${guias}${ejeX}${bandas}${lineaRaices}${trazos}${rotulos}
+      ${bandas}${rejaX}${rejaProf}${titulosEje}${lineaRaices}${trazos}${rotulos}
     </svg></div>
     ${nota?`<p class="pd-nota">${esc(nota)}</p>`:''}
   </section>`;
 }
 
-/* Barras divergentes: sube o baja respecto de cero. Con barras normales, "la CE
-   bajó 0,64" se dibujaba como una barra diminuta hacia el mismo lado que "subió
-   4,03", que es justo lo contrario de lo que pasó. */
 /* Evolución de un mismo cuartel entre fechas. Una calicata sirve para decidir
    el riego de hoy; la serie de calicatas del mismo cuartel es la que muestra si
    el suelo se está secando, si las sales se acumulan o si un cambio de pauta
@@ -302,36 +336,42 @@ function perfilVertical(titulo,kicker,series,unidad,nota,dominio,referencia,raic
 function serieTiempo(titulo,kicker,fechas,series,nota,referencia){
   const puntos=series.flatMap(s=>s.valores.filter(v=>Number.isFinite(v)));
   if(fechas.length<2||!puntos.length)return '';
-  const w=320,h=190,pad={l:38,r:14,t:16,b:34};
-  const vals=puntos.concat(referencia?[referencia.cc,referencia.pmp].filter(Number.isFinite):[]);
-  const max=Math.max(...vals)*1.08||1, min=Math.min(0,Math.min(...vals));
+  const w=360,h=230,pad={l:44,r:58,t:26,b:42};
+  const conRef=referencia&&Number.isFinite(referencia.cc)&&Number.isFinite(referencia.pmp);
+  const vals=puntos.concat(conRef?[referencia.cc,referencia.pmp]:[]);
+  const marcas=marcasEje(Math.min(0,Math.min(...vals)),Math.max(...vals)*1.05||1);
+  const min=marcas[0], max=Math.max(marcas[marcas.length-1],Math.max(...vals));
   const x=i=>pad.l+(fechas.length===1?0:i/(fechas.length-1))*(w-pad.l-pad.r);
   const y=v=>h-pad.b-((v-min)/((max-min)||1))*(h-pad.t-pad.b);
-  const guias=[min,(min+max)/2,max].map(v=>`<line x1="${pad.l}" x2="${w-pad.r}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" class="pd-svg-guia"></line>
-    <text x="${pad.l-6}" y="${(y(v)+3).toFixed(1)}" class="pd-svg-eje" text-anchor="end">${n1(v)}</text>`).join('');
-  const banda=referencia&&Number.isFinite(referencia.cc)&&Number.isFinite(referencia.pmp)
+  const reja=marcas.map(v=>`<line x1="${pad.l}" x2="${w-pad.r}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" class="pd-svg-guia"></line>
+    <text x="${pad.l-8}" y="${(y(v)+3.5).toFixed(1)}" class="pd-svg-eje" text-anchor="end">${n0(v)}</text>`).join('');
+  const banda=conRef
     ? `<rect x="${pad.l}" y="${y(referencia.cc).toFixed(1)}" width="${(w-pad.l-pad.r).toFixed(1)}" height="${Math.max(0,y(referencia.pmp)-y(referencia.cc)).toFixed(1)}" fill="#3f7a4f" opacity=".08"></rect>
-       <text x="${w-pad.r}" y="${(y(referencia.cc)-4).toFixed(1)}" class="pd-svg-eje" text-anchor="end">CC</text>
-       <text x="${w-pad.r}" y="${(y(referencia.pmp)+11).toFixed(1)}" class="pd-svg-eje" text-anchor="end">PMP</text>`:'';
-  const ejeX=fechas.map((f,i)=>`<text x="${x(i).toFixed(1)}" y="${h-pad.b+16}" class="pd-svg-eje">${esc(String(f))}</text>`).join('');
+       <text x="${w-pad.r-2}" y="${(y(referencia.cc)-5).toFixed(1)}" class="pd-svg-ref" fill="#2a78d6" text-anchor="end">CC</text>
+       <text x="${w-pad.r-2}" y="${(y(referencia.pmp)+12).toFixed(1)}" class="pd-svg-ref" fill="#b1543a" text-anchor="end">PMP</text>`:'';
+  /* Con muchas fechas el eje se apretaba: se rotula la primera, la última y una
+     de cada dos en el medio; el resto vive en el tooltip de cada punto. */
+  const salto=fechas.length>5?Math.ceil(fechas.length/4):1;
+  const ejeX=fechas.map((f,i)=>(i===0||i===fechas.length-1||i%salto===0)
+    ? `<text x="${x(i).toFixed(1)}" y="${h-pad.b+18}" class="pd-svg-eje">${esc(String(f))}</text>`:'').join('');
   const dibujadas=series.map(s=>({s,ps:s.valores.map((v,i)=>({v,i})).filter(p=>Number.isFinite(p.v))}))
     .filter(d=>d.ps.length);
-  /* Los rótulos del final se pisaban cuando dos profundidades terminan con
-     valores parecidos, que es lo normal. Se separan en vertical. */
-  const finales=dibujadas.map(d=>({d,px:x(d.ps.at(-1).i),py:y(d.ps.at(-1).v),dy:0}))
-    .sort((a,b)=>a.py-b.py);
-  finales.forEach((f,i)=>{for(let j=0;j<i;j++)
-    if(Math.abs(finales[j].px-f.px)<46&&Math.abs((finales[j].py+finales[j].dy)-(f.py+f.dy))<12)f.dy=(finales[j].dy||0)+12;});
   const trazos=dibujadas.map(({s,ps})=>{
     const d=ps.map((p,k)=>`${k?'L':'M'}${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ');
-    return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
-      ${ps.map(p=>`<circle cx="${x(p.i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="4" fill="${s.color}" stroke="var(--paper,#fffdf8)" stroke-width="2"><title>${esc(s.nombre)} · ${esc(fechas[p.i])} · ${n1(p.v)}${esc(s.unidad||'')}</title></circle>`).join('')}`;
+    return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+      ${ps.map((p,k)=>`<circle cx="${x(p.i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="${k===ps.length-1?5:4}" fill="${s.color}" stroke="var(--paper,#fffdf8)" stroke-width="2"><title>${esc(s.nombre)} · ${esc(fechas[p.i])} · ${n1(p.v)}${esc(s.unidad||'')}</title></circle>`).join('')}`;
   }).join('');
-  const rotulos=finales.map(f=>`<text x="${(f.px-6).toFixed(1)}" y="${(f.py+f.dy-8).toFixed(1)}"
-    class="pd-svg-val" text-anchor="end" fill="${f.d.s.color}">${n1(f.d.ps.at(-1).v)}</text>`).join('');
-  return `<section class="pd-card"><div class="pd-kicker">${esc(kicker)}</div>
+  const rotulos=separarRotulos(dibujadas.map(({s,ps})=>{
+    const p=ps[ps.length-1];
+    return {x:x(p.i),y:y(p.v),color:s.color,texto:n1(p.v)};
+  })).map(r=>`<g style="color:${r.color}">
+      ${Math.abs(r.ly-r.y)>1?guia(r.x+6,r.y,w-pad.r+4,r.ly):''}
+      <circle cx="${(w-pad.r+8).toFixed(1)}" cy="${r.ly.toFixed(1)}" r="3" fill="${r.color}"></circle>
+      <text x="${(w-pad.r+15).toFixed(1)}" y="${(r.ly+3.5).toFixed(1)}" class="pd-svg-val" text-anchor="start">${r.texto}</text>
+    </g>`).join('');
+  return `<section class="pd-card pd-grafico"><div class="pd-kicker">${esc(kicker)}</div>
     <h3 class="pd-card-title">${esc(titulo)}</h3>
-    <div class="pd-svg-wrap"><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(titulo)}">${guias}${banda}${ejeX}${trazos}${rotulos}</svg></div>
+    <div class="pd-svg-wrap"><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(titulo)}">${banda}${reja}${ejeX}${trazos}${rotulos}</svg></div>
     <div class="pd-leyenda">${series.map(s=>`<span class="pd-leyenda-item"><i style="background:${s.color}"></i>${esc(s.nombre)}</span>`).join('')}</div>
     ${nota?`<p class="pd-nota">${esc(nota)}</p>`:''}</section>`;
 }
@@ -667,13 +707,16 @@ function pintarCalicatas(d,campo){
       if(!r||!esNum(r.zonaRaices.h))return null;
       const ago=r.zonaRaices.agotamiento;
       return {etiqueta:q.codigo||'—',valor:ago!=null?ago:r.zonaRaices.h,
-        texto:ago!=null?`${n0(ago)}% consumido · ${n1(r.zonaRaices.h)}%`:`${n1(r.zonaRaices.h)}%`,
+        texto:ago!=null?`${n0(ago)}% · ${n1(r.zonaRaices.h)}%`:`${n1(r.zonaRaices.h)}%`,
+        estado:r.zonaRaices.estado?r.zonaRaices.estado.clave:null,
         orden:ago!=null?ago:-r.zonaRaices.h};
     }).filter(Boolean).sort((a,b)=>b.orden-a.orden);
     if(filas.length<2)return '';
     const conAgo=lecturasSel.some(r=>r.zonaRaices.agotamiento!=null);
     return barras(conAgo?'Agua aprovechable ya consumida, por cuartel':'Humedad en la zona de raíces, por cuartel',
-      'Comparación entre cuarteles',filas);
+      'Comparación entre cuarteles',filas,'%',
+      conAgo?'El primero de la lista es el que está más apretado de agua. 0 % es capacidad de campo y 100 %, punto de marchitez; al lado va la humedad medida.'
+            :'Sin la textura anotada solo se puede comparar humedad entre cuarteles, no cuánta agua les queda disponible.');
   })();
 
   const resumenAlertas=alertas.length?`<section class="pd-card pd-ancho pd-diag">
