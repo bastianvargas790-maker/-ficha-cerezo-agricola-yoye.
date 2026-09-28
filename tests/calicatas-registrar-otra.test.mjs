@@ -13,7 +13,7 @@ test('guardar limpia el formulario', () => {
   assert.ok(js.includes('function limpiarTrasGuardar'), 'falta el flujo tras guardar');
   const f = js.slice(js.indexOf('function limpiarTrasGuardar'), js.indexOf('function limpiarTrasGuardar') + 400);
   assert.match(f, /resetForm\(\)/, 'debe vaciar el formulario');
-  assert.match(js, /limpiarTrasGuardar\(built\.value,cuartelGuardado,reporte,sincronizada,editada\)/);
+  assert.match(js, /limpiarTrasGuardar\(built\.value,cuartelGuardado,reporte,navigator\.onLine\?'guardando':'pendiente',editada\)/);
 });
 
 test('guardar ya no esconde el formulario detrás del resumen', () => {
@@ -34,7 +34,7 @@ test('el mensaje para WhatsApp aparece al guardar, listo para copiar', () => {
   assert.match(html, /id="calCopiarMensaje"[^>]*>|>Copiar mensaje</);
   assert.ok(!html.includes('id="reportCard"'), 'la tarjeta de resumen ya no existe');
   assert.ok(!html.includes('calVerResumen'), 'ya no hay botón para abrirla');
-  assert.match(js, /if\(caja\)caja\.textContent=reporte\?\.report\|\|''/);
+  assert.match(js, /if\(caja\)caja\.textContent=reporte\?\.report/);
   assert.match(js, /\$\('#calCopiarMensaje'\)\?\.addEventListener\('click',copyReport\)/);
   assert.match(js, /Mensaje copiado\. Pégalo en el grupo de WhatsApp\./);
 });

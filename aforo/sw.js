@@ -1,15 +1,15 @@
-const CACHE='aforo-campo-v20260928-mensaje';
+const CACHE='aforo-campo-v20260928-aviso';
 const SHELL=[
   './',
   './index.html',
   './manifest.webmanifest',
-  '../assets/yoye-theme.css?v=20260928-mensaje',
-  '../assets/private-app.css?v=20260928-mensaje',
-  '../assets/campos.css?v=20260928-mensaje',
-  '../assets/supabase.js?v=20260928-mensaje',
-  '../assets/shared-auth.js?v=20260928-mensaje',
-  '../assets/campos.js?v=20260928-mensaje',
-  '../assets/aforo.js?v=20260928-mensaje',
+  '../assets/yoye-theme.css?v=20260928-aviso',
+  '../assets/private-app.css?v=20260928-aviso',
+  '../assets/campos.css?v=20260928-aviso',
+  '../assets/supabase.js?v=20260928-aviso',
+  '../assets/shared-auth.js?v=20260928-aviso',
+  '../assets/campos.js?v=20260928-aviso',
+  '../assets/aforo.js?v=20260928-aviso',
   '../assets/yoye-logo.png',
   '../assets/icons/favicon.svg',
   '../assets/icons/aforo-192.png',

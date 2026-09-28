@@ -12,7 +12,7 @@ const css  = readFileSync(new URL('../assets/calicatas.css', import.meta.url), '
 test('el aviso de guardado trae el mensaje completo', () => {
   assert.match(html, /id="calMensaje"/);
   assert.match(html, /Mensaje para enviar al grupo de WhatsApp/);
-  assert.match(js, /caja\.textContent=reporte\?\.report\|\|''/);
+  assert.match(js, /caja\.textContent=reporte\?\.report/);
 });
 
 test('no queda ningún botón ni función de compartir', () => {
@@ -37,8 +37,32 @@ test('sigue existiendo el botón de copiar', () => {
 
 test('al corregir una calicata el aviso lo dice y ofrece el mensaje al día', () => {
   assert.match(js, /const editada=!!editingRecord/);
-  assert.match(js, /limpiarTrasGuardar\(built\.value,cuartelGuardado,reporte,sincronizada,editada\)/);
-  assert.match(js, /function limpiarTrasGuardar\(item,q,reporte,sincronizada,editada\)/);
+  assert.match(js, /limpiarTrasGuardar\(built\.value,cuartelGuardado,reporte,navigator\.onLine\?'guardando':'pendiente',editada\)/);
+  assert.match(js, /function limpiarTrasGuardar\(item,q,reporte,estado,editada\)/);
   assert.match(js, /actualizada/);
   assert.match(js, /mensaje corregido para reenviarlo al grupo/);
+});
+
+test('el aviso sale sin esperar a que suba a la base', () => {
+  // En terreno la señal es mala: si el aviso esperaba la respuesta de la base,
+  // había que quedarse mirando la pantalla, y si la subida fallaba a medias el
+  // recuadro podía quedar en blanco.
+  const save = js.slice(js.indexOf('async function save(e)'), js.indexOf('async function save(e)') + 2200);
+  const iAviso = save.indexOf('limpiarTrasGuardar(');
+  const iSync  = save.indexOf('await syncQueue()');
+  assert.ok(iAviso > -1 && iSync > -1, 'faltan el aviso o la sincronización');
+  assert.ok(iAviso < iSync, 'el aviso debe pintarse antes de sincronizar');
+  assert.match(js, /pintarGuardada\(\{q:cuartelGuardado,reporte,estado:await quedoSincronizada\([^)]*\)\?'sincronizada':'pendiente',editada\}\)/);
+});
+
+test('el recuadro del mensaje nunca queda en blanco', () => {
+  assert.match(js, /No se pudo armar el mensaje para el grupo/);
+  const f = js.slice(js.indexOf('function pintarGuardada'), js.indexOf('function limpiarTrasGuardar'));
+  assert.match(f, /caja\.textContent=reporte\?\.report\s*\|\|/, 'debe haber un texto de respaldo');
+  assert.match(f, /guardada-titulo'\)\.textContent=editada/, 'el título siempre se escribe');
+});
+
+test('mientras sube, el aviso lo dice', () => {
+  assert.match(js, /Subiéndola a la base…/);
+  assert.match(js, /Subiéndolos a la base…/);
 });

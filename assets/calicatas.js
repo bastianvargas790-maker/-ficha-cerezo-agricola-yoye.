@@ -137,36 +137,52 @@ return true}catch(error){try{const fallback=await queryCuarteles();if(!fallback.
   async function quedoSincronizada(id){
     try{return (await localAll(STORES.queue)).find(x=>x.id===id)?.status==='synced'}catch{return false}
   }
-  function limpiarTrasGuardar(item,q,reporte,sincronizada,editada){
+  /* El aviso se arma en dos tiempos: apenas la calicata queda guardada en el
+     teléfono (que es el momento garantizado, aunque no haya señal) y otra vez
+     cuando termina de sincronizar. Antes se armaba solo al final: si la subida
+     se demoraba o se caía a medias, el formulario quedaba a medio camino y el
+     recuadro podía quedar en blanco, sin título ni mensaje. */
+  function pintarGuardada({q,reporte,estado,editada}){
+    const b=$('#calGuardada');if(!b)return;
+    const cod=q?.codigo||q?.cuartel||'el cuartel';
+    b.querySelector('.guardada-titulo').textContent=editada
+      ?`Calicata de ${cod} actualizada`
+      :`Calicata de ${cod} guardada`;
+    const detalle=editada
+      ?{guardando:'Los cambios quedaron en el teléfono. Subiéndolos a la base…',
+         sincronizada:'Los cambios quedaron en la base. Abajo está el mensaje corregido para reenviarlo al grupo.',
+         pendiente:'Los cambios quedaron en el teléfono y se enviarán solos al recuperar señal. Abajo está el mensaje corregido para reenviarlo al grupo.'}
+      :{guardando:'Guardada en el teléfono. Subiéndola a la base…',
+         sincronizada:'Sincronizada con la base. El formulario quedó listo para la siguiente.',
+         pendiente:'Quedó guardada en el teléfono y se enviará sola al recuperar señal. El formulario quedó listo para la siguiente.'};
+    b.querySelector('.guardada-detalle').textContent=detalle[estado]||detalle.pendiente;
+    const av=reporte?.averages,tot=b.querySelector('.guardada-totales');
+    if(tot){tot.innerHTML=av?`<span>Humedad total<strong>${fmtPct(av.total)}</strong></span><span>CE total<strong>${av.ce==null?'—':fmt(av.ce)+' mS/cm'}</strong></span><span>Temp. total<strong>${av.temp==null?'—':fmt(av.temp)+' °C'}</strong></span>`:'';tot.hidden=!av}
+    /* Un recuadro de mensaje vacío no dice nada y parece que la app falló.
+       Si el resumen no se pudo armar, se dice con todas sus letras. */
+    const caja=b.querySelector('#calMensaje');
+    if(caja)caja.textContent=reporte?.report
+      ||'No se pudo armar el mensaje para el grupo. La calicata sí quedó guardada: ábrela con Editar, en “Últimas calicatas”, y vuelve a guardarla para generarlo.';
+    b.classList.toggle('pendiente',estado!=='sincronizada');
+    b.hidden=false;
+  }
+  function limpiarTrasGuardar(item,q,reporte,estado,editada){
     resetForm();
     currentReport=reporte;ultimoGuardado={item,q};
-    const cod=q?.codigo||q?.cuartel||'el cuartel';
-    const b=$('#calGuardada');
-    if(b){
-      /* Corregir una calicata termina igual que registrarla: abajo queda el
-         mensaje al día, para reenviarlo al grupo con los datos corregidos. */
-      b.querySelector('.guardada-titulo').textContent=editada
-        ?`Calicata de ${cod} actualizada`
-        :`Calicata de ${cod} guardada`;
-      b.querySelector('.guardada-detalle').textContent=editada
-        ?(sincronizada
-          ?'Los cambios quedaron en la base. Abajo está el mensaje corregido para reenviarlo al grupo.'
-          :'Los cambios quedaron en el teléfono y se enviarán solos al recuperar señal. Abajo está el mensaje corregido para reenviarlo al grupo.')
-        :(sincronizada
-          ?'Sincronizada con la base. El formulario quedó listo para la siguiente.'
-          :'Quedó guardada en el teléfono y se enviará sola al recuperar señal. El formulario quedó listo para la siguiente.');
-      const av=reporte?.averages,tot=b.querySelector('.guardada-totales');
-      if(tot){tot.innerHTML=av?`<span>Humedad total<strong>${fmtPct(av.total)}</strong></span><span>CE total<strong>${av.ce==null?'—':fmt(av.ce)+' mS/cm'}</strong></span><span>Temp. total<strong>${av.temp==null?'—':fmt(av.temp)+' °C'}</strong></span>`:'';tot.hidden=!av}
-      const caja=b.querySelector('#calMensaje');
-      if(caja)caja.textContent=reporte?.report||'';
-      b.classList.toggle('pendiente',!sincronizada);
-      b.hidden=false;
-      b.scrollIntoView({behavior:'smooth',block:'start'});
-    }
+    pintarGuardada({q,reporte,estado,editada});
+    $('#calGuardada')?.scrollIntoView({behavior:'smooth',block:'start'});
     msg('');
   }
   let guardando=false;
-  async function save(e){e.preventDefault();if(guardando)return;const editada=!!editingRecord,built=buildItem();if(built.error)return msg(built.error,true);const button=$('#saveCalicata');guardando=true;button.disabled=true;$('#formState').textContent='Guardando en el dispositivo…';try{await localPut(STORES.queue,built.value);await localDelete(STORES.drafts,draftKey());$('#formState').textContent='Guardado localmente';msg(navigator.onLine?'Calicata guardada localmente. Sincronizando…':'Calicata guardada en el dispositivo. Se enviará al recuperar internet.');const cuartelGuardado=selectedQuarter(built.value.calicata.cuartel_id),reporte=reportFor(built.value,cuartelGuardado);await refreshSyncLabel();let sincronizada=false;if(navigator.onLine){await syncQueue();sincronizada=await quedoSincronizada(built.value.id)}limpiarTrasGuardar(built.value,cuartelGuardado,reporte,sincronizada,editada);await cargarRecientes()}catch(error){console.error(error);$('#formState').textContent='No guardada';msg('No se pudo guardar en el dispositivo. Intenta nuevamente.',true)}finally{guardando=false;button.disabled=false}}
+  async function save(e){e.preventDefault();if(guardando)return;const editada=!!editingRecord,built=buildItem();if(built.error)return msg(built.error,true);const button=$('#saveCalicata');guardando=true;button.disabled=true;$('#formState').textContent='Guardando en el dispositivo…';try{await localPut(STORES.queue,built.value);await localDelete(STORES.drafts,draftKey());$('#formState').textContent='Guardado localmente';msg(navigator.onLine?'Calicata guardada localmente. Sincronizando…':'Calicata guardada en el dispositivo. Se enviará al recuperar internet.');const cuartelGuardado=selectedQuarter(built.value.calicata.cuartel_id),reporte=reportFor(built.value,cuartelGuardado);
+    /* El aviso con el mensaje sale de inmediato, sin esperar a la subida: en
+       terreno la señal es mala y antes había que quedarse mirando la pantalla
+       hasta que respondiera la base. */
+    limpiarTrasGuardar(built.value,cuartelGuardado,reporte,navigator.onLine?'guardando':'pendiente',editada);
+    await refreshSyncLabel();
+    if(navigator.onLine){await syncQueue();
+      pintarGuardada({q:cuartelGuardado,reporte,estado:await quedoSincronizada(built.value.id)?'sincronizada':'pendiente',editada})}
+    await cargarRecientes()}catch(error){console.error(error);$('#formState').textContent='No guardada';msg('No se pudo guardar en el dispositivo. Intenta nuevamente.',true)}finally{guardando=false;button.disabled=false}}
   async function syncItem(item){if(!db||!session)throw new Error('Sesión no disponible');let r=await db.from('calicatas').upsert(item.calicata,{onConflict:'id'});if(r.error)throw r.error;if(item.readings.length){r=await db.from('lecturas_calicata').upsert(item.readings,{onConflict:'id'});if(r.error)throw r.error}if(item.observations.length){r=await db.from('observaciones_calicata').upsert(item.observations,{onConflict:'id'});if(r.error)throw r.error}if(item.removedReadingIds?.length){r=await db.from('lecturas_calicata').delete().in('id',item.removedReadingIds).eq('calicata_id',item.id);if(r.error)throw r.error}if(item.removedObservationIds?.length){r=await db.from('observaciones_calicata').delete().in('id',item.removedObservationIds).eq('calicata_id',item.id);if(r.error)throw r.error}
     /* Envío automático a la hoja de Google del campo. No bloquea el guardado:
        si falla, la calicata ya quedó en la base y la Edge Function marca
