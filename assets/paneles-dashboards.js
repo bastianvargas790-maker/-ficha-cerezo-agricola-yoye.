@@ -543,8 +543,22 @@ function pintarCalicatas(d,campo){
     return {valor:(v.length===1||f(mn)===f(mx)?f(mn):`${f(mn)}–${f(mx)}`)+`<span class="pd-de">${u}</span>`,n:v.length};
   };
   const pieRango=r=>r.n===1?'en la zona de raíces':`rango entre ${n0(r.n)} calicatas`;
-  const kH=rango(r=>r.zonaRaices.h,n1,'%'),kCe=rango(r=>r.zonaRaices.ce,n2,'mS/cm'),
-    kAgo=rango(r=>r.zonaRaices.agotamiento,n0,'%');
+  const kH=rango(r=>r.zonaRaices.h,n1,'%'),kCe=rango(r=>r.zonaRaices.ce,n2,'mS/cm');
+  /* En vez de un porcentaje de agua aprovechable -- que salía de una CC y un
+     PMP estimados de tabla -- se dice cuántos cuarteles vienen bajo la
+     referencia de humedad de SU suelo. */
+  const kEstado=(()=>{
+    const est=lecturasSel.map(r=>r.zonaRaices.estado).filter(Boolean);
+    if(!est.length)return null;
+    const bajos=est.filter(e=>e.clave==='alerta'||e.clave==='critico').length;
+    const altos=est.filter(e=>e.clave==='exceso').length;
+    if(bajos)return {etiqueta:`${n0(bajos)} bajo su referencia`,
+      pie:`de ${n0(est.length)} con textura anotada · suelo pesado ≈ 30 %, medio 24-25 %`,tono:'terracota'};
+    if(altos)return {etiqueta:`${n0(altos)} sobre lo que retiene`,
+      pie:`de ${n0(est.length)} con textura anotada`,tono:'terracota'};
+    return {etiqueta:'Dentro de rango',
+      pie:`las ${n0(est.length)} con textura anotada`,tono:'verde'};
+  })();
   /* Cada alerta lleva su cuartel y su fecha: una alerta sin saber de qué
      calicata habla no sirve para ir a terreno. */
   const alertas=sel.flatMap(cal=>{
@@ -557,8 +571,8 @@ function pintarCalicatas(d,campo){
     ${kpi('Calicatas en la selección',n0(sel.length),`${n0(cuartelesSel.size)} ${cuartelesSel.size===1?'cuartel':'cuarteles'} de ${n0(cuarteles.length)}`,'cafe')}
     ${kpi('Última evaluación',fecha(ultima.fecha),esc(cuartelDe(ultima).codigo||''),'verde',true)}
     ${kH?kpi('Humedad en zona de raíces',kH.valor,pieRango(kH),'azul',true):''}
-    ${kAgo?kpi('Agua aprovechable consumida',kAgo.valor,'0% = capacidad de campo · 100% = marchitez','terracota',true)
-      :kpi('Agua aprovechable','Sin textura','Anota la textura del suelo al registrar','terracota',true)}
+    ${kEstado?kpi('Cómo viene la humedad',kEstado.etiqueta,kEstado.pie,kEstado.tono,true)
+      :kpi('Cómo viene la humedad','Sin textura','Anota la textura del suelo al registrar','terracota',true)}
     ${kCe?kpi('CE en zona de raíces',kCe.valor,'sonda directa, sin promediar cuarteles','cafe',true):''}
     ${raices.length?kpi('Raíces efectivas',`${Math.min(...raices)===Math.max(...raices)?n0(raices[0]):`${n0(Math.min(...raices))}–${n0(Math.max(...raices))}`}<span class="pd-de">cm</span>`,'profundidad declarada','verde',true):''}
   </div>`;
@@ -567,7 +581,7 @@ function pintarCalicatas(d,campo){
     const q=cuartelDe(cal),tt=totalesDe(cal),z=tt.zona||{};
     return [`<strong>${esc(q.codigo||'—')}</strong>`,`<span title="${fecha(cal.fecha)}">${String(fecha(cal.fecha)).slice(0,5)}</span>`,
       `<strong>${conUnidad(z.h,n1,'')}</strong>`,
-      z.agotamiento==null?'—':`<strong>${n0(z.agotamiento)}%</strong>`,
+      z.estado?`<strong>${esc(z.estado.etiqueta)}</strong>`:'—',
       `<strong>${conUnidad(tt.hTot,n1,'')}</strong>`,
       `<strong>${conUnidad(tt.ceTot,n2,'')}</strong>`,
       `<strong>${conUnidad(tt.tTot,n1,'')}</strong>`,
@@ -611,11 +625,12 @@ function pintarCalicatas(d,campo){
   function diagnosticoCard(cal){
     const r=leer(cal);if(!r||!r.diagnostico.puntos.length)return '';
     const q=cuartelDe(cal);
+    const gr=r.zonaRaices&&r.zonaRaices.referencia;
     const ref=r.textura
-      ? `${r.textura.etiqueta}: CC ${n1(r.textura.cc)} % y PMP ${n1(r.textura.pmp)} % en humedad volumétrica `+
-        `(${n0(r.textura.ccPeso)} % y ${n0(r.textura.pmpPeso)} % en peso seco, Da ${n2(r.textura.da)} g/cc), `+
-        `capacidad de retención ${n2(r.textura.cr)} mm/mm.`
-      : 'Sin textura anotada: el agua aprovechable no se puede calcular.';
+      ? (gr&&gr.bien!=null
+          ? `${r.textura.etiqueta}: suelo ${gr.etiqueta}. Bien provisto marca cerca de ${n0(gr.bien)} % de humedad; la lectura se compara contra eso.`
+          : `${r.textura.etiqueta}: suelo arenoso. La humedad marca baja por naturaleza, así que se compara contra las calicatas anteriores del mismo cuartel.`)
+      : 'Sin textura anotada: no hay contra qué comparar la humedad.';
     return `<section class="pd-card pd-diag">
       <div class="pd-kicker">Lectura de la calicata</div>
       <h3 class="pd-card-title">${esc(q.codigo||'Sin código')} · ${fecha(cal.fecha)}</h3>
@@ -727,18 +742,16 @@ function pintarCalicatas(d,campo){
     const filas=[...cuartelesSel].map(id=>{
       const cal=sel.find(k=>k.cuartel_id===id),r=leer(cal),q=porCuartel.get(id)||{};
       if(!r||!esNum(r.zonaRaices.h))return null;
-      const ago=r.zonaRaices.agotamiento;
-      return {etiqueta:q.codigo||'—',valor:ago!=null?ago:r.zonaRaices.h,
-        texto:ago!=null?`${n0(ago)}% · ${n1(r.zonaRaices.h)}%`:`${n1(r.zonaRaices.h)}%`,
+      const ref=r.zonaRaices.referencia;
+      return {etiqueta:q.codigo||'—',valor:r.zonaRaices.h,
+        texto:ref&&ref.bien!=null?`${n1(r.zonaRaices.h)}% · ref ${n0(ref.bien)}%`:`${n1(r.zonaRaices.h)}%`,
         estado:r.zonaRaices.estado?r.zonaRaices.estado.clave:null,
-        orden:ago!=null?ago:-r.zonaRaices.h};
+        orden:-r.zonaRaices.h};
     }).filter(Boolean).sort((a,b)=>b.orden-a.orden);
     if(filas.length<2)return '';
-    const conAgo=lecturasSel.some(r=>r.zonaRaices.agotamiento!=null);
-    return barras(conAgo?'Agua aprovechable ya consumida, por cuartel':'Humedad en la zona de raíces, por cuartel',
+    return barras('Humedad en la zona de raíces, por cuartel',
       'Comparación entre cuarteles',filas,'%',
-      conAgo?'El primero de la lista es el que está más apretado de agua. 0 % es capacidad de campo y 100 %, punto de marchitez; al lado va la humedad medida.'
-            :'Sin la textura anotada solo se puede comparar humedad entre cuarteles, no cuánta agua les queda disponible.');
+      'El último de la lista es el más seco. Al lado va la referencia de ese suelo: un suelo pesado bien provisto marca cerca de 30 % y uno medio, 24-25 %.');
   })();
 
   const resumenAlertas=alertas.length?`<section class="pd-card pd-ancho pd-diag">
@@ -823,7 +836,7 @@ function pintarCalicatas(d,campo){
     const r=leer(cal),z=r?r.zonaRaices:{};
     return [`<span title="${fecha(cal.fecha)}">${String(fecha(cal.fecha)).slice(0,5)}</span>`,
       esNum(z.h)?`<strong>${n1(z.h)}</strong>`:'—',
-      z.agotamiento==null?'—':`<strong>${n0(z.agotamiento)}%</strong>`,
+      z.estado?`<strong>${esc(z.estado.etiqueta)}</strong>`:'—',
       esNum(z.ce)?n2(z.ce):'—',
       r&&esNum(r.total.t)?n1(r.total.t):'—',
       esNum(cal.profundidad_efectiva_raices_cm)?n0(cal.profundidad_efectiva_raices_cm):'—',
@@ -843,17 +856,15 @@ function pintarCalicatas(d,campo){
     ${kpi('Última evaluación',fecha(delCuartel[0].fecha),`${n0(delCuartel.length)} ${delCuartel.length===1?'calicata':'calicatas'} en este cuartel`,'verde',true)}
     ${esNum(zUlt.h)?kpi('Humedad en zona de raíces',`${n1(zUlt.h)}<span class="pd-de">%</span>`,
       delta(zUlt.h,rPrev&&rPrev.zonaRaices.h,n1,' pp')||`hasta ${n0(zUlt.limite)} cm`,'azul',true):''}
-    ${zUlt.agotamiento!=null
-      ? kpi('Agua aprovechable consumida',`${n0(zUlt.agotamiento)}<span class="pd-de">%</span>`,
-          zUlt.estado?zUlt.estado.etiqueta:'0% = capacidad de campo','terracota',true)
-      : kpi('Agua aprovechable','Sin textura','Anota la textura del suelo al registrar','terracota',true)}
+    ${zUlt.estado
+      ? kpi('Cómo viene la humedad',zUlt.estado.etiqueta,
+          zUlt.referencia&&zUlt.referencia.bien!=null?`suelo ${zUlt.referencia.etiqueta} · bien provisto ≈ ${n0(zUlt.referencia.bien)}%`:'según la textura anotada',
+          zUlt.estado.clave==='ok'?'verde':'terracota',true)
+      : kpi('Cómo viene la humedad','Sin textura','Anota la textura del suelo al registrar','terracota',true)}
     ${esNum(zUlt.ce)?kpi('CE en zona de raíces',`${n2(zUlt.ce)}<span class="pd-de">mS/cm</span>`,
       delta(zUlt.ce,rPrev&&rPrev.zonaRaices.ce,n2,' mS/cm')||'sonda directa','cafe',true):''}
     ${esNum(delCuartel[0].profundidad_efectiva_raices_cm)?kpi('Raíces efectivas',
       `${n0(delCuartel[0].profundidad_efectiva_raices_cm)}<span class="pd-de">cm</span>`,'declarada en esta calicata','verde',true):''}
-    ${rUlt&&esNum(zUlt.laminaFaltante)?kpi('Falta para capacidad de campo',
-      `${n1(zUlt.laminaFaltante)}<span class="pd-de">mm</span>`,
-      `la zona de raíces guarda ${n0(zUlt.laminaUtil)} mm llena`,'azul',true):''}
     ${rUlt&&esNum(rUlt.bajoRaices.h)?kpi('Bajo las raíces',`${n1(rUlt.bajoRaices.h)}<span class="pd-de">%</span>`,
       `a ${rUlt.bajoRaices.profundidades.map(n0).join(', ')} cm · ahí ya casi no hay raíz efectiva`,'azul',true):''}
     ${rUlt&&rUlt.uniformidad?kpi('Uniformidad del bulbo',rUlt.uniformidad.etiqueta,
@@ -864,8 +875,8 @@ function pintarCalicatas(d,campo){
   return filtros+kpisCuartel+fichaCab+resumenAlertas+
     (serieHum||sinHistoria)+serieCe+
     tabla('Historia del cuartel','Calicata por calicata',
-      ['Fecha','H raíces %','Agotam.','CE','T °C','Raíces cm','Bulbos'],filasCuartel,
-      'Cada fila es una calicata completa de este cuartel. H raíces y agotamiento se miden solo hasta la profundidad de raíces declarada ese día.')+
+      ['Fecha','H raíces %','Cómo viene','CE','T °C','Raíces cm','Bulbos'],filasCuartel,
+      'Cada fila es una calicata completa de este cuartel. La humedad de raíces se mide solo hasta la profundidad de raíces declarada ese día, y se lee contra la referencia de ese suelo.')+
     leyenda+
     `<div class="pd-perfiles">${perfiles}</div>`+
     (obsRaices.length?barras('Estado de raíces','Observaciones',obsRaices):'')+

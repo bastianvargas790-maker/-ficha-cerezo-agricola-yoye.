@@ -111,35 +111,46 @@
     return ds/m*100;
   }
 
-  /* Agotamiento del agua aprovechable: 0 % es capacidad de campo y 100 % es
-     punto de marchitez. Es la cifra que de verdad dice "hay que regar", mucho
-     más que el % de humedad suelto. */
-  function agotamiento(h,textura){
-    const t=TEXTURAS[textura];
-    if(!t||!esNum(h))return null;
-    return Math.max(0,Math.min(150,(t.cc-Number(h))/(t.cc-t.pmp)*100));
+  /* Cómo se lee la humedad de sonda según el suelo.
+     No se calculan milímetros a reponer ni porcentaje de agua aprovechable
+     consumida: esos números salen de una CC y un PMP estimados de tabla, y sin
+     análisis de suelo de cada cuartel dan una falsa precisión. Lo que sí sirve
+     en terreno es la referencia por textura, que es como se leen estos
+     cuarteles: los suelos pesados marcan hasta ~30 % cuando están bien
+     provistos, los medios andan en 24-25 %, y los arenosos bastante más abajo
+     (ahí no hay un número fijo: se compara contra las calicatas anteriores del
+     mismo cuartel). Criterio de Bastián, 28/09/2026. */
+  const GRUPOS_TEXTURA=[
+    {clave:'pesado', etiqueta:'pesado', bien:30,
+     texturas:['arcilloso','arcillo_arenoso','franco_arcilloso']},
+    {clave:'medio',  etiqueta:'medio',  bien:25,
+     texturas:['franco','franco_arenoso']},
+    {clave:'liviano',etiqueta:'arenoso',bien:null,
+     texturas:['arenoso']}
+  ];
+  function referenciaHumedad(textura){
+    if(!textura)return null;
+    return GRUPOS_TEXTURA.find(g=>g.texturas.includes(textura))||null;
   }
-  function estadoHumedad(ago,h,textura){
-    const t=TEXTURAS[textura];
-    if(ago==null)return null;
-    if(t&&esNum(h)&&Number(h)>t.cc+2)return {clave:'exceso',etiqueta:'Sobre capacidad de campo',
-      nota:'Por encima de lo que el suelo retiene: el agua extra percola bajo las raíces.'};
-    if(ago<35)return {clave:'ok',etiqueta:'Cómodo',nota:'Agua disponible sin restricción.'};
-    if(ago<60)return {clave:'atencion',etiqueta:'Consumiendo reserva',nota:'Dentro de lo manejable; el próximo riego define.'};
-    if(ago<80)return {clave:'alerta',etiqueta:'Al límite',nota:'La planta empieza a gastar energía en extraer agua.'};
-    return {clave:'critico',etiqueta:'En déficit',nota:'Cerca del punto de marchitez: hay estrés hídrico.'};
-  }
-
-  /* Milímetros de agua en un espesor de suelo. profundidadCm en centímetros. */
-  function laminas(h,textura,profundidadCm){
-    const t=TEXTURAS[textura];
-    if(!t||!esNum(profundidadCm))return {laminaUtil:null,laminaFaltante:null,laminaActual:null};
-    const mm=Number(profundidadCm)*10;
-    const laminaUtil=(t.cc-t.pmp)/100*mm;
-    if(!esNum(h))return {laminaUtil,laminaFaltante:null,laminaActual:null};
-    const laminaActual=Math.max(0,(Number(h)-t.pmp)/100*mm);
-    const laminaFaltante=Math.max(0,(t.cc-Number(h))/100*mm);
-    return {laminaUtil,laminaActual,laminaFaltante};
+  /* La separación en tramos (3 y 6 puntos bajo la referencia) es una escala de
+     trabajo para pintar el estado, no un dato de laboratorio. */
+  function estadoHumedad(h,textura){
+    if(!esNum(h))return null;
+    const ref=referenciaHumedad(textura);
+    if(!ref)return null;
+    if(ref.bien==null)return {clave:'info',etiqueta:'Suelo arenoso',
+      nota:'En suelo arenoso la humedad marca baja por naturaleza; conviene compararla con las calicatas anteriores del mismo cuartel.'};
+    const dif=ref.bien-Number(h);
+    if(dif<-3)return {clave:'exceso',etiqueta:'Por sobre lo que retiene',
+      nota:`Por encima de lo que aguanta un suelo ${ref.etiqueta} (referencia ${ref.bien} %): el agua de más se va en profundidad.`};
+    if(dif<=0)return {clave:'ok',etiqueta:'Bien provisto',
+      nota:`En el rango alto de un suelo ${ref.etiqueta}, que bien provisto marca cerca de ${ref.bien} %.`};
+    if(dif<=3)return {clave:'atencion',etiqueta:'Empezando a bajar',
+      nota:`Algo bajo la referencia de un suelo ${ref.etiqueta} (cerca de ${ref.bien} %); el próximo riego define.`};
+    if(dif<=6)return {clave:'alerta',etiqueta:'Bajo el rango',
+      nota:`Bajo lo que debería marcar un suelo ${ref.etiqueta} bien provisto (cerca de ${ref.bien} %).`};
+    return {clave:'critico',etiqueta:'Seco para este suelo',
+      nota:`Muy por debajo de un suelo ${ref.etiqueta} bien provisto (cerca de ${ref.bien} %): el árbol está trabajando para sacar agua.`};
   }
 
   const ordenarProf=a=>[...new Set(a.map(Number).filter(Number.isFinite))].sort((x,y)=>x-y);
@@ -153,7 +164,7 @@
       const h=enProf(prof,'humedad_pct'),ce=enProf(prof,'ce_ms_cm'),t=enProf(prof,'temperatura_c');
       return {prof,h:prom(h),ce:prom(ce),t:prom(t),puntos:h.length,
         cvHumedad:cv(h),hMin:h.length?Math.min(...h):null,hMax:h.length?Math.max(...h):null,
-        agotamiento:agotamiento(prom(h),o.textura),banda:bandaCE(prom(ce))};
+        estado:estadoHumedad(prom(h),o.textura),banda:bandaCE(prom(ce))};
     });
     const mediaDe=clave=>prom(porProfundidad.map(x=>x[clave]).filter(esNum));
     const total={h:mediaDe('h'),ce:mediaDe('ce'),t:mediaDe('t')};
@@ -168,11 +179,8 @@
       profundidades:dentro.map(x=>x.prof)};
     const bajoRaices={h:prom(fuera.map(x=>x.h).filter(esNum)),ce:prom(fuera.map(x=>x.ce).filter(esNum)),
       profundidades:fuera.map(x=>x.prof)};
-    zonaRaices.agotamiento=agotamiento(zonaRaices.h,o.textura);
-    /* De porcentaje a milímetros: es lo que permite decir cuánto falta regar.
-       Lámina = (humedad faltante en % volumétrico / 100) × profundidad. */
-    Object.assign(zonaRaices,laminas(zonaRaices.h,o.textura,limite));
-    zonaRaices.estado=estadoHumedad(zonaRaices.agotamiento,zonaRaices.h,o.textura);
+    zonaRaices.referencia=referenciaHumedad(o.textura);
+    zonaRaices.estado=estadoHumedad(zonaRaices.h,o.textura);
     zonaRaices.banda=bandaCE(zonaRaices.ce);
 
     const uniformidad=(()=>{
@@ -228,11 +236,13 @@
     const zr=r.zonaRaices,br=r.bajoRaices;
     if(zr.estado){
       puntos.push({clave:'humedad',nivel:zr.estado.clave,
-        texto:`Zona de raíces (${zr.profundidades.join(', ')} cm): ${fmt1(zr.h)} % de humedad, ${Math.round(zr.agotamiento)} % del agua aprovechable ya consumida. ${zr.estado.nota}`});
-      if(esNumero(zr.laminaFaltante))puntos.push({clave:'lamina',nivel:'info',
-        texto:`Para volver a capacidad de campo en los primeros ${zr.limite} cm faltan ${fmt1(zr.laminaFaltante)} mm de agua (la zona de raíces guarda ${fmt1(zr.laminaUtil)} mm cuando está llena).`});
-      if(zr.estado.clave==='critico'||zr.estado.clave==='alerta')acciones.push(`Regar antes de lo programado o alargar el próximo riego: faltan ${fmt1(zr.laminaFaltante)} mm para dejar la zona de raíces en capacidad de campo.`);
-      if(zr.estado.clave==='exceso')acciones.push('Acortar el tiempo de riego y repartirlo en más pulsos: el suelo ya está sobre capacidad de campo.');
+        texto:`Zona de raíces (${zr.profundidades.join(', ')} cm): ${fmt1(zr.h)} % de humedad. ${zr.estado.nota}`});
+      if(zr.estado.clave==='critico'||zr.estado.clave==='alerta')
+        acciones.push(`Adelantar o alargar el próximo riego: en un suelo ${zr.referencia.etiqueta} la humedad debería andar cerca de ${zr.referencia.bien} % y esta calicata va en ${fmt1(zr.h)} %.`);
+      if(zr.estado.clave==='exceso')
+        acciones.push('Acortar el tiempo de riego y repartirlo en más pulsos: el suelo ya no retiene más y el agua extra se va en profundidad.');
+      if(zr.estado.clave==='info')
+        acciones.push('Comparar esta humedad con las calicatas anteriores del mismo cuartel: en suelo arenoso el número suelto dice poco.');
     }else if(esNumero(zr.h)){
       puntos.push({clave:'humedad',nivel:'info',
         texto:`Zona de raíces (${zr.profundidades.join(', ')} cm): ${fmt1(zr.h)} % de humedad. Anota la textura del suelo para saber cuánta agua aprovechable queda.`});
@@ -303,6 +313,6 @@
   function fmt1(v){return v==null?'—':Number(v).toLocaleString('es-CL',{minimumFractionDigits:1,maximumFractionDigits:1})}
   function fmt2(v){return v==null?'—':Number(v).toLocaleString('es-CL',{minimumFractionDigits:2,maximumFractionDigits:2})}
 
-  raiz.YoyeAgro={TEXTURAS,TEXTURAS_BASE,laminas,CE_BANDAS,CULTIVOS,FACTOR_SONDA,resumen,agotamiento,estadoHumedad,bandaCE,cv,
+  raiz.YoyeAgro={TEXTURAS,TEXTURAS_BASE,GRUPOS_TEXTURA,CE_BANDAS,CULTIVOS,FACTOR_SONDA,resumen,referenciaHumedad,estadoHumedad,bandaCE,cv,
     claveCultivo,referenciaCultivo,ceSondaDeAviso,redondear:{r1,r2}};
 })(typeof globalThis!=='undefined'?globalThis:window);

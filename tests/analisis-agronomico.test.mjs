@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const src = readFileSync(new URL('../assets/calicatas-analisis.js', import.meta.url), 'utf8');
 new Function(src)();
-const { resumen, agotamiento, bandaCE, TEXTURAS } = globalThis.YoyeAgro;
+const { resumen, referenciaHumedad, estadoHumedad, bandaCE, TEXTURAS } = globalThis.YoyeAgro;
 
 const lecturas = (h, ce = [], t = [], profs = [30, 60, 90]) => profs.flatMap((prof, j) =>
   ['punto_cero', 'linea_izquierda', 'linea_derecha'].map((perfil, i) => ({
@@ -35,32 +35,36 @@ test('sin raíces declaradas, la zona de raíces son los primeros 60 cm', () => 
   assert.deepEqual(r.zonaRaices.profundidades, [30, 60]);
 });
 
-test('el agotamiento se calcula con la textura de la tabla del campo y marca el estado', () => {
-  // Franco de la tabla: CC 22 % y PMP 10 % en peso seco, Da 1,40 → en volumen,
-  // CC 30,8 % y PMP 14 %. La sonda mide volumen, así que ese es el par que manda.
-  assert.equal(TEXTURAS.franco.cc, 30.8);
-  assert.equal(TEXTURAS.franco.pmp, 14);
-  assert.equal(Math.round(agotamiento(22.4, 'franco')), 50, 'la mitad del agua aprovechable');
-  assert.equal(agotamiento(19, 'textura_inventada'), null);
+test('la humedad se lee contra la referencia de ese suelo, no contra mm de tabla', () => {
+  // Criterio de terreno: un suelo pesado bien provisto marca cerca de 30 %,
+  // uno medio 24-25 %, y en arenoso no hay número fijo.
+  assert.equal(referenciaHumedad('arcillo_arenoso').bien, 30);
+  assert.equal(referenciaHumedad('franco').bien, 25);
+  assert.equal(referenciaHumedad('arenoso').bien, null);
+  assert.equal(referenciaHumedad('textura_inventada'), null);
+
   const seco = resumen(lecturas([[16, 16, 16], [16, 16, 16], [16, 16, 16]]), { textura: 'franco', raicesCm: 90 });
   assert.equal(seco.zonaRaices.estado.clave, 'critico');
-  assert.ok(seco.diagnostico.acciones.some(a => /regar|alargar/i.test(a)));
-  const comodo = resumen(lecturas([[29, 29, 29], [29, 29, 29], [29, 29, 29]]), { textura: 'franco', raicesCm: 90 });
+  assert.ok(seco.diagnostico.acciones.some(a => /adelantar|alargar/i.test(a)));
+  const comodo = resumen(lecturas([[25, 25, 25], [25, 25, 25], [25, 25, 25]]), { textura: 'franco', raicesCm: 90 });
   assert.equal(comodo.zonaRaices.estado.clave, 'ok');
+  const arenoso = resumen(lecturas([[12, 12, 12], [12, 12, 12], [12, 12, 12]]), { textura: 'arenoso', raicesCm: 90 });
+  assert.equal(arenoso.zonaRaices.estado.clave, 'info');
+  assert.ok(arenoso.diagnostico.acciones.some(a => /calicatas anteriores/i.test(a)));
 });
 
-test('la lámina en milímetros coincide con la capacidad de retención de la tabla', () => {
-  // CR de la tabla × profundidad tiene que dar lo mismo que (CC − PMP) × profundidad.
-  for (const [clave, t] of Object.entries(TEXTURAS)) {
-    const porCr = t.cr * 600;                       // 60 cm = 600 mm de suelo
-    const porDiferencia = (t.cc - t.pmp) / 100 * 600;
-    assert.ok(Math.abs(porCr - porDiferencia) < porCr * 0.06,
-      `${clave}: CR ${t.cr} mm/mm no calza con CC−PMP (${porCr.toFixed(1)} vs ${porDiferencia.toFixed(1)} mm)`);
-  }
+test('ya no se sugieren milímetros a reponer ni agua aprovechable consumida', () => {
+  // Esos números salían de una CC y un PMP estimados de tabla: sin análisis de
+  // suelo por cuartel dan una precisión que no existe.
   const r = resumen(lecturas([[22, 22, 22], [22, 22, 22], [22, 22, 22]]), { textura: 'franco', raicesCm: 60 });
-  assert.equal(Math.round(r.zonaRaices.laminaUtil), 101, '60 cm de franco guardan ~101 mm');
-  assert.equal(Math.round(r.zonaRaices.laminaFaltante), 53, 'faltan ~53 mm para capacidad de campo');
-  assert.ok(r.diagnostico.puntos.some(p => p.clave === 'lamina' && /mm de agua/.test(p.texto)));
+  assert.equal(r.zonaRaices.laminaFaltante, undefined);
+  assert.equal(r.zonaRaices.agotamiento, undefined);
+  const todo = JSON.stringify(r.diagnostico);
+  assert.ok(!/ mm /.test(todo), 'ninguna frase debe hablar de milímetros');
+  assert.ok(!/aprovechable/i.test(todo), 'ninguna frase debe hablar de agua aprovechable consumida');
+  assert.ok(!/capacidad de campo/i.test(todo), 'ninguna frase debe prometer capacidad de campo');
+  const js = readFileSync(new URL('../assets/calicatas-analisis.js', import.meta.url), 'utf8');
+  assert.ok(!/laminas?\(/.test(js), 'la función de láminas ya no existe');
 });
 
 test('están las seis texturas de la tabla, con su densidad aparente', () => {
@@ -73,9 +77,9 @@ test('están las seis texturas de la tabla, con su densidad aparente', () => {
     /<option value="arcillo_arenoso">Arcillo arenoso<\/option>/);
 });
 
-test('sin textura no se inventa el agua aprovechable', () => {
+test('sin textura no se inventa una referencia', () => {
   const r = resumen(lecturas([[20, 20, 20], [20, 20, 20], [20, 20, 20]]), { raicesCm: 90 });
-  assert.equal(r.zonaRaices.agotamiento, null);
+  assert.equal(r.zonaRaices.referencia, null);
   assert.equal(r.zonaRaices.estado, null);
   assert.ok(r.diagnostico.puntos.some(p => /textura/i.test(p.texto)), 'debe pedir la textura, no suponerla');
 });
@@ -147,12 +151,11 @@ test('la app guarda la textura como observación de horizontes', () => {
   assert.match(js, /\$\('#textura'\)\.value=\(record\.observations\|\|\[\]\)\.find\(o=>o\.categoria==='horizontes'\)\?\.opcion_codigo/);
 });
 
-test('el panel muestra los milímetros que faltan y de dónde salen', () => {
+test('el panel dice contra qué referencia se lee la humedad, sin milímetros', () => {
   const js = readFileSync(new URL('../assets/paneles-dashboards.js', import.meta.url), 'utf8');
-  assert.match(js, /kpi\('Falta para capacidad de campo'/);
-  assert.match(js, /la zona de raíces guarda \$\{n0\(zUlt\.laminaUtil\)\} mm llena/);
-  // La ficha explica con qué números se calculó, incluida la conversión a volumen.
-  assert.match(js, /en humedad volumétrica/);
-  assert.match(js, /en peso seco, Da/);
-  assert.match(js, /capacidad de retención \$\{n2\(r\.textura\.cr\)\} mm\/mm/);
+  assert.ok(!/Falta para capacidad de campo/.test(js), 'ya no se promete una lámina a reponer');
+  assert.ok(!/lamina/i.test(js), 'no queda ninguna lámina en el panel');
+  assert.ok(!/agotamiento/i.test(js), 'no queda el agua aprovechable consumida');
+  assert.match(js, /Bien provisto marca cerca de \$\{n0\(gr\.bien\)\} % de humedad/);
+  assert.match(js, /Cómo viene la humedad/);
 });

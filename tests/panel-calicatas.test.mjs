@@ -118,7 +118,8 @@ test('el panel usa el mismo criterio agronómico que la app, no uno propio', () 
   assert.ok(bloque.includes("categoria==='horizontes'"), 'la textura viene de la observación guardada');
   assert.ok(bloque.includes('diagnosticoCard'), 'cada calicata muestra su lectura, no solo gráficos');
   assert.ok(bloque.includes("kpi('Humedad en zona de raíces'"), 'el indicador es la zona de raíces');
-  assert.ok(bloque.includes("kpi('Agua aprovechable consumida'"));
+  assert.ok(bloque.includes("kpi('Cómo viene la humedad'"), 'la humedad se lee contra la referencia del suelo');
+  assert.ok(!bloque.includes('Agua aprovechable consumida'), 'ya no se calcula agua aprovechable de tabla');
   assert.ok(!/kpi\(`(Humedad|CE) a \$\{/.test(bloque), 'nada de "a 90 cm" como si fuera el resumen');
 });
 
