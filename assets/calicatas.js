@@ -102,10 +102,18 @@ return true}catch(error){try{const fallback=await queryCuarteles();if(!fallback.
      usa Paneles: zona de raíces, uniformidad del bulbo, movimiento del agua y
      sales. Antes aquí había una descripción aparte y podían no coincidir. */
   function texturaDe(item){return (item.observations||[]).find(o=>o.categoria==='horizontes')?.opcion_codigo||null}
+  /* El cultivo del cuartel es lo que permite poner la CE en contexto: sin él
+     el análisis hablaba de sales en abstracto. Viene del cuartel guardado en
+     la calicata, no del formulario. */
+  function cultivoDe(item,cal){
+    const id=(item&&item.calicata&&item.calicata.cuartel_id)||cal.cuartel_id||item.cuartel_id;
+    const q=quarters.find(x=>x.id===id);
+    return q?[q.cultivo,q.variedad].filter(Boolean).join(' ')||null:null;
+  }
   function analisisDe(item,cal){
     const agro=globalThis.YoyeAgro;if(!agro)return null;
     return agro.resumen(item.readings||[],{textura:texturaDe(item),raicesCm:cal.profundidad_efectiva_raices_cm,
-      unionBulbos:cal.union_bulbos,cultivo:null});
+      unionBulbos:cal.union_bulbos,cultivo:cultivoDe(item,cal)});
   }
   function buildAnalysis(readings,cal,item){
     const r=item?analisisDe(item,cal):null;

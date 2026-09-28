@@ -97,9 +97,10 @@ test('un bulbo disparejo se detecta aunque el promedio se vea bien', () => {
 test('las bandas de CE son de sonda directa y avisan de confirmar en laboratorio', () => {
   assert.equal(bandaCE(0.1).clave, 'baja');
   assert.equal(bandaCE(0.5).clave, 'normal');
-  assert.equal(bandaCE(0.9).clave, 'atencion');
-  assert.equal(bandaCE(2).clave, 'alerta');
-  assert.match(bandaCE(2).nota, /extracto de saturación/i);
+  assert.equal(bandaCE(1.0).clave, 'normal', '1,0 de sonda no es alarma en estos huertos');
+  assert.equal(bandaCE(2.4).clave, 'atencion');
+  assert.equal(bandaCE(3.5).clave, 'alerta');
+  assert.match(bandaCE(3.5).nota, /extracto de saturación/i);
   assert.equal(bandaCE(null), null);
 });
 

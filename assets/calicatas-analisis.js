@@ -37,28 +37,36 @@
     haVolumen:redondeaUno((t.ccPeso-t.pmpPeso)*t.da)
   }]));
 
-  /* CE aparente de sonda directa. El umbral alto es conservador porque todo lo
-     que hay en estos campos (cerezo, nogal, palto, cítricos, carozos) es
-     sensible a sales. Pasado ese punto corresponde confirmar con extracto de
-     saturación en laboratorio antes de tomar decisiones de lavado. */
+  /* CE de sonda directa en el suelo (CE aparente o "bulk"). No es el extracto
+     de saturación del laboratorio y no se puede convertir a él con un factor
+     fijo: la relación entre ambos cambia con la humedad y con la textura. Por
+     eso acá NO se traduce el umbral del cultivo a lectura de sonda -- antes se
+     dividía por 3 y eso dejaba a un ciruelo "en alerta" con 1,0 mS/cm, que en
+     terreno no tiene nada de grave.
+
+     Dos cosas hay que tener claras de esta medición:
+     - Sube con la humedad y baja cuando el suelo se seca, porque el agua es la
+       que conduce. Una CE medida en suelo seco queda CORTA respecto de la sal
+       que de verdad hay en la solución. Por eso solo se comparan lecturas
+       tomadas en condiciones de humedad parecidas.
+     - Lo que sí es comparable sin discusión: entre profundidades de la MISMA
+       calicata (mismo suelo, mismo día) y entre calicatas sucesivas del mismo
+       cuartel. Ahí está la señal útil.
+
+     Los cortes de abajo son una escala de orientación de terreno, no un dato
+     de laboratorio. */
   const CE_BANDAS=[
-    {hasta:0.2,clave:'baja',etiqueta:'Muy baja',nota:'Suelo lavado o muy seco al momento de medir.'},
-    {hasta:0.6,clave:'normal',etiqueta:'Normal',nota:'Rango habitual de un suelo regado con fertirriego corriente.'},
-    {hasta:1.0,clave:'atencion',etiqueta:'En aumento',nota:'Conviene seguirla en las próximas calicatas del mismo cuartel.'},
-    {hasta:Infinity,clave:'alerta',etiqueta:'Alta',nota:'Alta para frutales sensibles. Confirmar con extracto de saturación antes de decidir un lavado.'}
+    {hasta:0.2,clave:'baja',etiqueta:'Muy baja',nota:'Suelo lavado, o medido muy seco: con poca humedad la sonda marca bajo aunque haya sal.'},
+    {hasta:2.0,clave:'normal',etiqueta:'Dentro de lo corriente',nota:'Rango habitual de un suelo con fertirriego en marcha.'},
+    {hasta:3.0,clave:'atencion',etiqueta:'En aumento',nota:'Conviene seguirla en las próximas calicatas del mismo cuartel, midiendo con humedad parecida.'},
+    {hasta:Infinity,clave:'alerta',etiqueta:'Alta',nota:'Alta para cualquier frutal. Corresponde un extracto de saturación de laboratorio antes de decidir un lavado.'}
   ];
 
   /* Umbrales de salinidad por especie, en CE del EXTRACTO DE SATURACIÓN (CEe,
-     dS/m): el valor a partir del cual la especie empieza a perder rendimiento,
-     y cuánto pierde por cada dS/m por encima (modelo Maas & Hoffman, que es el
-     que usan las tablas de FAO y las guías de riego).
-
-     Son de laboratorio. La sonda de terreno mide CE aparente del suelo, que a
-     capacidad de campo suele ser del orden de tres veces menor, y además sube y
-     baja con la humedad. Por eso el panel avisa "conviene medir extracto" en
-     vez de declarar un problema de salinidad: la sonda sirve para detectar la
-     tendencia, el laboratorio para decidir un lavado. */
-  const FACTOR_SONDA=3;
+     dS/m): el valor desde el cual la especie empieza a perder rendimiento, y
+     cuánto pierde por cada dS/m por encima (Maas & Hoffman, que es el modelo de
+     las tablas FAO). Van como referencia del cultivo, NO como comparación
+     directa contra la sonda. */
   const CULTIVOS={
     cerezo:{etiqueta:'Cerezo',umbral:1.5,pendiente:22,clase:'Sensible',fuente:'IVIA/Agrosal'},
     ciruelo:{etiqueta:'Ciruelo',umbral:1.5,pendiente:18,clase:'Sensible',fuente:'IVIA/Agrosal (FAO indica 2,6 para ciruelo/ciruela seca)'},
@@ -67,7 +75,7 @@
     nogal:{etiqueta:'Nogal',umbral:1.5,pendiente:null,clase:'Sensible',fuente:'FAO lo clasifica sensible sin umbral experimental; 1,5 es referencia conservadora'},
     naranjo:{etiqueta:'Naranjo',umbral:1.3,pendiente:13,clase:'Sensible',fuente:'FAO / Maas & Hoffman (Agrosal indica 1,7)'},
     mandarino:{etiqueta:'Mandarino',umbral:1.3,pendiente:13,clase:'Sensible',fuente:'FAO, cítricos'},
-    palto:{etiqueta:'Palto',umbral:1.3,pendiente:24,clase:'Sensible',fuente:'FAO / IVIA (1,3–1,6 según fuente)'},
+    palto:{etiqueta:'Palto',umbral:1.3,pendiente:24,clase:'Sensible',fuente:'FAO / IVIA (1,3-1,6 según fuente)'},
     almendro:{etiqueta:'Almendro',umbral:1.5,pendiente:19,clase:'Sensible',fuente:'FAO / Maas & Hoffman'}
   };
   /* Los cuarteles traen el cultivo escrito de varias formas: "Cerezo",
@@ -81,12 +89,6 @@
     return (reglas.find(([re])=>re.test(t))||[])[1]||null;
   }
   function referenciaCultivo(nombre){const k=claveCultivo(nombre);return k?{clave:k,...CULTIVOS[k]}:null}
-  /* CE de sonda a la que conviene mandar una muestra al laboratorio: el umbral
-     del cultivo llevado a orden de magnitud de sonda. */
-  function ceSondaDeAviso(nombre){
-    const r=referenciaCultivo(nombre);
-    return r&&r.umbral?Math.round(r.umbral/FACTOR_SONDA*100)/100:null;
-  }
 
   const esNum=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v));
   const prom=a=>a.length?a.reduce((x,y)=>x+Number(y),0)/a.length:null;
@@ -283,7 +285,7 @@
     }
     if(r.sales&&r.sales.banda){
       puntos.push({clave:'sales',nivel:r.sales.banda.clave==='alerta'?'alerta':r.sales.banda.clave==='atencion'?'atencion':'info',
-        texto:`CE en la zona de raíces ${fmt2(r.sales.enRaices)} mS/cm (${r.sales.banda.etiqueta.toLowerCase()}). ${r.sales.banda.nota}`});
+        texto:`CE en la zona de raíces ${fmt2(r.sales.enRaices)} mS/cm de sonda: ${r.sales.banda.etiqueta.toLowerCase()}. ${r.sales.banda.nota}`});
       if(r.sales.lavando)puntos.push({clave:'sales-perfil',nivel:'info',
         texto:`La CE sube ${fmt2(r.sales.diferencia)} mS/cm hacia el fondo: las sales están siendo empujadas bajo la zona de raíces, que es lo esperable con riego suficiente.`});
       if(r.sales.subiendo){
@@ -291,16 +293,15 @@
           texto:`La CE es más alta arriba que abajo (${fmt2(Math.abs(r.sales.diferencia))} mS/cm de diferencia): las sales se están quedando en la zona de raíces.`});
         acciones.push('Aplicar un riego de lavado y revisar la conductividad del agua y la carga de fertilizante.');
       }
+      /* El umbral del cultivo va como referencia, en sus propias unidades de
+         laboratorio. No se compara contra la sonda: son dos mediciones
+         distintas y la relación entre ellas no es un factor fijo. */
       const ref=r.referenciaCultivo;
-      if(ref&&ref.umbral&&esNum(r.sales.enRaices)){
-        const aviso=ref.umbral/FACTOR_SONDA;
-        puntos.push({clave:'sales-cultivo',nivel:r.sales.enRaices>=aviso?'atencion':'info',
-          texto:`${ref.etiqueta} es sensible a sales: pierde rendimiento sobre ${fmt1(ref.umbral)} dS/m de CE en extracto de saturación`+
-            (ref.pendiente?` (−${Math.round(ref.pendiente)} % por cada dS/m de más)`:'')+
-            `. Con sonda, eso equivale más o menos a ${fmt2(aviso)} mS/cm en suelo húmedo; hoy marca ${fmt2(r.sales.enRaices)}.`});
-        if(r.sales.enRaices>=aviso)acciones.push(`Mandar una muestra de la zona de raíces a extracto de saturación: la lectura de sonda ya está en el orden del umbral del ${ref.etiqueta.toLowerCase()}.`);
-      }
-      if(r.sales.banda.clave==='alerta')acciones.push('Confirmar con un extracto de saturación de laboratorio antes de programar lavados: la sonda mide CE aparente y se dispara con el suelo húmedo.');
+      if(ref&&ref.umbral)puntos.push({clave:'sales-cultivo',nivel:'info',
+        texto:`Referencia del cultivo: el ${ref.etiqueta.toLowerCase()} empieza a perder rendimiento sobre ${fmt1(ref.umbral)} dS/m de CE en extracto de saturación`+
+          (ref.pendiente?` (−${Math.round(ref.pendiente)} % por cada dS/m de más)`:'')+
+          `. Ese número es de laboratorio y no se compara directo con la sonda; para decidir un lavado hay que mandar la muestra.`});
+      if(r.sales.banda.clave==='alerta')acciones.push('Mandar una muestra de la zona de raíces a extracto de saturación antes de programar un lavado: la sonda mide CE aparente y no reemplaza al laboratorio.');
     }
     const fria=r.porProfundidad.filter(x=>esNumero(x.t)&&x.t<12);
     if(fria.length)puntos.push({clave:'temperatura',nivel:'info',
@@ -313,6 +314,6 @@
   function fmt1(v){return v==null?'—':Number(v).toLocaleString('es-CL',{minimumFractionDigits:1,maximumFractionDigits:1})}
   function fmt2(v){return v==null?'—':Number(v).toLocaleString('es-CL',{minimumFractionDigits:2,maximumFractionDigits:2})}
 
-  raiz.YoyeAgro={TEXTURAS,TEXTURAS_BASE,GRUPOS_TEXTURA,CE_BANDAS,CULTIVOS,FACTOR_SONDA,resumen,referenciaHumedad,estadoHumedad,bandaCE,cv,
-    claveCultivo,referenciaCultivo,ceSondaDeAviso,redondear:{r1,r2}};
+  raiz.YoyeAgro={TEXTURAS,TEXTURAS_BASE,GRUPOS_TEXTURA,CE_BANDAS,CULTIVOS,resumen,referenciaHumedad,estadoHumedad,bandaCE,cv,
+    claveCultivo,referenciaCultivo,redondear:{r1,r2}};
 })(typeof globalThis!=='undefined'?globalThis:window);
