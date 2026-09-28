@@ -1,15 +1,15 @@
-const CACHE='aforo-campo-v20260925-valores';
+const CACHE='aforo-campo-v20260928-fertilizacion';
 const SHELL=[
   './',
   './index.html',
   './manifest.webmanifest',
-  '../assets/yoye-theme.css?v=20260925-valores',
-  '../assets/private-app.css?v=20260925-valores',
-  '../assets/campos.css?v=20260925-valores',
-  '../assets/supabase.js?v=20260925-valores',
-  '../assets/shared-auth.js?v=20260925-valores',
-  '../assets/campos.js?v=20260925-valores',
-  '../assets/aforo.js?v=20260925-valores',
+  '../assets/yoye-theme.css?v=20260928-fertilizacion',
+  '../assets/private-app.css?v=20260928-fertilizacion',
+  '../assets/campos.css?v=20260928-fertilizacion',
+  '../assets/supabase.js?v=20260928-fertilizacion',
+  '../assets/shared-auth.js?v=20260928-fertilizacion',
+  '../assets/campos.js?v=20260928-fertilizacion',
+  '../assets/aforo.js?v=20260928-fertilizacion',
   '../assets/yoye-logo.png',
   '../assets/icons/favicon.svg',
   '../assets/icons/aforo-192.png',

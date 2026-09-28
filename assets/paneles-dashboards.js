@@ -1085,6 +1085,47 @@ function pintarTodos(d){
 }
 
 /* ---------- Orquestación ---------- */
+/* ---------- Planilla de fertilización ----------
+   El apartado existe desde ahora con su explicación; los datos entran cuando
+   decidamos de dónde salen: la planilla que ya se lleva en el campo, o un
+   registro propio en la app como el de calicatas. Mientras tanto muestra qué
+   va a contener y con qué se conecta cada parte. */
+async function datosFertilizacion(campo){
+  const cuart=await db.from('cuarteles').select('id,codigo,cultivo,superficie_ha')
+    .eq('campo_id',campo.id).eq('activo',true);
+  const cuarteles=cuart.data||[];
+  const superficie=cuarteles.map(c=>Number(c.superficie_ha)).filter(Number.isFinite);
+  return {cuarteles,superficie:superficie.reduce((a,b)=>a+b,0),conSuperficie:superficie.length};
+}
+
+function pintarFertilizacion(d,campo){
+  const {cuarteles,superficie,conSuperficie}=d;
+  const partes=[
+    {t:'Aplicaciones hechas',d:'Qué se aplicó en cada cuartel y cuándo: producto, dosis y litros o kilos.'},
+    {t:'Plan de la temporada',d:'Lo programado por etapa fenológica y lo que falta aplicar.'},
+    {t:'Unidades por nutriente',d:'N, P, K, Ca y Mg acumulados por cuartel en la temporada.'},
+    {t:'Consumo y stock',d:'Litros de cada fertilizante ocupados y lo que queda en bodega.'}
+  ];
+  return `<div class="pd-kpis">
+      ${kpi('Cuarteles del campo',n0(cuarteles.length),`${esc(campo.nombre)}`,'verde')}
+      ${conSuperficie?kpi('Superficie con hectáreas',`${n1(superficie)}<span class="pd-de">ha</span>`,
+        `${n0(conSuperficie)} de ${n0(cuarteles.length)} cuarteles`,'cafe',true)
+       :kpi('Superficie','Sin cargar','Las dosis por hectárea la necesitan','terracota',true)}
+      ${kpi('Registros de fertilización','0','todavía no hay datos cargados','azul')}
+    </div>
+    <section class="pd-card pd-ancho">
+      <div class="pd-kicker">Lo que va a mostrar</div>
+      <h3 class="pd-card-title">Cuatro vistas, una vez que entren los datos</h3>
+      <ul class="pd-diag-lista">${partes.map(p=>
+        `<li class="pd-diag-info"><b>${esc(p.t)}</b> ${esc(p.d)}</li>`).join('')}</ul>
+      <p class="pd-nota">Falta definir de dónde salen: la planilla que ya se lleva en el campo, o
+        un registro propio en la app, como el de calicatas. Con el registro propio queda la
+        trazabilidad por cuartel y el cruce con el riego; con la planilla se parte más rápido.</p>
+    </section>
+    ${conSuperficie<cuarteles.length?`<p class="pd-nota pd-ancho">Para calcular dosis por hectárea faltan las
+      superficies de ${n0(cuarteles.length-conSuperficie)} cuarteles de ${esc(campo.nombre)}.</p>`:''}`;
+}
+
 const PANELES={
   campos:{titulo:'Todos los campos',kicker:'Comparación',global:true,
     desc:'Los cuatro campos lado a lado: superficie, cuarteles, avance del aforo y calicatas.',
@@ -1092,7 +1133,10 @@ const PANELES={
   aforos:{titulo:'Aforos',kicker:'Uniformidad',desc:'Avance del aforo, coeficiente de uniformidad y sectores que requieren atención.',datos:datosAforo,pinta:pintarAforo},
   calicatas:{titulo:'Calicatas',kicker:'Monitoreo del suelo',desc:'Humedad, conductividad eléctrica y observaciones de perfil por cuartel.',datos:datosCalicatas,pinta:pintarCalicatas},
   acido:{titulo:'Ácido peracético',kicker:'Aplicaciones',desc:'Litros aplicados y pendientes, avance por caseta y equipo.',datos:datosAcido,pinta:pintarAcido},
-  descoles:{titulo:'Descoles',kicker:'Mantención',desc:'Avance del descole por superficie, grupo por grupo.',datos:datosAcido,pinta:pintarDescole}
+  descoles:{titulo:'Descoles',kicker:'Mantención',desc:'Avance del descole por superficie, grupo por grupo.',datos:datosAcido,pinta:pintarDescole},
+  fertilizacion:{titulo:'Planilla de fertilización',kicker:'Nutrición',
+    desc:'Aplicaciones, plan de la temporada, unidades por nutriente y consumo de fertilizantes.',
+    datos:datosFertilizacion,pinta:pintarFertilizacion}
 };
 
 async function abrirPanel(clave,{desdeHash=false}={}){
@@ -1154,6 +1198,7 @@ function cerrarPanel({desdeHash=false}={}){
    aparezcan los elementos. Los paneles externos siguen abriendo su fuente. */
 function claveDe(href){
   if(/#todos-los-campos/.test(href))return 'campos';
+  if(/#fertilizacion/.test(href))return 'fertilizacion';
   if(/aforo-rinconada/.test(href))return 'aforos';
   if(/calicatas/.test(href))return 'calicatas';
   if(/#acido/.test(href))return 'acido';
@@ -1213,11 +1258,11 @@ enlazarLista();
    hacía nada. Ahora la URL es la única fuente de verdad y la pantalla la sigue. */
 /* El hash puede traer además el cuartel: #panel-calicatas:C-5. Así la app de
    Calicatas enlaza directo a la ficha del cuartel que se acaba de registrar. */
-const HASH_RE=/^#panel-(campos|aforos|calicatas|acido|descoles)(?::([^#?/]+))?$/;
+const HASH_RE=/^#panel-(campos|aforos|calicatas|acido|descoles|fertilizacion)(?::([^#?/]+))?$/;
 /* Los enlaces de la lista usan su propio hash (#todos-los-campos, #acido,
    #descole). Si por lo que sea no corre el clic de arriba, el navegador igual
    cambia el hash: entonces el panel tiene que abrirse igual. */
-const ALIAS_HASH={'#todos-los-campos':'campos','#acido':'acido','#descole':'descoles','#descoles':'descoles','#historyView':'calicatas'};
+const ALIAS_HASH={'#todos-los-campos':'campos','#acido':'acido','#descole':'descoles','#descoles':'descoles','#historyView':'calicatas','#fertilizacion':'fertilizacion'};
 const claveDelHash=()=>(location.hash.match(HASH_RE)||[])[1]||ALIAS_HASH[location.hash]||null;
 const cuartelDelHash=()=>{const m=location.hash.match(HASH_RE);
   return m&&m[2]?decodeURIComponent(m[2]):null};

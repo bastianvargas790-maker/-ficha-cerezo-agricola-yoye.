@@ -309,7 +309,9 @@ function panelesData(){
     {mod:'acido',icon:'☢️',k:'Aplicaciones',t:'Ácido peracético',d:'Aplicado, pendiente y consumo',href:root()+'control-acido/#acido'},
     {mod:'descoles',icon:'🚰',k:'Mantención',t:'Descoles',d:'Avance y estado por sector',href:root()+'control-acido/#descole'},
     {mod:'aforos',icon:'⌁',k:'Uniformidad',t:'Aforos',d:'CU, presión y sectores críticos',href:root()+'aforo-rinconada/'},
-    {mod:'calicatas',icon:'🪨',k:'Monitoreo del suelo',t:'Calicatas',d:'H %, CE mS/cm y T °C',href:root()+'calicatas/#historyView'}
+    {mod:'calicatas',icon:'🪨',k:'Monitoreo del suelo',t:'Calicatas',d:'H %, CE mS/cm y T °C',href:root()+'calicatas/#historyView'},
+    // Nace como acceso: el panel explica qué va a mostrar y qué falta decidir.
+    {mod:'fertilizacion',icon:'🧪',k:'Nutrición',t:'Planilla de fertilización',d:'Aplicaciones, plan y unidades por cuartel',href:'#fertilizacion'}
   ];
 }
 function aplicarPaneles(){

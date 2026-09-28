@@ -29,7 +29,7 @@ test('la evolución del cuartel se dibuja en el tiempo, con la franja de suelo',
 });
 
 test('se puede enlazar directo a un cuartel desde la app de Calicatas', () => {
-  assert.match(js, /const HASH_RE=\/\^#panel-\(campos\|aforos\|calicatas\|acido\|descoles\)\(\?:\:\(\[\^#\?\/\]\+\)\)\?\$\//);
+  assert.match(js, /const HASH_RE=\/\^#panel-\(campos\|aforos\|calicatas\|acido\|descoles\|fertilizacion\)\(\?:\:\(\[\^#\?\/\]\+\)\)\?\$\//);
   assert.match(js, /clave==='calicatas'&&cuartel&&filtroCal\.cuartel!==cuartel/);
   assert.match(cal, /href="\.\.\/paneles\/#panel-calicatas:\$\{encodeURIComponent\(q\.codigo\|\|q\.cuartel\|\|''\)\}"/);
 });

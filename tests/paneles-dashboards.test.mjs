@@ -38,7 +38,7 @@ test('ácido y descole también se dibujan dentro de la app', () => {
   assert.ok(script.includes("from('aplicaciones_acido')"), 'deben leer de la base');
   assert.match(script, /acido:\{titulo:'Ácido peracético'/);
   assert.match(script, /descoles:\{titulo:'Descoles'/);
-  assert.match(script, /#panel-\(campos\|aforos\|calicatas\|acido\|descoles\)/);
+  assert.match(script, /#panel-\(campos\|aforos\|calicatas\|acido\|descoles\|fertilizacion\)/);
 });
 
 test('el descole respeta la regla de la planilla', () => {
