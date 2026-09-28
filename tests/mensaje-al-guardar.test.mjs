@@ -66,3 +66,17 @@ test('mientras sube, el aviso lo dice', () => {
   assert.match(js, /Subiéndola a la base…/);
   assert.match(js, /Subiéndolos a la base…/);
 });
+
+test('el mensaje del grupo son los datos, sin criterio agronómico', () => {
+  // El análisis vive en Paneles. En el grupo va la planilla: promedios por
+  // profundidad, total de la calicata, y lo que se anotó en terreno.
+  const rep = js.slice(js.indexOf('function reportFor(item,q)'), js.indexOf('function buildItem()'));
+  assert.match(rep, /PROMEDIO POR PROFUNDIDAD/);
+  assert.match(rep, /TOTAL DE LA CALICATA/);
+  assert.match(rep, /Humedad total/);
+  assert.match(rep, /CE total/);
+  assert.match(rep, /Temperatura total/);
+  assert.match(rep, /OBSERVACIONES/);
+  for (const fuera of ['ANÁLISIS', 'QUÉ HACER', 'ZONA DE RAÍCES', 'bien provisto', 'CC ', 'PMP '])
+    assert.ok(!rep.includes(fuera), `el mensaje no debe traer "${fuera}"`);
+});
