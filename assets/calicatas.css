@@ -134,8 +134,12 @@
 .guardada-mensaje{grid-column:1 / -1;display:grid;gap:6px;border:1px solid var(--line);border-radius:12px;
   background:rgba(255,255,255,.75);padding:10px 12px}
 .guardada-kicker{font-size:.68rem;font-weight:900;letter-spacing:.09em;text-transform:uppercase;color:var(--earth)}
-.guardada-texto{margin:0;max-height:180px;overflow:auto;white-space:pre-wrap;word-break:break-word;
-  font:500 .78rem/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink)}
+/* El mensaje se muestra completo: antes quedaba recortado en una cajita de
+   180px con scroll propio y en el teléfono ni se notaba que había texto. Se
+   puede seleccionar con el dedo, además del botón de copiar. */
+.guardada-mensaje-texto{margin:0;white-space:pre-wrap;word-break:break-word;
+  font:500 .78rem/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink);
+  user-select:text;-webkit-user-select:text;-webkit-touch-callout:default}
 .guardada-acciones .primary{flex:1 1 auto;min-height:44px;max-width:none}
 /* Un botón escondido no debe seguir ocupando lugar en la fila de acciones. */
 .guardada-acciones [hidden]{display:none !important}

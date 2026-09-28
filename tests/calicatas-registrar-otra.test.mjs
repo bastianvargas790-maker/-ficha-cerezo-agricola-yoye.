@@ -13,7 +13,7 @@ test('guardar limpia el formulario', () => {
   assert.ok(js.includes('function limpiarTrasGuardar'), 'falta el flujo tras guardar');
   const f = js.slice(js.indexOf('function limpiarTrasGuardar'), js.indexOf('function limpiarTrasGuardar') + 400);
   assert.match(f, /resetForm\(\)/, 'debe vaciar el formulario');
-  assert.match(js, /limpiarTrasGuardar\(built\.value,cuartelGuardado,reporte,sincronizada\)/);
+  assert.match(js, /limpiarTrasGuardar\(built\.value,cuartelGuardado,reporte,sincronizada,editada\)/);
 });
 
 test('guardar ya no esconde el formulario detrás del resumen', () => {
