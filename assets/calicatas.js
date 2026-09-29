@@ -102,6 +102,10 @@ return true}catch(error){try{const fallback=await queryCuarteles();if(!fallback.
      usa Paneles: zona de raíces, uniformidad del bulbo, movimiento del agua y
      sales. Antes aquí había una descripción aparte y podían no coincidir. */
   function texturaDe(item){return (item.observations||[]).find(o=>o.categoria==='horizontes')?.opcion_codigo||null}
+  const UNION_BULBOS={unidos:'Unidos',parcialmente_unidos:'Parcialmente unidos',no_unidos:'No unidos',no_determinado:'No evaluado'};
+  /* Lo que se marcó en los selectores de terreno. Es dato registrado, igual
+     que las lecturas, así que va en el mensaje del grupo. */
+  function obsDe(item,categoria){return (item.observations||[]).find(o=>o.categoria===categoria)?.opcion_etiqueta||null}
   /* El cultivo del cuartel es lo que permite poner la CE en contexto: sin él
      el análisis hablaba de sales en abstracto. Viene del cuartel guardado en
      la calicata, no del formulario. */
@@ -137,8 +141,12 @@ Cultivo/variedad: ${culture}
 Horas desde último riego: ${cal.horas_desde_ultimo_riego==null?'No informadas':fmt(cal.horas_desde_ultimo_riego)}
 Duración último riego: ${cal.duracion_ultimo_riego_h==null?'No informada':fmt(cal.duracion_ultimo_riego_h)+' h'}
 Profundidad del hoyo: ${cal.profundidad_hoyo_cm==null?'No informada':fmt(cal.profundidad_hoyo_cm)+' cm'}
-Profundidad efectiva de raíces: ${cal.profundidad_efectiva_raices_cm==null?'No informada':fmt(cal.profundidad_efectiva_raices_cm)+' cm'}${agro&&agro.textura?`
-Textura: ${agro.textura.etiqueta}`:''}
+Profundidad efectiva de raíces: ${cal.profundidad_efectiva_raices_cm==null?'No informada':fmt(cal.profundidad_efectiva_raices_cm)+' cm'}${cal.ubicacion?`
+Ubicación en el cuartel: ${cal.ubicacion}`:''}${agro&&agro.textura?`
+Textura: ${agro.textura.etiqueta}`:''}${obsDe(item,'raices')?`
+Raíces: ${obsDe(item,'raices')}`:''}${obsDe(item,'estructura_compactacion')?`
+Compactación: ${obsDe(item,'estructura_compactacion')}`:''}${cal.union_bulbos?`
+Unión de bulbos: ${UNION_BULBOS[cal.union_bulbos]||cal.union_bulbos}`:''}
 
 PROMEDIO POR PROFUNDIDAD (3 puntos):
 ${lines}

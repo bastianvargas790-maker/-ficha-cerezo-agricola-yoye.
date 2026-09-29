@@ -77,6 +77,11 @@ test('el mensaje del grupo son los datos, sin criterio agronómico', () => {
   assert.match(rep, /CE total/);
   assert.match(rep, /Temperatura total/);
   assert.match(rep, /OBSERVACIONES/);
+  // El detalle que se marcó en terreno también es dato registrado.
+  assert.match(rep, /Raíces: \$\{obsDe\(item,'raices'\)\}/);
+  assert.match(rep, /Compactación: \$\{obsDe\(item,'estructura_compactacion'\)\}/);
+  assert.match(rep, /Unión de bulbos: \$\{UNION_BULBOS\[cal\.union_bulbos\]/);
+  assert.match(rep, /Ubicación en el cuartel: \$\{cal\.ubicacion\}/);
   for (const fuera of ['ANÁLISIS', 'QUÉ HACER', 'ZONA DE RAÍCES', 'bien provisto', 'CC ', 'PMP '])
     assert.ok(!rep.includes(fuera), `el mensaje no debe traer "${fuera}"`);
 });
