@@ -258,3 +258,16 @@ html.yoye-campo-reducido a[href$="#riego"]{display:none!important}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .yoye-campo-marca{flex:none;font-size:1.1rem;font-weight:800;color:var(--muted)}
 .yoye-campo-fila.is-active .yoye-campo-marca{color:var(--sage-600,#3f7a4f)}
+
+/* Últimos aforos: corregir o descartar sin salir del formulario, igual que
+   "Últimas calicatas". Los que quedaron a medias se marcan con lo que falta. */
+.yoye-af-reciente{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;
+  border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;
+  background:var(--paper,#fffdf8)}
+.yoye-af-reciente-datos{display:grid;gap:2px;min-width:0;flex:1 1 180px}
+.yoye-af-reciente-datos strong{font:800 1rem Georgia,serif;color:var(--ink)}
+.yoye-af-reciente-datos span{font-size:.8rem;color:var(--muted)}
+.yoye-af-reciente-datos small{font-size:.74rem;color:var(--text-secondary)}
+.yoye-af-incompleto{font-weight:800;color:#8a6420}
+.yoye-af-reciente-acciones{display:flex;gap:8px;flex:1 1 auto;justify-content:flex-end}
+.yoye-af-reciente-acciones button{min-height:44px;padding:9px 14px;flex:1 1 auto;max-width:170px}

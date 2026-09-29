@@ -17,7 +17,7 @@ const extraer = nombre => {
   throw new Error('llave sin cerrar en ' + nombre);
 };
 
-const cuerpo = ['campoSector', 'sectoresDelCuartel', 'sectorElegido', 'validarPaso']
+const cuerpo = ['campoSector', 'sectoresDelCuartel', 'sectorElegido', 'validar']
   .map(extraer).join('\n');
 const fabricar = new Function(`
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -25,10 +25,10 @@ const fabricar = new Function(`
   let state=null, sectoresActuales=[];
   ${cuerpo}
   return (s,sec)=>{state=s;sectoresActuales=sec;
-    return {html:campoSector(),elegido:sectorElegido(),error:validarPaso()}};
+    return {html:campoSector(),elegido:sectorElegido(),error:validar()}};
 `)();
 
-const base = { step: 0, fecha_evaluacion: '2026-09-04', temporada: 2026, sector: '' };
+const base = { fecha_evaluacion: '2026-09-04', temporada: 2026, sector: '' };
 const sect = (cuartel_id, codigo, nombre) => ({ id: 'id-' + codigo, cuartel_id, codigo, nombre: nombre || 'Sector ' + codigo });
 
 test('cuartel con un solo sector: no pregunta y lo resuelve solo', () => {

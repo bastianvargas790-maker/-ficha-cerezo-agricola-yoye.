@@ -154,7 +154,7 @@ function root(){return RAIZ}
 let state=null;
 function estadoInicial(campo){
   return {
-    step:0,
+    id:null,editando:null,
     cuartel_id:'',sector:'',equipo_riego:'',caseta:'',
     temporada:new Date().getFullYear(),fecha_evaluacion:localDate(),
     evaluador_nombre:profile?.nombre_completo||campo.encargado_nombre||session?.user?.email||'',
@@ -230,9 +230,10 @@ function pasoIdentificacion(campo,cuarteles){
 /* Presiones: una fila por válvula, entrada y salida, igual que la planilla.
    Antes era un solo par de números; en terreno se miden hasta cinco válvulas y
    el promedio se calcula sobre las que efectivamente se midieron. */
-function presionesPromedio(){
-  const ent=state.presiones.map(p=>Number(p.entrada)).filter(v=>Number.isFinite(v)&&v>0);
-  const sal=state.presiones.map(p=>Number(p.salida)).filter(v=>Number.isFinite(v)&&v>0);
+function presionesPromedio(lista){
+  const src=lista||state.presiones;
+  const ent=src.map(p=>Number(p.entrada)).filter(v=>Number.isFinite(v)&&v>0);
+  const sal=src.map(p=>Number(p.salida)).filter(v=>Number.isFinite(v)&&v>0);
   const entrada=ent.length?avg(ent):null, salida=sal.length?avg(sal):null;
   const perdida=(entrada!==null&&salida!==null)?entrada-salida:null;
   const pct=(perdida!==null&&entrada>0)?perdida/entrada*100:null;
@@ -253,7 +254,7 @@ function pasoPresiones(){
   return `
     <div class="yoye-af-card">
       <div class="yoye-af-head">
-        <div><span class="yoye-af-paso">Paso 2 · Presión</span>
+        <div><span class="yoye-af-paso">Presiones</span>
         <h3>Registro de presiones <small>(bar)</small></h3></div>
         <span class="yoye-af-formula">entrada − salida = pérdida</span>
       </div>
@@ -269,7 +270,7 @@ function pasoPresiones(){
         <div><span>Pérdida</span><b>${fmt(r.perdida)}</b></div>
       </div>
       <p class="yoye-af-estado">${esc(estado)}</p>
-      <p class="yoye-af-nota">Completa al menos una válvula. El promedio usa solo las válvulas medidas.</p>
+      <p class="yoye-af-nota">Anota las válvulas que alcanzaste a medir; el promedio usa solo esas. Si hoy solo tomaste presiones, guarda igual y completa el resto después con Editar.</p>
     </div>`;
 }
 
@@ -305,81 +306,111 @@ function pasoEmisores(){
   return `
     <div class="yoye-af-card">
       <div class="yoye-af-head">
-        <div><span class="yoye-af-paso">Paso 3 · Emisores</span>
+        <div><span class="yoye-af-paso">Emisores</span>
         <h3>Aforo de emisores</h3></div>
         <span class="yoye-af-formula">cc ÷ segundos × 3,6</span>
       </div>
-      <p class="yoye-af-nota">Ingresa cada posición por línea, de izquierda a derecha. El tiempo viene con 36 segundos, cámbialo si mediste distinto.</p>
+      <p class="yoye-af-nota">Ingresa cada posición por línea, de izquierda a derecha. El tiempo viene con 36 segundos, cámbialo si mediste distinto. Lo que quede en blanco no se guarda: el aforo queda marcado como incompleto y se termina después.</p>
       ${POSICIONES.map(bloqueEmisores).join('')}
       <p class="yoye-af-estado">${faltan?`Faltan ${faltan} de 16 volúmenes`:'Las 16 posiciones están completas'}</p>
     </div>`;
 }
 function pasoResultado(){
-  const r=calcularResultado(state.emisores);
+  const completos=emisoresCompletos(state.emisores);
+  const hayTodos=completos.length===16;
+  const r=hayTodos?calcularResultado(state.emisores):null;
+  const kpi=(t,v,cls='')=>`<div class="yoye-resultado-kpi ${cls}"><span>${t}</span><strong>${v}</strong></div>`;
+  const grilla=r
+    ? `<div class="yoye-resultado-grid">
+        ${kpi('Caudal promedio',r.promedio.toFixed(1))}
+        ${kpi('Caudal 25% más bajo',r.caudal25.toFixed(1))}
+        ${kpi('Coeficiente de uniformidad',r.cu.toFixed(1)+'%','clasificacion-'+r.clasificacion.toLowerCase())}
+        ${kpi('Clasificación',esc(r.clasificacion),'clasificacion-'+r.clasificacion.toLowerCase())}
+      </div>`
+    : `<p class="yoye-af-nota">El caudal y la uniformidad se calculan cuando estén las 16 mediciones: con menos describirían un pedazo del sector y se leerían como si fueran de todo. Van ${completos.length} de 16.</p>`;
+  const falta=faltantes();
   return `
-    <div class="yoye-resultado-grid">
-      <div class="yoye-resultado-kpi"><span>Caudal promedio</span><strong>${r.promedio.toFixed(1)}</strong></div>
-      <div class="yoye-resultado-kpi"><span>Caudal 25% más bajo</span><strong>${r.caudal25.toFixed(1)}</strong></div>
-      <div class="yoye-resultado-kpi clasificacion-${r.clasificacion.toLowerCase()}"><span>Coeficiente de uniformidad</span><strong>${r.cu.toFixed(1)}%</strong></div>
-      <div class="yoye-resultado-kpi clasificacion-${r.clasificacion.toLowerCase()}"><span>Clasificación</span><strong>${esc(r.clasificacion)}</strong></div>
-    </div>
-    <div class="yoye-form-card" style="margin-top:12px">
+    <div class="yoye-af-card">
+      <div class="yoye-af-head"><div><span class="yoye-af-paso">Resultado</span>
+        <h3>Resumen del aforo</h3></div>
+        <span class="yoye-af-formula">cc ÷ segundos × 3,6</span></div>
+      ${grilla}
+      ${falta.length?`<p class="yoye-af-estado">Queda por tomar: ${esc(falta.join(' · '))}. Se puede guardar igual.</p>`:'<p class="yoye-af-estado">Aforo completo.</p>'}
       <div class="yoye-field"><label>Hallazgos / observaciones</label><div class="yoye-input"><textarea data-f="observaciones" placeholder="Fugas, baja presión, filtro sucio…">${esc(state.observaciones)}</textarea></div></div>
     </div>`;
 }
 
-const PASOS=['Identificación','Presiones','Emisores','Resultado'];
-function progresoHtml(){
-  return `<div class="yoye-wizard-progress">${PASOS.map((_,i)=>`<span class="yoye-wizard-seg ${i<=state.step?'is-done':''}"></span>`).join('')}</div>
-  <div class="yoye-wizard-status"><span>Paso ${state.step+1} de 4 · <b>${PASOS[state.step]}</b></span></div>`;
-}
-
 let cuartelesActuales=[],sectoresActuales=[];
+/* Una sola página, como el formulario de calicatas: todo a la vista y se
+   rellena en el orden que cada uno pueda. El asistente por pasos obligaba a
+   completar presiones para llegar a emisores, y en terreno eso no se cumple:
+   las presiones de las válvulas se van tomando mientras se avanza. */
 function renderCuerpo(host,campo){
   const body=$('#yoyeAforoBody',host);
   if(!body)return;
-  body.innerHTML=[pasoIdentificacion(campo,cuartelesActuales),pasoPresiones(),pasoEmisores(),pasoResultado()][state.step];
-  // El sector depende del cuartel elegido, así que el paso 1 se vuelve a dibujar
-  // al cambiarlo. Se limpia el sector anterior: pertenecía al cuartel previo.
-  if(state.step===0)$('[data-f="cuartel_id"]',body)?.addEventListener('change',e=>{
+  body.innerHTML=pasoIdentificacion(campo,cuartelesActuales)+pasoPresiones()+pasoEmisores()+pasoResultado();
+  // El sector depende del cuartel elegido, así que se vuelve a dibujar al
+  // cambiarlo. Se limpia el sector anterior: pertenecía al cuartel previo.
+  $('[data-f="cuartel_id"]',body)?.addEventListener('change',e=>{
     readStepInputs(host);
     state.cuartel_id=e.target.value;
     state.sector='';
     renderCuerpo(host,campo);
   });
-  $('#yoyeAforoProgress',host).innerHTML=progresoHtml();
-  const btnBack=$('#yoyeAforoBack',host),btnNext=$('#yoyeAforoNext',host);
-  btnBack.disabled=state.step===0;
-  btnNext.textContent=state.step===3?'Guardar aforo':'Continuar';
+  // El resumen se recalcula al escribir, sin redibujar todo el formulario.
+  body.addEventListener('input',()=>{
+    readStepInputs(host);
+    clearTimeout(renderCuerpo._t);
+    renderCuerpo._t=setTimeout(()=>{
+      const tarjetas=$$('.yoye-af-card',body);
+      const ultima=tarjetas[tarjetas.length-1];
+      if(ultima&&document.activeElement?.closest('.yoye-af-card')!==ultima){
+        ultima.outerHTML=pasoResultado();
+      }
+    },400);
+  });
+  const btn=$('#yoyeAforoNext',host);
+  if(btn)btn.textContent=state.editando?'Guardar cambios':'Guardar aforo';
 }
 
-function validarPaso(){
-  if(state.step===0){
-    if(!state.cuartel_id)return 'Selecciona un cuartel.';
-    if(sectoresDelCuartel().length>1&&!state.sector)return 'Este cuartel tiene más de un sector de aforo: indica cuál se aforó.';
-    if(!state.fecha_evaluacion)return 'Indica la fecha de evaluación.';
-    if(!isNum(state.temporada))return 'Indica la temporada.';
-  }
-  if(state.step===1){
-    const r=presionesPromedio();
-    if(r.entrada===null)return 'Ingresa la presión de entrada de al menos una válvula.';
-    if(r.salida===null)return 'Ingresa la presión de salida de al menos una válvula.';
-  }
-  if(state.step===2){
-    const incompleto=state.emisores.some(e=>!isNum(e.volumen_cc)||!isNum(e.tiempo_segundos)||Number(e.tiempo_segundos)<=0);
-    if(incompleto)return 'Completa volumen y tiempo en las 16 posiciones (tiempo mayor a 0).';
-  }
+/* Lo único que se exige es lo que la base no admite vacío: cuartel, fecha y
+   temporada, más el sector cuando el cuartel tiene varios. Presiones y
+   emisores quedan libres: en terreno el aforo se va llenando por partes -- a
+   veces se pasa a tomar solo las presiones y las mediciones vienen después --
+   y un formulario que no deja guardar a medias obliga a anotar en papel. */
+function validar(){
+  if(!state.cuartel_id)return 'Selecciona un cuartel.';
+  if(sectoresDelCuartel().length>1&&!state.sector)return 'Este cuartel tiene más de un sector de aforo: indica cuál se aforó.';
+  if(!state.fecha_evaluacion)return 'Indica la fecha de evaluación.';
+  if(!isNum(state.temporada))return 'Indica la temporada.';
   return null;
+}
+/* Qué le falta a este aforo para estar completo. Se usa para marcarlo en la
+   lista y para avisarlo al guardar, sin impedir que se guarde. */
+function emisoresCompletos(emisores){
+  return (emisores||[]).filter(e=>isNum(e.volumen_cc)&&isNum(e.tiempo_segundos)&&Number(e.tiempo_segundos)>0);
+}
+function faltantes(st){
+  const e=st||state,out=[];
+  const p=presionesPromedio(e.presiones);
+  if(p.entrada===null)out.push('presión de entrada');
+  if(p.salida===null)out.push('presión de salida');
+  const n=emisoresCompletos(e.emisores).length;
+  if(n<16)out.push(`${16-n} de 16 mediciones de emisor`);
+  return out;
 }
 
 async function guardarAforo(host){
-  const r=calcularResultado(state.emisores);
+  const completos=emisoresCompletos(state.emisores);
+  const hayTodos=completos.length===16;
+  /* Caudal y uniformidad solo cuando están las 16: con menos, el promedio y el
+     CU describirían un pedazo del sector y se leerían como si fueran del
+     sector entero. Se dejan vacíos hasta que el aforo esté completo. */
+  const r=hayTodos?calcularResultado(state.emisores):null;
   const p=presionesPromedio();
-  const entrada=p.entrada??0, salida=p.salida??0;
-  const perdida=p.perdida??0, pct=p.pct??0;
   const entradas=state.presiones.map(x=>Number(x.entrada)).filter(v=>Number.isFinite(v)&&v>0);
   const salidas=state.presiones.map(x=>Number(x.salida)).filter(v=>Number.isFinite(v)&&v>0);
-  const id=uuid();
+  const id=state.id||uuid();
   const org=profile?.organizacion_id;
   const aforo={
     id,organizacion_id:org,cuartel_id:state.cuartel_id,
@@ -387,21 +418,34 @@ async function guardarAforo(host){
     sector_aforo_id:sectorElegido()?.id||null,
     equipo_riego:state.equipo_riego||null,caseta:state.caseta||null,
     temporada:Number(state.temporada),fecha_evaluacion:state.fecha_evaluacion,
-    evaluador_id:session.user.id,evaluador_nombre:state.evaluador_nombre||session.user.email,
-    cantidad_valvulas:Number(state.cantidad_valvulas||0)||Math.max(entradas.length,salidas.length),tipo_linea:state.tipo_linea||null,
-    presion_entrada_prom:entrada,presion_salida_prom:salida,perdida_carga:perdida,
-    estado_presion:pct<=20?'Aceptable':'Revisar',
+    evaluador_id:state.editando?.evaluador_id||session.user.id,
+    evaluador_nombre:state.evaluador_nombre||session.user.email,
+    cantidad_valvulas:Number(state.cantidad_valvulas||0)||Math.max(entradas.length,salidas.length),
+    tipo_linea:state.tipo_linea||null,
+    presion_entrada_prom:p.entrada,presion_salida_prom:p.salida,perdida_carga:p.perdida,
+    estado_presion:p.pct===null?null:(p.pct<=20?'Aceptable':'Revisar'),
     presiones_entrada:entradas,presiones_salida:salidas,
-    caudal_promedio:r.promedio,caudal_25:r.caudal25,coeficiente_uniformidad:r.cu,clasificacion:r.clasificacion,
+    caudal_promedio:r?r.promedio:null,caudal_25:r?r.caudal25:null,
+    coeficiente_uniformidad:r?r.cu:null,clasificacion:r?r.clasificacion:null,
     observaciones_rapidas:[],observaciones:state.observaciones||null,
-    latitud:null,longitud:null,fotografia_url:null,
-    created_by:session.user.id,updated_by:session.user.id
+    latitud:null,longitud:null,fotografia_url:null,activo:true,
+    created_by:state.editando?.created_by||session.user.id,updated_by:session.user.id
   };
-  const mediciones=state.emisores.map(e=>({
-    id:uuid(),organizacion_id:org,aforo_id:id,posicion:e.posicion,linea:e.linea,indice:e.indice,
-    volumen_cc:Number(e.volumen_cc),tiempo_segundos:Number(e.tiempo_segundos),caudal_l_h:caudalLh(e.volumen_cc,e.tiempo_segundos)
-  }));
-  const item={id,status:'pending',attempts:0,nextAttemptAt:0,createdAt:new Date().toISOString(),aforo,mediciones};
+  /* Solo viajan las posiciones medidas: la tabla de mediciones no admite
+     volumen ni tiempo vacíos, así que una fila a medias no se guarda. */
+  const previas=state.editando?.mediciones||[];
+  const mediciones=completos.map(e=>{
+    const vieja=previas.find(m=>Number(m.indice)===Number(e.indice));
+    return {id:vieja?.id||uuid(),organizacion_id:org,aforo_id:id,
+      posicion:e.posicion,linea:e.linea,indice:e.indice,
+      volumen_cc:Number(e.volumen_cc),tiempo_segundos:Number(e.tiempo_segundos),
+      caudal_l_h:caudalLh(e.volumen_cc,e.tiempo_segundos)};
+  });
+  const vivas=new Set(mediciones.map(m=>m.id));
+  const medicionesBorradas=previas.filter(m=>m.id&&!vivas.has(m.id)).map(m=>m.id);
+  const item={id,status:'pending',attempts:0,nextAttemptAt:0,
+    createdAt:state.editando?.createdAt||new Date().toISOString(),
+    aforo,mediciones,medicionesBorradas};
   await localPut(item);
   actualizarEstadoGuardado(host,'Guardado en el dispositivo. Sincronizando…');
   if(navigator.onLine)syncQueue(host);
@@ -412,8 +456,14 @@ async function syncItem(item){
   if(!db||!session)throw new Error('Sesión no disponible');
   let r=await db.from('aforos').upsert(item.aforo,{onConflict:'id'});
   if(r.error)throw r.error;
-  r=await db.from('mediciones_aforo').upsert(item.mediciones,{onConflict:'id'});
-  if(r.error)throw r.error;
+  if(item.mediciones.length){
+    r=await db.from('mediciones_aforo').upsert(item.mediciones,{onConflict:'id'});
+    if(r.error)throw r.error;
+  }
+  if(item.medicionesBorradas?.length){
+    r=await db.from('mediciones_aforo').delete().in('id',item.medicionesBorradas).eq('aforo_id',item.aforo.id);
+    if(r.error)throw r.error;
+  }
   try{
     await db.functions.invoke('sync-aforo-rinconada',{body:{aforo_id:item.aforo.id}});
   }catch(sheetsError){
@@ -450,6 +500,105 @@ function actualizarEstadoGuardado(host,texto,error=false){
 
 function cerrarModal(){$('#yoyeAforoModal')?.remove()}
 
+/* Últimos aforos del campo, para corregir o descartar sin salir de la página,
+   igual que "Últimas calicatas". Los que están a medias se marcan con lo que
+   les falta. */
+let recientes=[];
+async function cargarRecientes(host,campo){
+  const cont=$('#yoyeAforoRecientes',host);
+  if(!cont)return;
+  const ids=new Set(cuartelesActuales.map(c=>c.id));
+  let remotos=[];
+  if(db&&session&&navigator.onLine&&ids.size){
+    try{
+      const {data,error}=await db.from('aforos')
+        .select('*').in('cuartel_id',[...ids]).eq('activo',true)
+        .order('created_at',{ascending:false}).limit(10);
+      if(error)throw error;
+      const lista=data||[];
+      let med=[];
+      if(lista.length){
+        const rm=await db.from('mediciones_aforo').select('*').in('aforo_id',lista.map(a=>a.id));
+        if(!rm.error)med=rm.data||[];
+      }
+      remotos=lista.map(a=>({...a,mediciones:med.filter(m=>m.aforo_id===a.id)}));
+    }catch(e){console.warn('No se pudieron cargar los últimos aforos',e)}
+  }
+  let locales=[];
+  try{locales=(await localAll()).filter(i=>i.status!=='synced'&&i.aforo)
+    .map(i=>({...i.aforo,mediciones:i.mediciones||[],localItem:i}))}catch{}
+  const vistos=new Set(locales.map(x=>x.id));
+  recientes=[...locales,...remotos.filter(x=>!vistos.has(x.id))].slice(0,10);
+  renderRecientes(host,campo);
+}
+function estadoDeAforo(a){
+  const presiones=aPresiones(a);
+  const emisores=aEmisores(a.mediciones);
+  return faltantes({presiones,emisores});
+}
+function renderRecientes(host,campo){
+  const cont=$('#yoyeAforoRecientes',host);
+  if(!cont)return;
+  if(!recientes.length){cont.innerHTML='<p class="yoye-af-nota">Todavía no hay aforos registrados en este campo.</p>';return}
+  const nombre=id=>cuartelesActuales.find(c=>c.id===id)?.codigo||'—';
+  cont.innerHTML=recientes.map(a=>{
+    const falta=estadoDeAforo(a);
+    return `<div class="yoye-af-reciente">
+      <div class="yoye-af-reciente-datos">
+        <strong>${esc(nombre(a.cuartel_id))}${a.sector?' · '+esc(a.sector):''}</strong>
+        <span>${esc(a.fecha_evaluacion||'')}${a.coeficiente_uniformidad!=null?` · CU ${fmt(a.coeficiente_uniformidad,1)}%`:''}</span>
+        ${falta.length?`<small class="yoye-af-incompleto">Incompleto: falta ${esc(falta.join(' · '))}</small>`:'<small>Completo</small>'}
+        ${a.localItem?'<small class="yoye-af-incompleto">Pendiente de subir</small>':''}
+      </div>
+      <div class="yoye-af-reciente-acciones">
+        <button type="button" class="btn-secondary" data-editar="${esc(a.id)}">Editar</button>
+        <button type="button" class="btn-secondary" data-descartar="${esc(a.id)}">Descartar</button>
+      </div>
+    </div>`;
+  }).join('');
+  $$('[data-editar]',cont).forEach(b=>b.onclick=()=>editarAforo(host,campo,b.dataset.editar));
+  $$('[data-descartar]',cont).forEach(b=>b.onclick=()=>descartarAforo(host,campo,b.dataset.descartar));
+}
+/* De lo guardado de vuelta al formulario. */
+function aPresiones(a){
+  const ent=a.presiones_entrada||[],sal=a.presiones_salida||[];
+  const n=Math.max(5,ent.length,sal.length);
+  return Array.from({length:n},(_,i)=>({entrada:ent[i]??'',salida:sal[i]??''}));
+}
+function aEmisores(mediciones){
+  const base=emisoresVacios();
+  (mediciones||[]).forEach(m=>{
+    const i=indiceEmisor(m.posicion,m.linea);
+    if(base[i]){base[i].volumen_cc=String(m.volumen_cc??'');base[i].tiempo_segundos=String(m.tiempo_segundos??'')}
+  });
+  return base;
+}
+function editarAforo(host,campo,id){
+  const a=recientes.find(x=>x.id===id);
+  if(!a)return;
+  state={...estadoInicial(campo),
+    id:a.id,editando:{...a,createdAt:a.localItem?.createdAt},
+    cuartel_id:a.cuartel_id,sector:a.sector||'',equipo_riego:a.equipo_riego||'',caseta:a.caseta||'',
+    temporada:a.temporada,fecha_evaluacion:a.fecha_evaluacion,
+    evaluador_nombre:a.evaluador_nombre||'',cantidad_valvulas:a.cantidad_valvulas||0,
+    tipo_linea:a.tipo_linea||'',presiones:aPresiones(a),emisores:aEmisores(a.mediciones),
+    observaciones:a.observaciones||''};
+  renderCuerpo(host,campo);
+  $('#yoyeAforoBody',host)?.scrollIntoView({behavior:'smooth',block:'start'});
+  actualizarEstadoGuardado(host,`Editando el aforo del ${a.fecha_evaluacion}`);
+  $('#yoyeAforoEstado',host).hidden=false;
+}
+async function descartarAforo(host,campo,id){
+  const a=recientes.find(x=>x.id===id);
+  if(!a)return;
+  if(!confirm(`¿Descartar el aforo del ${a.fecha_evaluacion}?\n\nSe oculta de la lista y de los paneles; queda recuperable desde la base.`))return;
+  if(a.localItem){await localPut({...a.localItem,deleted:true,status:'synced'});return cargarRecientes(host,campo)}
+  if(!db||!session||!navigator.onLine)return alert('Conéctate a internet para descartar un aforo ya sincronizado.');
+  const {error}=await db.from('aforos').update({activo:false,updated_by:session.user.id}).eq('id',id);
+  if(error)return alert('No fue posible descartarlo: '+error.message);
+  await cargarRecientes(host,campo);
+}
+
 async function abrir(){
   if(!window.yoyeActiveCampo)return;
   if(!session){alert('Inicia sesión en Agrícola Yoye para registrar un aforo. Abre esta opción desde una ficha de cultivo o desde Cuarteles.');return}
@@ -459,39 +608,43 @@ async function abrir(){
   modal.id='yoyeAforoModal';
   modal.className='yoye-shell yoye-modal-backdrop';
   modal.innerHTML=`<div class="yoye-modal">
-    <div class="yoye-modal-head"><h3>Nuevo aforo · ${esc(campo.nombre)}</h3><button type="button" class="yoye-modal-close" aria-label="Cerrar">✕</button></div>
-    <div id="yoyeAforoProgress"></div>
+    <div class="yoye-modal-head"><h3>Aforo · ${esc(campo.nombre)}</h3><button type="button" class="yoye-modal-close" aria-label="Cerrar">✕</button></div>
     <div id="yoyeAforoBody"></div>
     <p class="yoye-hint"><span id="yoyeAforoEstado" class="yoye-pending-badge" hidden></span></p>
     <div class="yoye-modal-actions">
-      <button type="button" class="btn-secondary" id="yoyeAforoBack">Atrás</button>
-      <button type="button" class="btn-primary" id="yoyeAforoNext">Continuar</button>
+      <button type="button" class="btn-primary" id="yoyeAforoNext">Guardar aforo</button>
+    </div>
+    <div class="yoye-af-card">
+      <div class="yoye-af-head"><div><span class="yoye-af-paso">Registrados</span><h3>Últimos aforos</h3></div></div>
+      <div id="yoyeAforoRecientes"></div>
     </div>
   </div>`;
   document.body.append(modal);
   modal.addEventListener('click',e=>{if(e.target===modal||e.target.closest('.yoye-modal-close'))cerrarModal()});
-  $('#yoyeAforoBack',modal).onclick=()=>{readStepInputs(modal);if(state.step>0){state.step--;renderCuerpo(modal,campo)}};
   $('#yoyeAforoNext',modal).onclick=async()=>{
     readStepInputs(modal);
-    const err=validarPaso();
+    const err=validar();
     if(err)return alert(err);
-    if(state.step<3){state.step++;renderCuerpo(modal,campo);return}
     const btn=$('#yoyeAforoNext',modal);
     btn.disabled=true;
     $('#yoyeAforoEstado',modal).hidden=false;
     try{
+      const editaba=!!state.editando;
       await guardarAforo(modal);
-      $('#yoyeAforoBody',modal).innerHTML='<div class="yoye-form-card"><p>Aforo guardado. Puedes cerrar esta ventana; seguirá sincronizando en segundo plano si estás sin conexión.</p></div>';
-      $('#yoyeAforoProgress',modal).innerHTML='';
-      btn.textContent='Listo';btn.onclick=cerrarModal;btn.disabled=false;
-      $('#yoyeAforoBack',modal).hidden=true;
+      const falta=faltantes();
+      actualizarEstadoGuardado(modal,
+        (editaba?'Cambios guardados':'Aforo guardado')+
+        (falta.length?`. Queda incompleto: falta ${falta.join(' · ')}.`:'. Aforo completo.'));
+      state=estadoInicial(campo);
+      renderCuerpo(modal,campo);
+      await cargarRecientes(modal,campo);
     }catch(e){
       alert('No se pudo guardar: '+(e.message||'intenta nuevamente'));
-      btn.disabled=false;
-    }
+    }finally{btn.disabled=false}
   };
   [cuartelesActuales,sectoresActuales]=await Promise.all([cuartelesDeCampo(campo),sectoresDeCampo(campo)]);
   renderCuerpo(modal,campo);
+  cargarRecientes(modal,campo);
 }
 
 window.yoyeAbrirAforo=abrir;
