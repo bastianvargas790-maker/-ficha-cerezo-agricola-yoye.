@@ -78,7 +78,15 @@ async function cacheQuarters(list,orgId){const scope=alcanceKey(orgId);await Pro
   async function saveDraft(){if(!session)return;try{await localPut(STORES.drafts,{id:draftKey(),userId:session.user.id,updatedAt:new Date().toISOString(),value:snapshot()})}catch(e){console.warn('Borrador local no disponible',e)}}
   function scheduleDraft(){clearTimeout(draftTimer);draftTimer=setTimeout(saveDraft,350)}
   async function restoreDraft(){if(!session)return;try{const d=await localGet(STORES.drafts,draftKey()),v=d?.value;if(!v)return;const map={cuartelId:'cuartel_id',fecha:'fecha',hora:'hora',horasRiego:'horasRiego',duracionRiego:'duracionRiego',profHoyo:'profHoyo',profRaices:'profRaices',unionBulbos:'unionBulbos',ubicacion:'ubicacion',raices:'raices',compactacion:'compactacion',observaciones:'observaciones'};Object.entries(map).forEach(([id,key])=>{if($('#'+id)&&v[key]!=null)$('#'+id).value=v[key]});seedDepths(v.readings||[]);msg('Borrador local recuperado. Continúa donde quedaste.')}catch(e){console.warn('No se pudo recuperar el borrador local',e)}}
-  function resetForm(){const f=$('#calicataForm');f.reset();$('#fecha').value=localDate();$('#hora').value=localTime();seedDepths();$('#formState').textContent='Sin guardar';$('#saveCalicata').textContent='Guardar calicata';$('#reportCard')&&($('#reportCard').hidden=true);$('#registerView').hidden=false;currentReport=null;editingRecord=null}
+  /* Al guardar se limpia todo menos el cuartel: en terreno se hacen varias
+     calicatas seguidas en el mismo, y volver a elegirlo cada vez es tiempo
+     perdido. Es seguro porque las lecturas sí se borran: sin lecturas nuevas
+     el formulario no deja guardar, así que no se puede repetir la calicata
+     anterior sin darse cuenta -- que es lo que pasó el 07/09 con CI12-9. */
+  function resetForm(mantenerCuartel){const f=$('#calicataForm'),cuartel=$('#cuartelId').value;
+    f.reset();
+    if(mantenerCuartel&&cuartel)$('#cuartelId').value=cuartel;
+    $('#fecha').value=localDate();$('#hora').value=localTime();seedDepths();$('#formState').textContent='Sin guardar';$('#saveCalicata').textContent='Guardar calicata';$('#reportCard')&&($('#reportCard').hidden=true);$('#registerView').hidden=false;currentReport=null;editingRecord=null}
   function delCampo(lista){const c=campoActivoId();return c?(lista||[]).filter(q=>!q.campo_id||q.campo_id===c):(lista||[])}
   function fillQuarters(){quarters=delCampo(quarters);const rows=quarters.map(q=>`<option value="${esc(q.id)}">${esc(q.codigo||q.cuartel)} · ${esc(q.cultivo||'')} ${q.variedad?'· '+esc(q.variedad):''}</option>`).join('');$('#cuartelId').innerHTML='<option value="">Seleccionar cuartel…</option>'+rows;$('#historyQuarter').innerHTML='<option value="">Selecciona un cuartel</option>'+rows}
   async function loadProfile(){if(!db||!session)return false;try{const {data:p,error}=await db.from('perfiles').select('organizacion_id,nombre_completo,rol,estado').eq('id',session.user.id).maybeSingle();if(error)throw error;if(!p)throw new Error('Perfil no encontrado');profile=p;showProfile();await cacheProfile(p);const {data:q,error:qe}=await queryCuarteles(p.organizacion_id);if(qe)throw qe;quarters=Array.isArray(q)?q:[];await cacheQuarters(quarters,p.organizacion_id);fillQuarters();$('#retryProfile').hidden=true;
@@ -198,8 +206,8 @@ ${cal.observaciones_generales||'Sin observaciones.'}`;
          sincronizada:'Los cambios quedaron en la base. Abajo está el mensaje corregido para reenviarlo al grupo.',
          pendiente:'Los cambios quedaron en el teléfono y se enviarán solos al recuperar señal. Abajo está el mensaje corregido para reenviarlo al grupo.'}
       :{guardando:'Guardada en el teléfono. Subiéndola a la base…',
-         sincronizada:'Sincronizada con la base. El formulario quedó listo para la siguiente.',
-         pendiente:'Quedó guardada en el teléfono y se enviará sola al recuperar señal. El formulario quedó listo para la siguiente.'};
+         sincronizada:'Sincronizada con la base. El formulario quedó listo para la siguiente, con el mismo cuartel puesto.',
+         pendiente:'Quedó guardada en el teléfono y se enviará sola al recuperar señal. El formulario quedó listo para la siguiente, con el mismo cuartel puesto.'};
     b.querySelector('.guardada-detalle').textContent=detalle[estado]||detalle.pendiente;
     const av=reporte?.averages,tot=b.querySelector('.guardada-totales');
     if(tot){tot.innerHTML=av?`<span>Humedad total<strong>${fmtPct(av.total)}</strong></span><span>CE total<strong>${av.ce==null?'—':fmt(av.ce)+' mS/cm'}</strong></span><span>Temp. total<strong>${av.temp==null?'—':fmt(av.temp)+' °C'}</strong></span>`:'';tot.hidden=!av}
@@ -212,7 +220,7 @@ ${cal.observaciones_generales||'Sin observaciones.'}`;
     b.hidden=false;
   }
   function limpiarTrasGuardar(item,q,reporte,estado,editada){
-    resetForm();
+    resetForm(true);
     currentReport=reporte;ultimoGuardado={item,q};
     pintarGuardada({q,reporte,estado,editada});
     $('#calGuardada')?.scrollIntoView({behavior:'smooth',block:'start'});

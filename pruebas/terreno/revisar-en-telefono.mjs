@@ -104,6 +104,17 @@ revisar(!a.botones.some(b => /compartir/i.test(b)), `no hay botón de compartir 
 revisar(a.botones.some(b => /copiar/i.test(b)), 'está el botón de copiar');
 revisar(a.anchoDeMas <= 2, `la pantalla no se sale a lo ancho (${a.anchoDeMas}px de más)`);
 
+// El cuartel se mantiene puesto: en terreno se hacen varias seguidas en el mismo.
+const tras = await p.evaluate(() => ({
+  cuartel: document.querySelector('#cuartelId').value,
+  lecturas: [...document.querySelectorAll('.depth-block input')].filter(i => i.value !== '').length,
+  bulbos: document.querySelector('#unionBulbos').value,
+  observaciones: document.querySelector('#observaciones').value
+}));
+revisar(!!tras.cuartel, 'el cuartel queda puesto para la siguiente calicata');
+revisar(tras.lecturas === 0, `las lecturas se borran (quedaron ${tras.lecturas})`);
+revisar(!tras.bulbos && !tras.observaciones, 'unión de bulbos y observaciones se borran');
+
 console.log('\n— Corregir una calicata ya guardada —');
 await p.evaluate(() => document.querySelector('#calCerrarGuardada')?.click());
 const editable = await p.evaluate(() => { const b = document.querySelector('[data-edit-calicata]'); if (b) { b.click(); return true } return false });

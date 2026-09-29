@@ -12,7 +12,7 @@ const html = readFileSync(new URL('../calicatas/registro-v16.html', import.meta.
 test('guardar limpia el formulario', () => {
   assert.ok(js.includes('function limpiarTrasGuardar'), 'falta el flujo tras guardar');
   const f = js.slice(js.indexOf('function limpiarTrasGuardar'), js.indexOf('function limpiarTrasGuardar') + 400);
-  assert.match(f, /resetForm\(\)/, 'debe vaciar el formulario');
+  assert.match(f, /resetForm\(true\)/, 'debe vaciar el formulario, manteniendo el cuartel');
   assert.match(js, /limpiarTrasGuardar\(built\.value,cuartelGuardado,reporte,navigator\.onLine\?'guardando':'pendiente',editada\)/);
 });
 

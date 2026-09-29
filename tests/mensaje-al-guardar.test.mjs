@@ -85,3 +85,13 @@ test('el mensaje del grupo son los datos, sin criterio agronómico', () => {
   for (const fuera of ['ANÁLISIS', 'QUÉ HACER', 'ZONA DE RAÍCES', 'bien provisto', 'CC ', 'PMP '])
     assert.ok(!rep.includes(fuera), `el mensaje no debe traer "${fuera}"`);
 });
+
+test('al guardar se mantiene el cuartel, pero se borran las lecturas', () => {
+  // En terreno se hacen varias calicatas seguidas en el mismo cuartel; volver
+  // a elegirlo cada vez es tiempo perdido. Se puede mantener sin riesgo porque
+  // las lecturas se borran y sin lecturas el formulario no deja guardar.
+  assert.match(js, /function resetForm\(mantenerCuartel\)/);
+  assert.match(js, /if\(mantenerCuartel&&cuartel\)\$\('#cuartelId'\)\.value=cuartel/);
+  assert.match(js, /resetForm\(true\)/);
+  assert.match(js, /if\(!readings\.some\(r=>r\.estado==='medida'\)\)return \{error:'Anota al menos una lectura\.'\}/);
+});
