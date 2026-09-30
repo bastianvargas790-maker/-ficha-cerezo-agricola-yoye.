@@ -50,14 +50,21 @@ function indiceEmisor(posicion,linea){
 }
 function caudalLh(vol,seg){const v=Number(vol),s=Number(seg);return s>0&&v>=0?(v/s)*3.6:0}
 function avg(arr){return arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:0}
+/* Uniformidad igual que la planilla del campo: el caudal del 25 % de emisores
+   más bajos dividido por el caudal medio. Es la uniformidad de distribución
+   (Merriam & Keller), la que se usa en riego localizado, y es la que están
+   calibrados los umbrales de DB_Config (90 / 80 / 70).
+   Antes acá se calculaba el CU de Christiansen -- 1 menos la desviación media
+   sobre el promedio -- que es otra métrica: con los mismos datos del cuartel 30
+   daba 80,6 % donde la planilla daba 68,7 %, y con el mismo nombre y los mismos
+   umbrales eso se lee como si el sector estuviera bien. */
 function calcularResultado(emisores){
   const caudales=emisores.map(e=>caudalLh(e.volumen_cc,e.tiempo_segundos));
   const promedio=avg(caudales);
   const ordenados=[...caudales].sort((a,b)=>a-b);
   const n25=Math.max(1,Math.round(ordenados.length*0.25));
   const caudal25=avg(ordenados.slice(0,n25));
-  const desvMedia=avg(caudales.map(c=>Math.abs(c-promedio)));
-  const cu=promedio>0?Math.max(0,Math.min(100,100*(1-desvMedia/promedio))):0;
+  const cu=promedio>0?Math.max(0,Math.min(100,caudal25/promedio*100)):0;
   const clasificacion=cu>=90?'Excelente':cu>=80?'Bueno':cu>=70?'Medio':'Bajo';
   return {promedio,caudal25,cu,clasificacion};
 }

@@ -97,3 +97,18 @@ test('hay lista de últimos aforos con editar y descartar', () => {
   assert.match(src, /update\(\{activo:false,updated_by:session\.user\.id\}\)/);
   assert.match(src, /Incompleto: falta/);
 });
+
+test('la uniformidad se calcula como en la planilla del campo', () => {
+  // La planilla usa uniformidad de distribución: caudal del 25% más bajo sobre
+  // el caudal medio. Antes la app usaba el CU de Christiansen, otra métrica con
+  // el mismo nombre y los mismos umbrales.
+  const volumenes = [25,31,30,32,24,28,35,34,30,39,27,40,29,32,28,35]; // cuartel 6, temporada 2025
+  const emisores = volumenes.map((v,i) => ({ volumen_cc: String(v), tiempo_segundos: '36', indice: i+1 }));
+  const r = api.calcularResultado(emisores);
+  assert.ok(Math.abs(r.promedio - 3.11875) < 0.001, 'caudal medio de la planilla');
+  assert.ok(Math.abs(r.cu - 83.3667) < 0.01, `la planilla da 83,37 % y salió ${r.cu.toFixed(2)}`);
+  assert.equal(r.clasificacion, 'Bueno');
+  const js = readFileSync(new URL('../assets/aforo.js', import.meta.url), 'utf8');
+  assert.match(js, /const cu=promedio>0\?Math\.max\(0,Math\.min\(100,caudal25\/promedio\*100\)\):0/);
+  assert.ok(!/desvMedia/.test(js), 'ya no se usa la desviación media de Christiansen');
+});

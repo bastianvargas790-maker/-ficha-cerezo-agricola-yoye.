@@ -1,15 +1,15 @@
-const CACHE='aforo-campo-v20260929-aforo';
+const CACHE='aforo-campo-v20260930-uniformidad';
 const SHELL=[
   './',
   './index.html',
   './manifest.webmanifest',
-  '../assets/yoye-theme.css?v=20260929-aforo',
-  '../assets/private-app.css?v=20260929-aforo',
-  '../assets/campos.css?v=20260929-aforo',
-  '../assets/supabase.js?v=20260929-aforo',
-  '../assets/shared-auth.js?v=20260929-aforo',
-  '../assets/campos.js?v=20260929-aforo',
-  '../assets/aforo.js?v=20260929-aforo',
+  '../assets/yoye-theme.css?v=20260930-uniformidad',
+  '../assets/private-app.css?v=20260930-uniformidad',
+  '../assets/campos.css?v=20260930-uniformidad',
+  '../assets/supabase.js?v=20260930-uniformidad',
+  '../assets/shared-auth.js?v=20260930-uniformidad',
+  '../assets/campos.js?v=20260930-uniformidad',
+  '../assets/aforo.js?v=20260930-uniformidad',
   '../assets/yoye-logo.png',
   '../assets/icons/favicon.svg',
   '../assets/icons/aforo-192.png',
