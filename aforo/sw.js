@@ -1,15 +1,15 @@
-const CACHE='aforo-campo-v20261006-planilla-fert';
+const CACHE='aforo-campo-v20261006-fert-graficos';
 const SHELL=[
   './',
   './index.html',
   './manifest.webmanifest',
-  '../assets/yoye-theme.css?v=20261006-planilla-fert',
-  '../assets/private-app.css?v=20261006-planilla-fert',
-  '../assets/campos.css?v=20261006-planilla-fert',
-  '../assets/supabase.js?v=20261006-planilla-fert',
-  '../assets/shared-auth.js?v=20261006-planilla-fert',
-  '../assets/campos.js?v=20261006-planilla-fert',
-  '../assets/aforo.js?v=20261006-planilla-fert',
+  '../assets/yoye-theme.css?v=20261006-fert-graficos',
+  '../assets/private-app.css?v=20261006-fert-graficos',
+  '../assets/campos.css?v=20261006-fert-graficos',
+  '../assets/supabase.js?v=20261006-fert-graficos',
+  '../assets/shared-auth.js?v=20261006-fert-graficos',
+  '../assets/campos.js?v=20261006-fert-graficos',
+  '../assets/aforo.js?v=20261006-fert-graficos',
   '../assets/yoye-logo.png',
   '../assets/icons/favicon.svg',
   '../assets/icons/aforo-192.png',

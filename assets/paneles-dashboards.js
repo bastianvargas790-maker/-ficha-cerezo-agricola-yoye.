@@ -1096,86 +1096,277 @@ function pintarTodos(d){
 }
 
 /* ---------- Orquestación ---------- */
-/* ---------- Planilla de fertilización ----------
-   El apartado existe desde ahora con su explicación; los datos entran cuando
-   decidamos de dónde salen: la planilla que ya se lleva en el campo, o un
-   registro propio en la app como el de calicatas. Mientras tanto muestra qué
-   va a contener y con qué se conecta cada parte. */
-async function datosFertilizacion(campo){
-  const cuart=await db.from('cuarteles').select('id,codigo,cultivo,superficie_ha')
-    .eq('campo_id',campo.id).eq('activo',true);
-  const cuarteles=cuart.data||[];
-  const superficie=cuarteles.map(c=>Number(c.superficie_ha)).filter(Number.isFinite);
-  return {cuarteles,superficie:superficie.reduce((a,b)=>a+b,0),conSuperficie:superficie.length};
-}
-
-/* La planilla de fertirriego de la temporada vive en Google Sheets y es la
-   fuente que se trabaja en el campo. Se muestra embebida, en solo lectura:
-   lo que se edite en la planilla aparece acá sin copiar nada a mano.
-   El registro propio en la app -- el formulario tipo calicatas -- va a convivir
-   con ella, no a reemplazarla de golpe. */
+/* La planilla de fertirriego vive en Google Sheets y es la fuente que se
+   trabaja en el campo. El panel NO la muestra embebida: el archivo no es
+   público (pedirlo sin sesión devuelve 401), así que el marco le quedaría en
+   blanco a cualquiera que no tenga acceso al Drive. En vez de eso lee la hoja
+   "Total Acumulado Temporada" publicada como CSV y dibuja los gráficos acá,
+   con los mismos colores y escalas que el resto de los paneles.
+   Esa hoja ya trae lo necesario: caseta, equipo, especie y cuartel en las
+   primeras columnas, una columna por producto en kg o litros, y las unidades
+   por hectárea de N, K2O y P2O5. */
 const PLANILLA_FERT={
   id:'1hOfTaiFVGMyRUjAyTOE0DKdoeHQZ1FzJidW5bb6Zd_A',
-  nombre:'Yoye_fertilizacion_2025-2026_rinconada',
   temporada:'2025-2026',
-  campos:['rinconada-plano']
+  campos:['rinconada-plano'],
+  /* URLs de "Publicar en la web", en CSV, de dos hojas:
+     - acumulado: "Total Acumulado Temporada", que trae caseta, equipo, especie,
+       cuartel y los kilos de cada producto. De aquí salen los filtros.
+     - dashboard: la hoja "Dashboard", que trae la superficie y las unidades por
+       hectárea de N, K2O y P2O5 de cada cuartel. En el acumulado esas columnas
+       existen pero vienen vacías, así que las unidades se leen de acá.
+     Mientras estén vacías el panel lo dice y explica cómo obtenerlas, en vez de
+     fallar en silencio. */
+  acumulado:'',
+  dashboard:''
 };
-const urlPlanillaFert=(modo)=>modo==='editar'
-  ? `https://docs.google.com/spreadsheets/d/${PLANILLA_FERT.id}/edit`
-  : `https://docs.google.com/spreadsheets/d/${PLANILLA_FERT.id}/preview`;
+const urlPlanillaFert=()=>`https://docs.google.com/spreadsheets/d/${PLANILLA_FERT.id}/edit`;
+
+/* Lector de CSV con comillas: los nombres de producto y los miles vienen
+   entrecomillados ("5,237.5"), y partir por comas a secas los rompe. */
+function filasCsv(texto){
+  const filas=[];let fila=[],campo='',comillas=false;
+  for(let i=0;i<texto.length;i++){
+    const c=texto[i];
+    if(comillas){
+      if(c==='"'&&texto[i+1]==='"'){campo+='"';i++}
+      else if(c==='"')comillas=false;
+      else campo+=c;
+    }else if(c==='"')comillas=true;
+    else if(c===','){fila.push(campo);campo=''}
+    else if(c==='\n'){fila.push(campo);filas.push(fila);fila=[];campo=''}
+    else if(c!=='\r')campo+=c;
+  }
+  if(campo||fila.length){fila.push(campo);filas.push(fila)}
+  return filas;
+}
+const numeroCsv=v=>{
+  const t=String(v??'').replace(/\s/g,'').replace(/,/g,'');
+  return t&&Number.isFinite(Number(t))?Number(t):null;
+};
+
+/* De la hoja a filas por cuartel. La cabecera real es la que trae "Caseta":
+   arriba hay dos filas de título y una de agrupación de columnas. */
+function leerAcumulado(texto){
+  const filas=filasCsv(texto);
+  const iCab=filas.findIndex(f=>f.some(c=>String(c).trim().toLowerCase()==='caseta'));
+  if(iCab<0)return null;
+  const cab=filas[iCab].map(c=>String(c).trim());
+  const col=n=>cab.findIndex(c=>c.toLowerCase()===n.toLowerCase());
+  const iCaseta=col('Caseta'),iEquipo=col('Equipo'),iEspecie=col('Especie'),iCuartel=col('Cuartel');
+  if(iCaseta<0||iCuartel<0)return null;
+  const UNID={'U.N./Ha':'n','U.K2O/Ha':'k','U.P2O5/Ha':'p'};
+  const productos=[];
+  cab.forEach((c,i)=>{
+    if(i<=iCuartel||!c||UNID[c])return;
+    productos.push({nombre:c,i});
+  });
+  const registros=[];
+  for(let r=iCab+1;r<filas.length;r++){
+    const f=filas[r];
+    const cuartel=String(f[iCuartel]??'').trim();
+    if(!cuartel)continue;
+    const reg={cuartel,caseta:String(f[iCaseta]??'').trim()||'Sin caseta',
+      equipo:String(f[iEquipo]??'').trim()||'Sin equipo',
+      especie:String(f[iEspecie]??'').trim()||'Sin especie',
+      productos:{},unidades:{}};
+    let algo=false;
+    productos.forEach(p=>{const v=numeroCsv(f[p.i]);if(v){reg.productos[p.nombre]=v;algo=true}});
+    cab.forEach((c,i)=>{if(UNID[c]){const v=numeroCsv(f[i]);if(v!=null)reg.unidades[UNID[c]]=v}});
+    if(algo||Object.keys(reg.unidades).length)registros.push(reg);
+  }
+  return registros.length?registros:null;
+}
+
+/* De la hoja Dashboard: superficie y unidades por hectárea de cada cuartel. */
+function leerDashboard(texto){
+  const filas=filasCsv(texto);
+  const iCab=filas.findIndex(f=>{
+    const c=f.map(x=>String(x).trim().toLowerCase());
+    return c.includes('cuartel')&&c.some(x=>x.startsWith('superficie'));
+  });
+  if(iCab<0)return null;
+  const cab=filas[iCab].map(c=>String(c).trim());
+  const busca=re=>cab.findIndex(c=>re.test(c));
+  const iCuartel=cab.findIndex(c=>c.toLowerCase()==='cuartel');
+  const iEspecie=cab.findIndex(c=>c.toLowerCase()==='especie');
+  const iHa=busca(/^superficie/i),iN=busca(/^n \(/i),iK=busca(/^k2o/i),iP=busca(/^p2o5/i);
+  const out={};
+  for(let r=iCab+1;r<filas.length;r++){
+    const f=filas[r];
+    const cuartel=String(f[iCuartel]??'').trim();
+    if(!cuartel)continue;
+    const n=numeroCsv(f[iN]),k=numeroCsv(f[iK]),p=numeroCsv(f[iP]);
+    if(n==null&&k==null&&p==null)continue;
+    out[cuartel]={especie:String(f[iEspecie]??'').trim(),ha:numeroCsv(f[iHa]),
+      unidades:{n:n??null,k:k??null,p:p??null}};
+  }
+  return Object.keys(out).length?out:null;
+}
+
+async function datosFertilizacion(campo){
+  const cuart=await db.from('cuarteles').select('id,codigo,cuartel,cultivo,superficie_ha')
+    .eq('campo_id',campo.id).eq('activo',true);
+  const cuarteles=cuart.data||[];
+  const superficie=cuarteles.reduce((a,c)=>a+(Number(c.superficie_ha)||0),0);
+  const conSuperficie=cuarteles.filter(c=>Number(c.superficie_ha)>0).length;
+  let acumulado=null,dashboard=null,errorCsv=null;
+  const trae=async(url,leer,queEs)=>{
+    try{
+      const r=await fetch(url,{cache:'no-store'});
+      if(!r.ok)throw new Error('respuesta '+r.status);
+      const d=leer(await r.text());
+      if(!d)errorCsv=`La hoja publicada como ${queEs} no tiene las columnas esperadas.`;
+      return d;
+    }catch(e){errorCsv=`No se pudo leer la hoja ${queEs}: ${e.message||e}`;return null}
+  };
+  if(PLANILLA_FERT.campos.includes(campo.slug)){
+    if(PLANILLA_FERT.acumulado)acumulado=await trae(PLANILLA_FERT.acumulado,leerAcumulado,'Total Acumulado Temporada');
+    if(PLANILLA_FERT.dashboard)dashboard=await trae(PLANILLA_FERT.dashboard,leerDashboard,'Dashboard');
+  }
+  /* Las unidades por hectárea las pone el Dashboard; el acumulado aporta
+     caseta, equipo y los kilos por producto. Se juntan por número de cuartel. */
+  if(acumulado&&dashboard)acumulado.forEach(r=>{
+    const d=dashboard[r.cuartel];
+    if(d){r.unidades={n:d.unidades.n,k:d.unidades.k,p:d.unidades.p};if(d.ha)r.ha=d.ha}
+  });
+  return {cuarteles,superficie,conSuperficie,acumulado,dashboard,errorCsv};
+}
+
+/* Los filtros viven en una variable del panel, igual que los de calicatas.
+   Colgarlos del hash parecía mejor para compartir el enlace, pero el hash de
+   los paneles tiene su propio formato (#panel-<modulo>:<cuartel>) y agregarle
+   ?f= hacía que la ruta no calzara y el panel no abriera. */
+let filtroFert={caseta:'',equipo:'',especie:''};
+function filtrosFert(){return filtroFert}
+function aplicaFiltros(regs,f){
+  return regs.filter(r=>(!f.caseta||r.caseta===f.caseta)&&(!f.equipo||r.equipo===f.equipo)&&(!f.especie||r.especie===f.especie));
+}
+function selectorFert(nombre,etiqueta,valores,actual){
+  return `<label class="pd-filtro"><span>${esc(etiqueta)}</span>
+    <select data-fert-filtro="${nombre}">
+      <option value="">Todas</option>
+      ${valores.map(v=>`<option value="${esc(v)}" ${actual===v?'selected':''}>${esc(v)}</option>`).join('')}
+    </select></label>`;
+}
 
 function pintarFertilizacion(d,campo){
-  const {cuarteles,superficie,conSuperficie}=d;
+  const {cuarteles,superficie,conSuperficie,acumulado,errorCsv}=d;
   const tienePlanilla=PLANILLA_FERT.campos.includes(campo.slug);
-  const partes=[
-    {t:'Aplicaciones hechas',d:'Qué se aplicó en cada cuartel y cuándo: producto, dosis y litros o kilos.'},
-    {t:'Plan de la temporada',d:'Lo programado por etapa fenológica y lo que falta aplicar.'},
-    {t:'Unidades por nutriente',d:'N, P, K, Ca y Mg acumulados por cuartel en la temporada.'},
-    {t:'Consumo',d:'Kilos de cada fertilizante ocupados en la temporada, por producto y por mes.'}
-  ];
-  const planilla=tienePlanilla?`
-    <section class="pd-card pd-ancho">
-      <div class="pd-cab-frame">
-        <div>
-          <div class="pd-kicker">Planilla del campo</div>
-          <h3 class="pd-card-title">Fertirriego temporada ${esc(PLANILLA_FERT.temporada)}</h3>
-        </div>
-        <a class="pd-abrir" href="${urlPlanillaFert('editar')}" target="_blank" rel="noopener noreferrer">Abrir en Drive ↗</a>
-      </div>
-      <div class="pd-frame-wrap">
-        <iframe class="pd-frame" title="Planilla de fertirriego ${esc(PLANILLA_FERT.temporada)}"
-          loading="lazy" referrerpolicy="no-referrer"
-          sandbox="allow-scripts allow-same-origin allow-popups"
-          src="${urlPlanillaFert()}"></iframe>
-      </div>
-      <p class="pd-nota">Vista de solo lectura de la planilla que se trabaja en el campo: el Dashboard,
-        el catálogo de productos y una hoja por cuartel. Lo que se edite allá se ve acá al recargar.
-        Desde el teléfono conviene abrirla en Drive, que es donde se puede escribir.</p>
-    </section>`:`
-    <section class="pd-card pd-ancho">
+  if(!tienePlanilla)return `<section class="pd-card pd-ancho">
       <div class="pd-kicker">Planilla del campo</div>
       <h3 class="pd-card-title">Todavía no hay planilla de ${esc(campo.nombre)}</h3>
-      <p class="pd-nota">La planilla de fertirriego enlazada hoy es la de Rinconada Plano. Cuando exista
-        la de este campo se enlaza igual.</p>
+      <p class="pd-nota">La planilla de fertirriego enlazada hoy es la de Rinconada Plano.
+        Cuando exista la de este campo se enlaza igual.</p>
     </section>`;
-  return `<div class="pd-kpis">
-      ${kpi('Cuarteles del campo',n0(cuarteles.length),`${esc(campo.nombre)}`,'verde')}
-      ${conSuperficie?kpi('Superficie con hectáreas',`${n1(superficie)}<span class="pd-de">ha</span>`,
-        `${n0(conSuperficie)} de ${n0(cuarteles.length)} cuarteles`,'cafe',true)
-       :kpi('Superficie','Sin cargar','Las dosis por hectárea la necesitan','terracota',true)}
-      ${tienePlanilla?kpi('Planilla enlazada',esc(PLANILLA_FERT.temporada),'Google Sheets · solo lectura','azul',true)
-        :kpi('Planilla enlazada','—','Este campo todavía no tiene','terracota',true)}
+  if(!acumulado)return `<section class="pd-card pd-ancho">
+      <div class="pd-kicker">Planilla del campo</div>
+      <h3 class="pd-card-title">Falta publicar la hoja de la planilla</h3>
+      ${errorCsv?`<p class="pd-nota pd-fuera">${esc(errorCsv)}</p>`:''}
+      <p class="pd-nota">El panel dibuja los gráficos leyendo dos hojas de la planilla:
+        <b>Total Acumulado Temporada</b>, que trae caseta, equipo, especie y los kilos de cada
+        producto, y <b>Dashboard</b>, que trae la superficie y las unidades por hectárea de cada
+        cuartel. Para leerlas hay que publicarlas: en la planilla,
+        <b>Archivo → Compartir → Publicar en la web</b>, elegir la hoja, formato <b>CSV</b>,
+        y pegar acá los dos enlaces que entrega.</p>
+      <p class="pd-nota">Se publican solo esas dos hojas, no el libro completo, y se puede dejar de
+        publicar cuando quieras desde el mismo menú. En el acumulado las columnas de unidades por
+        hectárea están vacías; por eso hacen falta las dos.</p>
+      <a class="pd-abrir" href="${urlPlanillaFert()}" target="_blank" rel="noopener noreferrer">Abrir la planilla ↗</a>
+    </section>`;
+
+  const f=filtrosFert();
+  const casetas=[...new Set(acumulado.map(r=>r.caseta))].sort();
+  const equipos=[...new Set(acumulado.map(r=>r.equipo))].sort();
+  const especies=[...new Set(acumulado.map(r=>r.especie))].sort();
+  const sel=aplicaFiltros(acumulado,f);
+  /* La superficie la pone la planilla, que la tiene completa; si falta, se
+     busca el cuartel en la base por su código sin el prefijo "C-". */
+  const haDe=r=>{
+    if(Number(r.ha)>0)return Number(r.ha);
+    const q=cuarteles.find(c=>String(c.codigo||c.cuartel||'').replace(/^C-/,'')===String(r.cuartel));
+    return Number(q?.superficie_ha)||0;
+  };
+  const haSel=sel.reduce((a,r)=>a+haDe(r),0);
+  const kilos=r=>Object.values(r.productos).reduce((a,b)=>a+b,0);
+  const kilosSel=sel.reduce((a,r)=>a+kilos(r),0);
+
+  /* Kilos por producto, con el filtro aplicado. */
+  const porProducto=(()=>{
+    const t={};
+    sel.forEach(r=>Object.entries(r.productos).forEach(([k,v])=>{t[k]=(t[k]||0)+v}));
+    return Object.entries(t).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,14)
+      .map(([k,v])=>({etiqueta:k,valor:v,texto:`${n0(v)} kg/L`}));
+  })();
+  /* Kilos por caseta y por equipo: la pregunta de "quién gastó cuánto". */
+  const agrupado=(clave,etiqueta)=>{
+    const t={};
+    sel.forEach(r=>{t[r[clave]]=(t[r[clave]]||0)+kilos(r)});
+    const filas=Object.entries(t).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1])
+      .map(([k,v])=>({etiqueta:k,valor:v,texto:`${n0(v)} kg/L`}));
+    return barras(etiqueta,'Consumo de fertilizante',filas,'',
+      'Suma de todos los productos en kilos o litros, según cómo se compra cada uno.');
+  };
+  /* Unidades por hectárea, cuartel por cuartel. */
+  const porCuartel=nut=>{
+    const filas=sel.filter(r=>esNum(r.unidades[nut])&&r.unidades[nut]>0)
+      .sort((a,b)=>b.unidades[nut]-a.unidades[nut]).slice(0,20)
+      .map(r=>({etiqueta:`${r.cuartel} · ${r.especie}`,valor:r.unidades[nut],texto:`${n0(r.unidades[nut])}`}));
+    return filas;
+  };
+  /* Promedio por especie, ponderado por los cuarteles de la selección. */
+  const porEspecie=nut=>{
+    const t={};
+    sel.forEach(r=>{if(!esNum(r.unidades[nut]))return;
+      (t[r.especie]??={s:0,n:0});t[r.especie].s+=r.unidades[nut];t[r.especie].n++});
+    return Object.entries(t).filter(([,v])=>v.n).map(([k,v])=>({etiqueta:k,valor:v.s/v.n,texto:`${n0(v.s/v.n)}`}))
+      .sort((a,b)=>b.valor-a.valor);
+  };
+
+  const filtros=`<section class="pd-card pd-ancho pd-filtros">
+    <div class="pd-cab-frame">
+      <div><div class="pd-kicker">Planilla del campo</div>
+        <h3 class="pd-card-title">Fertirriego temporada ${esc(PLANILLA_FERT.temporada)}</h3></div>
+      <a class="pd-abrir" href="${urlPlanillaFert()}" target="_blank" rel="noopener noreferrer">Abrir la planilla ↗</a>
     </div>
-    ${planilla}
+    <div class="pd-filtros-fila">
+      ${selectorFert('caseta','Caseta',casetas,f.caseta)}
+      ${selectorFert('equipo','Equipo',equipos,f.equipo)}
+      ${selectorFert('especie','Especie',especies,f.especie)}
+      ${(f.caseta||f.equipo||f.especie)?'<button type="button" class="pd-abrir" data-fert-limpiar>Ver todo</button>':''}
+    </div>
+  </section>`;
+
+  return `<div class="pd-kpis">
+      ${kpi('Cuarteles en la selección',n0(sel.length),`de ${n0(acumulado.length)} en la planilla`,'verde')}
+      ${haSel?kpi('Superficie',`${n1(haSel)}<span class="pd-de">ha</span>`,'de los cuarteles filtrados','cafe',true)
+        :kpi('Superficie','—','faltan hectáreas en la base','terracota',true)}
+      ${kpi('Fertilizante',`${n0(kilosSel)}<span class="pd-de">kg/L</span>`,
+        haSel?`${n0(kilosSel/haSel)} por hectárea`:'suma de todos los productos','azul',true)}
+    </div>
+    ${filtros}
+    ${agrupado('caseta','Consumo por caseta')}
+    ${agrupado('equipo','Consumo por equipo')}
+    ${barras('Productos más usados','Consumo de fertilizante',porProducto,'',
+      'Los 14 con más kilos o litros en la selección.')}
+    ${barras('Nitrógeno por cuartel','Unidades por hectárea',porCuartel('n'),' U',
+      'Unidades de N por hectárea acumuladas en la temporada, según la planilla.')}
+    ${barras('Potasio por cuartel','Unidades por hectárea',porCuartel('k'),' U',
+      'Unidades de K₂O por hectárea acumuladas en la temporada.')}
+    ${barras('Fósforo por cuartel','Unidades por hectárea',porCuartel('p'),' U',
+      'Unidades de P₂O₅ por hectárea acumuladas en la temporada.')}
+    ${barras('Nitrógeno promedio por especie','Comparación',porEspecie('n'),' U',
+      'Promedio de los cuarteles de cada especie dentro de la selección.')}
+    ${barras('Potasio promedio por especie','Comparación',porEspecie('k'),' U',
+      'Promedio de los cuarteles de cada especie dentro de la selección.')}
     <section class="pd-card pd-ancho">
-      <div class="pd-kicker">Lo que viene</div>
-      <h3 class="pd-card-title">Registrar la fertilización desde la app</h3>
-      <ul class="pd-diag-lista">${partes.map(p=>
-        `<li class="pd-diag-info"><b>${esc(p.t)}</b> ${esc(p.d)}</li>`).join('')}</ul>
-      <p class="pd-nota">La idea es llenarla desde un formulario, como las calicatas, y que la planilla
-        deje de escribirse a mano. Las tablas están escritas y probadas; falta ejecutarlas en la base.</p>
+      <div class="pd-kicker">Lo que falta</div>
+      <h3 class="pd-card-title">Avance mes a mes</h3>
+      <p class="pd-nota">El reparto por mes está en cada hoja de cuartel, no en el acumulado, así que
+        el panel todavía no lo puede dibujar. Con una hoja resumen que tenga cuartel, mes y kilos
+        por producto -- publicada igual que la otra -- queda listo.</p>
     </section>
-    ${conSuperficie<cuarteles.length?`<p class="pd-nota pd-ancho">Para calcular dosis por hectárea faltan las
+    ${conSuperficie<cuarteles.length?`<p class="pd-nota pd-ancho">Para las dosis por hectárea faltan las
       superficies de ${n0(cuarteles.length-conSuperficie)} cuarteles de ${esc(campo.nombre)}.</p>`:''}`;
 }
 
@@ -1279,6 +1470,21 @@ function enlazarFiltros(){
     }
     if(!ev.target.closest('[data-cal-filtro="limpiar"]'))return;
     filtroCal={cuartel:'',caseta:'',equipo:'',cultivo:''};
+    if(panelAbierto)abrirPanel(panelAbierto,{desdeHash:true});
+  });
+  /* Filtros de fertilización: viajan en el hash, así el enlace que compartes
+     lleva puesto lo que estabas mirando. */
+  const aplicarFert=()=>{
+    const v=n=>document.querySelector(`[data-fert-filtro="${n}"]`)?.value||'';
+    filtroFert={caseta:v('caseta'),equipo:v('equipo'),especie:v('especie')};
+    if(panelAbierto)abrirPanel(panelAbierto,{desdeHash:true});
+  };
+  document.addEventListener('change',ev=>{
+    if(ev.target.closest('[data-fert-filtro]'))aplicarFert();
+  });
+  document.addEventListener('click',ev=>{
+    if(!ev.target.closest('[data-fert-limpiar]'))return;
+    filtroFert={caseta:'',equipo:'',especie:''};
     if(panelAbierto)abrirPanel(panelAbierto,{desdeHash:true});
   });
 }

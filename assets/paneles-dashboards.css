@@ -188,3 +188,12 @@
   background:var(--paper,#fffdf8)}
 .pd-frame{display:block;width:100%;height:min(72vh,620px);border:0}
 @media (max-width:560px){.pd-frame{height:70vh}}
+
+/* Filtros del panel de fertilización: una fila que envuelve en el teléfono y
+   selectores con alto de dedo. */
+.pd-filtros-fila{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:12px}
+.pd-filtro{display:grid;gap:4px;flex:1 1 150px;min-width:0}
+.pd-filtro span{font-size:.7rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--earth)}
+.pd-filtro select{min-height:44px;padding:8px 10px;border:1px solid var(--line);border-radius:12px;
+  background:var(--paper,#fffdf8);font-size:.88rem;color:var(--ink);width:100%}
+.pd-filtros .pd-abrir{align-self:flex-end}
