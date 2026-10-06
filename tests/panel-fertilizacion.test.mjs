@@ -17,12 +17,33 @@ test('el panel abre por clic y por dirección', () => {
   assert.match(paneles, /if\(\/#fertilizacion\/\.test\(href\)\)return 'fertilizacion'/);
 });
 
-test('mientras no haya datos, dice qué va a mostrar y qué falta decidir', () => {
+test('el panel enlaza la planilla de fertirriego del campo', () => {
   const bloque = paneles.slice(paneles.indexOf('async function datosFertilizacion'), paneles.indexOf('const PANELES='));
-  for (const parte of ['Aplicaciones hechas', 'Plan de la temporada', 'Unidades por nutriente', 'Consumo y stock'])
+  // La planilla viva de Google, embebida en solo lectura y con enlace para escribir.
+  assert.match(bloque, /const PLANILLA_FERT=\{/);
+  assert.match(bloque, /id:'1hOfTaiFVGMyRUjAyTOE0DKdoeHQZ1FzJidW5bb6Zd_A'/);
+  assert.match(bloque, /\/preview`/, 'el iframe va al preview, no al editor');
+  assert.match(bloque, /Abrir en Drive/);
+  assert.match(bloque, /class="pd-frame"/);
+  assert.match(bloque, /loading="lazy"/);
+  // Solo el campo que tiene planilla la muestra.
+  assert.match(bloque, /campos:\['rinconada-plano'\]/);
+  assert.match(bloque, /tienePlanilla=PLANILLA_FERT\.campos\.includes\(campo\.slug\)/);
+  assert.match(bloque, /Todavía no hay planilla de/);
+});
+
+test('sigue diciendo qué va a mostrar y qué falta', () => {
+  const bloque = paneles.slice(paneles.indexOf('async function datosFertilizacion'), paneles.indexOf('const PANELES='));
+  for (const parte of ['Aplicaciones hechas', 'Plan de la temporada', 'Unidades por nutriente', 'Consumo'])
     assert.ok(bloque.includes(parte), `falta ${parte}`);
-  assert.ok(bloque.includes('Registros de fertilización'), 'debe decir cuántos registros hay');
-  assert.match(bloque, /Falta definir de dónde salen/);
+  assert.match(bloque, /Registrar la fertilización desde la app/);
   // Y avisa si faltan superficies, porque sin ellas no hay dosis por hectárea.
   assert.match(bloque, /faltan las\s+superficies de/);
+});
+
+test('el estilo del marco embebido existe y es alto en el teléfono', () => {
+  const css = readFileSync(new URL('../assets/paneles-dashboards.css', import.meta.url), 'utf8');
+  assert.match(css, /\.pd-frame\{[^}]*height:min\(72vh,620px\)/);
+  assert.match(css, /@media \(max-width:560px\)\{\.pd-frame\{height:70vh\}\}/);
+  assert.match(css, /\.pd-abrir\{[^}]*min-height:44px/);
 });

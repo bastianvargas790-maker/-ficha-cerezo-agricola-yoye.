@@ -1109,29 +1109,71 @@ async function datosFertilizacion(campo){
   return {cuarteles,superficie:superficie.reduce((a,b)=>a+b,0),conSuperficie:superficie.length};
 }
 
+/* La planilla de fertirriego de la temporada vive en Google Sheets y es la
+   fuente que se trabaja en el campo. Se muestra embebida, en solo lectura:
+   lo que se edite en la planilla aparece acá sin copiar nada a mano.
+   El registro propio en la app -- el formulario tipo calicatas -- va a convivir
+   con ella, no a reemplazarla de golpe. */
+const PLANILLA_FERT={
+  id:'1hOfTaiFVGMyRUjAyTOE0DKdoeHQZ1FzJidW5bb6Zd_A',
+  nombre:'Yoye_fertilizacion_2025-2026_rinconada',
+  temporada:'2025-2026',
+  campos:['rinconada-plano']
+};
+const urlPlanillaFert=(modo)=>modo==='editar'
+  ? `https://docs.google.com/spreadsheets/d/${PLANILLA_FERT.id}/edit`
+  : `https://docs.google.com/spreadsheets/d/${PLANILLA_FERT.id}/preview`;
+
 function pintarFertilizacion(d,campo){
   const {cuarteles,superficie,conSuperficie}=d;
+  const tienePlanilla=PLANILLA_FERT.campos.includes(campo.slug);
   const partes=[
     {t:'Aplicaciones hechas',d:'Qué se aplicó en cada cuartel y cuándo: producto, dosis y litros o kilos.'},
     {t:'Plan de la temporada',d:'Lo programado por etapa fenológica y lo que falta aplicar.'},
     {t:'Unidades por nutriente',d:'N, P, K, Ca y Mg acumulados por cuartel en la temporada.'},
-    {t:'Consumo y stock',d:'Litros de cada fertilizante ocupados y lo que queda en bodega.'}
+    {t:'Consumo',d:'Kilos de cada fertilizante ocupados en la temporada, por producto y por mes.'}
   ];
+  const planilla=tienePlanilla?`
+    <section class="pd-card pd-ancho">
+      <div class="pd-cab-frame">
+        <div>
+          <div class="pd-kicker">Planilla del campo</div>
+          <h3 class="pd-card-title">Fertirriego temporada ${esc(PLANILLA_FERT.temporada)}</h3>
+        </div>
+        <a class="pd-abrir" href="${urlPlanillaFert('editar')}" target="_blank" rel="noopener noreferrer">Abrir en Drive ↗</a>
+      </div>
+      <div class="pd-frame-wrap">
+        <iframe class="pd-frame" title="Planilla de fertirriego ${esc(PLANILLA_FERT.temporada)}"
+          loading="lazy" referrerpolicy="no-referrer"
+          sandbox="allow-scripts allow-same-origin allow-popups"
+          src="${urlPlanillaFert()}"></iframe>
+      </div>
+      <p class="pd-nota">Vista de solo lectura de la planilla que se trabaja en el campo: el Dashboard,
+        el catálogo de productos y una hoja por cuartel. Lo que se edite allá se ve acá al recargar.
+        Desde el teléfono conviene abrirla en Drive, que es donde se puede escribir.</p>
+    </section>`:`
+    <section class="pd-card pd-ancho">
+      <div class="pd-kicker">Planilla del campo</div>
+      <h3 class="pd-card-title">Todavía no hay planilla de ${esc(campo.nombre)}</h3>
+      <p class="pd-nota">La planilla de fertirriego enlazada hoy es la de Rinconada Plano. Cuando exista
+        la de este campo se enlaza igual.</p>
+    </section>`;
   return `<div class="pd-kpis">
       ${kpi('Cuarteles del campo',n0(cuarteles.length),`${esc(campo.nombre)}`,'verde')}
       ${conSuperficie?kpi('Superficie con hectáreas',`${n1(superficie)}<span class="pd-de">ha</span>`,
         `${n0(conSuperficie)} de ${n0(cuarteles.length)} cuarteles`,'cafe',true)
        :kpi('Superficie','Sin cargar','Las dosis por hectárea la necesitan','terracota',true)}
-      ${kpi('Registros de fertilización','0','todavía no hay datos cargados','azul')}
+      ${tienePlanilla?kpi('Planilla enlazada',esc(PLANILLA_FERT.temporada),'Google Sheets · solo lectura','azul',true)
+        :kpi('Planilla enlazada','—','Este campo todavía no tiene','terracota',true)}
     </div>
+    ${planilla}
     <section class="pd-card pd-ancho">
-      <div class="pd-kicker">Lo que va a mostrar</div>
-      <h3 class="pd-card-title">Cuatro vistas, una vez que entren los datos</h3>
+      <div class="pd-kicker">Lo que viene</div>
+      <h3 class="pd-card-title">Registrar la fertilización desde la app</h3>
       <ul class="pd-diag-lista">${partes.map(p=>
         `<li class="pd-diag-info"><b>${esc(p.t)}</b> ${esc(p.d)}</li>`).join('')}</ul>
-      <p class="pd-nota">Falta definir de dónde salen: la planilla que ya se lleva en el campo, o
-        un registro propio en la app, como el de calicatas. Con el registro propio queda la
-        trazabilidad por cuartel y el cruce con el riego; con la planilla se parte más rápido.</p>
+      <p class="pd-nota">La idea es llenarla desde un formulario, como las calicatas, y que la planilla
+        deje de escribirse a mano. Las tablas están escritas y probadas; falta ejecutarlas en la base.</p>
     </section>
     ${conSuperficie<cuarteles.length?`<p class="pd-nota pd-ancho">Para calcular dosis por hectárea faltan las
       superficies de ${n0(cuarteles.length-conSuperficie)} cuarteles de ${esc(campo.nombre)}.</p>`:''}`;
