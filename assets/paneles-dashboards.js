@@ -202,6 +202,19 @@ const PUNTOS=[
   {clave:'linea_derecha',   nombre:'Derecha',   color:'#199e70'}
 ];
 const RAMPA=['#cde2fb','#9ec5f4','#6da7ec','#3987e5','#256abf','#184f95'];
+/* ---------- Tamaño del dibujo ----------
+   La caja de la página (.shell) llega a 1180 px con 18 px de aire a cada lado,
+   y una tarjeta ancha agrega 14 px de relleno y 1 px de borde por lado. El SVG
+   se arma a ese ancho y se dibuja uno a uno, sin estirarse: así el texto del
+   eje mide lo que dice la hoja de estilos y los números no se montan sobre las
+   líneas en el notebook. En el teléfono el mismo cálculo da un gráfico de
+   tamaño normal. */
+const anchoLienzo=()=>{
+  const v=Math.max(320,Math.min(globalThis.innerWidth||390,1180));
+  return Math.round(v-2*18-2*15);
+};
+const altoLienzo=w=>Math.round(Math.max(240,Math.min(420,w*0.36)));
+
 /* Marcas de eje en números redondos: 0 · 10 · 20 · 30 lee mejor que
    0 · 11,6 · 23,2 · 34,8, que era lo que salía de dividir el máximo en tres. */
 function marcasEje(min,max,objetivo=4){
@@ -358,42 +371,111 @@ function perfilVertical(titulo,kicker,series,unidad,nota,dominio,referencia,raic
    el riego de hoy; la serie de calicatas del mismo cuartel es la que muestra si
    el suelo se está secando, si las sales se acumulan o si un cambio de pauta
    funcionó. */
-function serieTiempo(titulo,kicker,fechas,series,nota,referencia,decimales){
+/* ---------- Tendencia en el tiempo ----------
+   Un gráfico, un eje. La humedad viene en % y la CE en mS/cm: no comparten
+   escala, así que van en dos dibujos y nunca en dos ejes del mismo, que es la
+   forma más rápida de hacerle decir a un gráfico lo que uno quiera.
+   Las fechas se ubican a escala de calendario y no una al lado de la otra: tres
+   semanas sin medir tienen que verse como tres semanas.
+   El dibujo se arma al ancho real que va a ocupar la tarjeta (anchoLienzo), así
+   los 9 px del eje son 9 px tanto en el teléfono como en el notebook; antes
+   todos los SVG se calculaban en 360 px y la hoja de estilos los estiraba al
+   ancho del escritorio, que agrandaba el texto tres veces.
+   op = {tiempos, referenciaLinea:{valor,etiqueta,color}, pie} */
+function serieTiempo(titulo,kicker,fechas,series,nota,referencia,decimales,op={}){
   const puntos=series.flatMap(s=>s.valores.filter(v=>Number.isFinite(v)));
   if(fechas.length<2||!puntos.length)return '';
-  const w=360,h=230,pad={l:44,r:58,t:26,b:42};
+  const w=anchoLienzo(), h=altoLienzo(w), chico=w<560;
+  const pad={l:46,r:chico?18:116,t:28,b:46};
+  const fmt=v=>decimales===2?n2(v):n1(v);
+  const refL=op.referenciaLinea&&Number.isFinite(op.referenciaLinea.valor)?op.referenciaLinea:null;
   const conRef=referencia&&referencia.medida&&Number.isFinite(referencia.cc)&&Number.isFinite(referencia.pmp);
-  const vals=puntos.concat(conRef?[referencia.cc,referencia.pmp]:[]);
-  const marcas=marcasEje(Math.min(0,Math.min(...vals)),Math.max(...vals)*1.05||1);
-  const min=marcas[0], max=Math.max(marcas[marcas.length-1],Math.max(...vals));
-  const x=i=>pad.l+(fechas.length===1?0:i/(fechas.length-1))*(w-pad.l-pad.r);
+  const vals=puntos.concat(conRef?[referencia.cc,referencia.pmp]:[],refL?[refL.valor]:[]);
+  /* El eje se ajusta a los datos y NO arranca en cero: la humedad de una
+     calicata se mueve entre 17 y 27 %, y con el cero abajo las cinco líneas
+     quedaban apretadas en el quinto superior del dibujo, todas planas. En un
+     gráfico de líneas el eje recortado se lee bien porque los números están
+     rotulados; en uno de barras sería mentir, y por eso ahí sí parte de cero. */
+  const vMin=Math.min(...vals), vMax=Math.max(...vals);
+  const aire=(vMax-vMin)||Math.max(Math.abs(vMax)*0.2,1);
+  const marcas=marcasEje(Math.max(0,vMin-aire*0.18),vMax+aire*0.18,5);
+  const min=Math.min(marcas[0],vMin-aire*0.06), max=Math.max(marcas[marcas.length-1],vMax+aire*0.06);
+  /* Las fechas a escala: con los tiempos en milisegundos el eje es un
+     calendario; sin ellos se reparten parejas, como antes. */
+  const ts=Array.isArray(op.tiempos)&&op.tiempos.length===fechas.length
+    ?op.tiempos.map(Number).filter(Number.isFinite).length===fechas.length?op.tiempos.map(Number):null:null;
+  const t0=ts?Math.min(...ts):0, t1=ts?Math.max(...ts):1;
+  const parte=i=>ts&&t1>t0?(ts[i]-t0)/(t1-t0):(fechas.length===1?0:i/(fechas.length-1));
+  const x=i=>pad.l+parte(i)*(w-pad.l-pad.r);
   const y=v=>h-pad.b-((v-min)/((max-min)||1))*(h-pad.t-pad.b);
-  const reja=marcas.map(v=>`<line x1="${pad.l}" x2="${w-pad.r}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" class="pd-svg-guia"></line>
-    <text x="${pad.l-8}" y="${(y(v)+3.5).toFixed(1)}" class="pd-svg-eje" text-anchor="end">${n0(v)}</text>`).join('');
+  /* El eje se rotula con los decimales que pide el paso: la CE va de 0,8 a 1,2
+     y sin esto las tres marcas decían "1"; con paso de 2,5 el eje decía
+     20 · 23 · 25 · 28, que no son marcas parejas. */
+  const paso=marcas.length>1?Math.abs(marcas[1]-marcas[0]):1;
+  const entero=Math.abs(paso-Math.round(paso))<1e-6;
+  const marcaEje=v=>entero?n0(v):paso>=0.1?n1(v):n2(v);
+  const reja=marcas.map(v=>`<line x1="${pad.l}" x2="${(w-pad.r).toFixed(1)}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" class="pd-svg-guia"></line>
+    <text x="${pad.l-8}" y="${(y(v)+3.5).toFixed(1)}" class="pd-svg-eje" text-anchor="end">${marcaEje(v)}</text>`).join('');
   const banda=conRef
     ? `<rect x="${pad.l}" y="${y(referencia.cc).toFixed(1)}" width="${(w-pad.l-pad.r).toFixed(1)}" height="${Math.max(0,y(referencia.pmp)-y(referencia.cc)).toFixed(1)}" fill="#3f7a4f" opacity=".08"></rect>
-       <text x="${w-pad.r-2}" y="${(y(referencia.cc)-5).toFixed(1)}" class="pd-svg-ref" fill="#2a78d6" text-anchor="end">CC</text>
-       <text x="${w-pad.r-2}" y="${(y(referencia.pmp)+12).toFixed(1)}" class="pd-svg-ref" fill="#b1543a" text-anchor="end">PMP</text>`:'';
-  /* Con muchas fechas el eje se apretaba: se rotula la primera, la última y una
-     de cada dos en el medio; el resto vive en el tooltip de cada punto. */
-  const salto=fechas.length>5?Math.ceil(fechas.length/4):1;
-  const ejeX=fechas.map((f,i)=>(i===0||i===fechas.length-1||i%salto===0)
-    ? `<text x="${x(i).toFixed(1)}" y="${h-pad.b+18}" class="pd-svg-eje">${esc(String(f))}</text>`:'').join('');
+       <text x="${(w-pad.r-2).toFixed(1)}" y="${(y(referencia.cc)-5).toFixed(1)}" class="pd-svg-ref" fill="#2a78d6" text-anchor="end">CC</text>
+       <text x="${(w-pad.r-2).toFixed(1)}" y="${(y(referencia.pmp)+12).toFixed(1)}" class="pd-svg-ref" fill="#b1543a" text-anchor="end">PMP</text>`:'';
+  /* Referencia del suelo: una línea de puntos, no una banda, porque es una
+     referencia de textura y no una medición de laboratorio. */
+  const lineaRef=refL&&refL.valor>=min&&refL.valor<=max
+    ? `<line x1="${pad.l}" x2="${(w-pad.r).toFixed(1)}" y1="${y(refL.valor).toFixed(1)}" y2="${y(refL.valor).toFixed(1)}"
+         stroke="${refL.color||'#3f7a4f'}" stroke-width="1.5" stroke-dasharray="5 4" opacity=".85"></line>
+       <text x="${(pad.l+4).toFixed(1)}" y="${(y(refL.valor)-6).toFixed(1)}" class="pd-svg-ref" fill="${refL.color||'#3f7a4f'}" text-anchor="start">${esc(refL.etiqueta||'referencia')}</text>`:'';
+  /* Rótulos del eje de fechas: se eligen por distancia en píxeles, no una de
+     cada dos. Con las fechas a escala dos calicatas del mismo día caen en el
+     mismo sitio y sus rótulos se pisaban. La primera y la última siempre van. */
+  const elegidas=[];
+  fechas.forEach((f,i)=>{
+    const sep=chico?44:66, xi=x(i);
+    if(!elegidas.length){elegidas.push(i);return}
+    if(i===fechas.length-1){
+      while(elegidas.length>1&&xi-x(elegidas[elegidas.length-1])<sep)elegidas.pop();
+      if(xi-x(elegidas[elegidas.length-1])>=sep)elegidas.push(i);
+      return;
+    }
+    if(xi-x(elegidas[elegidas.length-1])>=sep)elegidas.push(i);
+  });
+  const ejeX=elegidas.map(i=>`<text x="${x(i).toFixed(1)}" y="${h-pad.b+19}" class="pd-svg-eje">${esc(String(fechas[i]))}</text>`).join('');
   const dibujadas=series.map(s=>({s,ps:s.valores.map((v,i)=>({v,i})).filter(p=>Number.isFinite(p.v))}))
     .filter(d=>d.ps.length);
   const trazos=dibujadas.map(({s,ps})=>{
     const d=ps.map((p,k)=>`${k?'L':'M'}${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ');
     return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
-      ${ps.map((p,k)=>`<circle cx="${x(p.i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="${k===ps.length-1?5:4}" fill="${s.color}" stroke="var(--paper,#fffdf8)" stroke-width="2"><title>${esc(s.nombre)} · ${esc(fechas[p.i])} · ${n1(p.v)}${esc(s.unidad||'')}</title></circle>`).join('')}`;
+      ${ps.map((p,k)=>`<circle cx="${x(p.i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="${k===ps.length-1?5:4}" fill="${s.color}" stroke="var(--paper,#fffdf8)" stroke-width="2"></circle>
+        <circle cx="${x(p.i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="12" fill="transparent"><title>${esc(s.nombre)} · ${esc(fechas[p.i])} · ${fmt(p.v)}${esc(s.unidad||'')}</title></circle>`).join('')}`;
   }).join('');
-  /* Un valor por punto, acomodados para no pisarse. */
-  const rotulos=rotulosPuntos(dibujadas.flatMap(({s,ps})=>ps.map(p=>({
-    x:x(p.i),y:y(p.v),texto:decimales===2?n2(p.v):n1(p.v)}))),
-    w-3,4,pad.t-14,h-pad.b+2,
-    marcas.map(v=>({x0:0,x1:pad.l-5,y0:y(v)-6,y1:y(v)+6}))).map(marcaValor).join('');
-  return `<section class="pd-card pd-grafico"><div class="pd-kicker">${esc(kicker)}</div>
+  /* Nombre de la serie al borde derecho, con su último valor: así no hay que
+     bajar a la leyenda para saber cuál línea es cuál. El texto va en tinta y el
+     color lo lleva una rayita al lado, nunca la letra. */
+  const alBorde=[];
+  if(!chico&&dibujadas.length>1){
+    const items=dibujadas.map(({s,ps})=>({nombre:s.nombre,color:s.color,
+      texto:`${s.nombre} ${fmt(ps[ps.length-1].v)}`,y0:y(ps[ps.length-1].v)}))
+      .sort((a,b)=>a.y0-b.y0);
+    let tope=pad.t+4;
+    items.forEach(it=>{it.y=Math.max(it.y0,tope);tope=it.y+13});
+    const sobra=items.length?Math.max(0,items[items.length-1].y-(h-pad.b)):0;
+    items.forEach(it=>it.y=Math.max(pad.t,it.y-sobra));
+    items.forEach(it=>alBorde.push(`<rect x="${(w-pad.r+8).toFixed(1)}" y="${(it.y-1.5).toFixed(1)}" width="11" height="3" rx="1.5" fill="${it.color}"></rect>
+      <text x="${(w-pad.r+24).toFixed(1)}" y="${(it.y+3.4).toFixed(1)}" class="pd-svg-serie">${esc(it.texto)}</text>`));
+  }
+  /* El valor de cada punto solo cuando caben: con cinco cuarteles el dibujo se
+     llena de números y deja de leerse. Cuando no caben, cada serie igual lleva
+     su último valor escrito al borde y el resto sale al tocar el punto. */
+  const totalPuntos=dibujadas.reduce((t,d)=>t+d.ps.length,0);
+  const rotulos=(!chico&&dibujadas.length<=3&&totalPuntos<=12)
+    ? rotulosPuntos(dibujadas.flatMap(({s,ps})=>ps.map(p=>({x:x(p.i),y:y(p.v),texto:fmt(p.v)}))),
+        w-pad.r-10,4,pad.t-14,h-pad.b+2,
+        marcas.map(v=>({x0:0,x1:pad.l-5,y0:y(v)-6,y1:y(v)+6}))).map(marcaValor).join('')
+    : '';
+  return `<section class="pd-card pd-grafico pd-ancho"><div class="pd-kicker">${esc(kicker)}</div>
     <h3 class="pd-card-title">${esc(titulo)}</h3>
-    <div class="pd-svg-wrap"><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(titulo)}">${banda}${reja}${ejeX}${trazos}${rotulos}</svg></div>
+    <div class="pd-svg-wrap"><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(titulo)}">${banda}${reja}${lineaRef}${ejeX}${trazos}${rotulos}${alBorde.join('')}</svg></div>
     <div class="pd-leyenda">${series.map(s=>`<span class="pd-leyenda-item"><i style="background:${s.color}"></i>${esc(s.nombre)}</span>`).join('')}</div>
     ${nota?`<p class="pd-nota">${esc(nota)}</p>`:''}</section>`;
 }
@@ -703,6 +785,68 @@ function pintarCalicatas(d,campo){
       return [esc(q.codigo||'—'),fecha(k.fecha),h(sup),h(fondo),c(fondo)];
     })),'Cada fila es una calicata completa; los valores son el promedio de los tres puntos de ESA calicata.'):'';
 
+  /* --- Resumen de tendencias de la selección: una línea por cuartel ---
+     Es el gráfico con el que se revisa la semana: cómo se viene moviendo la
+     humedad y la CE en la zona de raíces de cada cuartel, calicata a calicata.
+     No se promedian cuarteles -- cada línea es un cuartel, con su suelo y su
+     cultivo -- y la humedad y la CE van en dos gráficos porque no comparten
+     escala: en uno solo con dos ejes se puede hacer que digan cualquier cosa.
+     La paleta es fija y está validada para daltonismo sobre el papel de la app
+     (ΔE 8,4 en protanopía entre cualquier par; todos sobre 3:1 de contraste). */
+  const PALETA_CUARTEL=['#2a78d6','#eb6834','#199e70','#a33b8f','#8e3d20'];
+  const MAX_LINEAS=PALETA_CUARTEL.length;
+  const orden=k=>String(k.fecha)+(k.hora||'');
+  const tendElegidos=conHistoria
+    .map(([id,ks])=>({id,codigo:(porCuartel.get(id)||{}).codigo||'—',
+      ks:ks.slice().sort((a,b)=>orden(a).localeCompare(orden(b)))}))
+    /* Con más cuarteles que colores se dibujan los de medición más reciente y
+       se dice cuántos quedaron fuera: una línea de un color repetido se lee
+       como si fuera otro cuartel. El resto sale con los filtros de arriba. */
+    .sort((a,b)=>String(b.ks[b.ks.length-1].fecha).localeCompare(String(a.ks[a.ks.length-1].fecha)))
+    .slice(0,MAX_LINEAS)
+    /* El color se asigna por código, no por el orden de arriba: así un cuartel
+       conserva su color aunque cambie el filtro o aparezca una calicata nueva. */
+    .sort((a,b)=>String(a.codigo).localeCompare(String(b.codigo),'es',{numeric:true}));
+  const tendFechas=[...new Set(tendElegidos.flatMap(e=>e.ks.map(k=>String(k.fecha).slice(0,10))))].sort();
+  const tendTiempos=tendFechas.map(f=>Date.parse(f+'T12:00:00'));
+  const tendRotulos=tendFechas.map(f=>String(fecha(f)).slice(0,5));
+  const tendSerie=clave=>tendElegidos.map((e,i)=>({
+    nombre:e.codigo, color:PALETA_CUARTEL[i], unidad:clave==='h'?' %':' mS/cm',
+    valores:tendFechas.map(f=>{
+      // Dos calicatas del mismo cuartel el mismo día: se promedian entre ellas.
+      const v=e.ks.filter(k=>String(k.fecha).slice(0,10)===f)
+        .map(k=>{const r=leer(k);return r&&Number.isFinite(r.zonaRaices[clave])?r.zonaRaices[clave]:null})
+        .filter(x=>x!==null);
+      return v.length?prom(v):null;
+    })
+  }));
+  /* La referencia de humedad depende de la textura, así que solo se dibuja
+     cuando todos los cuarteles dibujados tienen el mismo tipo de suelo. */
+  const tendRef=(()=>{
+    const gs=tendElegidos.map(e=>{const r=leer(e.ks[e.ks.length-1]);
+      return r&&r.zonaRaices.referencia&&r.zonaRaices.referencia.bien!=null?r.zonaRaices.referencia:null});
+    if(!gs.length||gs.some(g=>!g)||new Set(gs.map(g=>g.bien)).size>1)return null;
+    return {valor:gs[0].bien,etiqueta:`suelo ${gs[0].etiqueta} ≈ ${n0(gs[0].bien)} %`,color:'#3f7a4f'};
+  })();
+  /* Con un cuartel elegido manda su ficha, que trae su propia evolución por
+     profundidad: no hace falta armar el resumen de la selección. */
+  const tendGraficos=filtroCal.cuartel?'':tendElegidos.length
+    ? serieTiempo('Humedad en la zona de raíces, fecha a fecha','Resumen de tendencias',
+        tendRotulos,tendSerie('h'),
+        ['Cada línea es un cuartel: el promedio de las profundidades que caen dentro de su zona de raíces, calicata a calicata.',
+         'Las fechas van a escala de calendario, así tres semanas sin medir se ven como tres semanas.',
+         conHistoria.length>MAX_LINEAS?`Se dibujan ${n0(tendElegidos.length)} de ${n0(conHistoria.length)} cuarteles con dos o más fechas, los de medición más reciente; filtra por caseta, equipo o cultivo para ver los demás.`:null,
+         tendRef?null:'Los cuarteles dibujados no tienen la misma textura, así que no se dibuja una referencia común: cada suelo se compara con la suya en la ficha del cuartel.'
+        ].filter(Boolean).join(' '),null,1,{tiempos:tendTiempos,referenciaLinea:tendRef})
+      +serieTiempo('CE en la zona de raíces, fecha a fecha','Resumen de tendencias',
+        tendRotulos,tendSerie('ce'),
+        'La sonda mide CE aparente: sirve para ver si sube o baja en el mismo punto, no para compararla con el umbral de laboratorio del cultivo. Si sube fecha a fecha en el mismo cuartel, hay sales acumulándose.',
+        null,2,{tiempos:tendTiempos})
+    : `<section class="pd-card pd-ancho"><div class="pd-kicker">Resumen de tendencias</div>
+       <h3 class="pd-card-title">Todavía no hay dos fechas que comparar</h3>
+       <p class="pd-nota">La tendencia aparece sola cuando un cuartel tenga su segunda calicata: con una sola fecha
+       se lee el perfil de hoy, pero no si el cuartel se está secando o salinizando.</p></section>`;
+
   // --- Anillo: unión de bulbos, que sí es parte de un todo ---
   const unionCuenta=new Map();
   sel.forEach(k=>{const u=UNION[k.union_bulbos]||'Sin registrar';unionCuenta.set(u,(unionCuenta.get(u)||0)+1)});
@@ -782,14 +926,14 @@ function pintarCalicatas(d,campo){
       <span class="pd-cuartel-pie">${fecha(cal.fecha)} · ${n0(n)} ${n===1?'calicata':'calicatas'}</span>
     </button>`;
   }).join('');
-  const eleccion=`<section class="pd-card pd-ancho"><div class="pd-kicker">Empieza por acá</div>
+  const eleccion=`<section class="pd-card pd-ancho"><div class="pd-kicker">Cuarteles de la selección</div>
     <h3 class="pd-card-title">Elige un cuartel</h3>
     <p class="pd-nota" style="margin:0 0 10px">Cada cuartel se lee por separado: su suelo, su cultivo y su
       historia de calicatas. Toca uno para ver su ficha completa y cómo viene cambiando.</p>
     <div class="pd-cuarteles">${tarjetasCuartel}</div></section>`;
 
   if(!filtroCal.cuartel){
-    return filtros+kpis+resumenAlertas+eleccion+ranking+tablaTotales+
+    return filtros+kpis+resumenAlertas+tendGraficos+tendencia+eleccion+ranking+tablaTotales+
       tabla('Todas las lecturas','Detalle',
         ['Cuartel','Fecha','Prof.','Centro','Izquierda','Derecha','CE centro'],detalleFilas,
         'Se muestran hasta seis cuarteles. Entra a un cuartel para ver todas sus fechas y su evolución.');
@@ -817,15 +961,26 @@ function pintarCalicatas(d,campo){
   const valorProf=(cal,prof,clave)=>{const r=leer(cal);const x=r&&r.porProfundidad.find(y=>y.prof===prof);
     return x&&Number.isFinite(x[clave])?x[clave]:null};
   const COLORES=[PUNTOS[0].color,PUNTOS[1].color,PUNTOS[2].color,'#8c6847','#39798a'];
+  /* Las fechas se ubican a escala de calendario: dos calicatas seguidas y otra
+     tres semanas después no pueden quedar a la misma distancia. */
+  const tiempoDe=k=>{const t=Date.parse(String(k.fecha).slice(0,10)+'T'+String(k.hora||'12:00').slice(0,5)+':00');
+    return Number.isFinite(t)?t:Date.parse(String(k.fecha).slice(0,10)+'T12:00:00')};
+  const tiemposCuartel=cronologia.map(tiempoDe);
+  /* Acá sí hay una sola textura -- es un cuartel -- así que la referencia de su
+     suelo se puede dibujar: es contra esa línea que se lee la humedad. */
+  const refUlt=rUlt&&rUlt.zonaRaices?rUlt.zonaRaices.referencia:null;
+  const refSuelo=refUlt&&refUlt.bien!=null
+    ? {valor:refUlt.bien,etiqueta:`suelo ${refUlt.etiqueta} ≈ ${n0(refUlt.bien)} %`,color:'#3f7a4f'}:null;
   const serieHum=serieTiempo('Humedad por fecha','Evolución del cuartel',fechasSerie,
     profsSel.map((pr,i)=>({nombre:`${n0(pr)} cm`,color:COLORES[i%COLORES.length],unidad:' %',
       valores:cronologia.map(k=>valorProf(k,pr,'h'))})),
     'Cada línea es una profundidad, promediando los tres puntos de esa calicata.',
-    null,1);
+    null,1,{tiempos:tiemposCuartel,referenciaLinea:refSuelo});
   const serieCe=serieTiempo('CE por fecha','Evolución del cuartel',fechasSerie,
     profsSel.map((pr,i)=>({nombre:`${n0(pr)} cm`,color:COLORES[i%COLORES.length],unidad:' mS/cm',
       valores:cronologia.map(k=>valorProf(k,pr,'ce'))})),
-    'Si la CE sube fecha a fecha en la misma profundidad, hay sales acumulándose; conviene confirmarlo con extracto de saturación.',null,2);
+    'Si la CE sube fecha a fecha en la misma profundidad, hay sales acumulándose; conviene confirmarlo con extracto de saturación.',
+    null,2,{tiempos:tiemposCuartel});
   const sinHistoria=delCuartel.length<2
     ? `<section class="pd-card"><div class="pd-kicker">Evolución del cuartel</div>
        <h3 class="pd-card-title">Falta una segunda calicata</h3>
@@ -1415,12 +1570,32 @@ async function abrirPanel(clave,{desdeHash=false}={}){
     const d=await p.datos(campo);
     if(panelAbierto!==clave)return;   // llegó tarde: ya se abrió otro panel
     // El cuerpo va envuelto para poder acomodarlo en dos columnas en notebook.
+    ultimoPintado={clave,d,campo};
     $('.pd-cargando',host).outerHTML=`<div class="pd-cuerpo">${p.pinta(d,campo)}</div>`;
   }catch(e){
     const c=$('.pd-cargando',host);
     if(c)c.outerHTML=vacio('No se pudieron cargar los datos: '+(e?.message||'error de conexión'));
   }
 }
+/* Al girar el teléfono, o al cambiar el tamaño de la ventana en el notebook,
+   los gráficos quedaban dibujados para el ancho anterior: el dibujo se calcula
+   al ancho real de la tarjeta. Se repinta con los datos que ya están en memoria
+   -- sin volver a consultar la base -- y solo cuando el ancho cambió lo
+   suficiente para que el dibujo cambie de tamaño. */
+let ultimoPintado=null, repintarEn=0;
+const cuboAncho=()=>Math.round((globalThis.innerWidth||390)/60);
+let cuboPintado=cuboAncho();
+addEventListener('resize',()=>{
+  clearTimeout(repintarEn);
+  repintarEn=setTimeout(()=>{
+    if(cuboAncho()===cuboPintado)return;
+    cuboPintado=cuboAncho();
+    const u=ultimoPintado, cuerpo=$('#yoyePanelVista .pd-cuerpo');
+    if(!u||!cuerpo||panelAbierto!==u.clave||!PANELES[u.clave])return;
+    cuerpo.innerHTML=PANELES[u.clave].pinta(u.d,u.campo);
+  },220);
+});
+
 function cerrarPanel({desdeHash=false}={}){
   const host=$('#yoyePanelVista'),lista=$('#yoyePanelesList'),hero=$('#yoyePanelesHero');
   panelAbierto=null;

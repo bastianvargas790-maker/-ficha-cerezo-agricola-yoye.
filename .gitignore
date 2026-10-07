@@ -1,0 +1,5 @@
+# Capturas de las revisiones en navegador: se vuelven a generar al correrlas.
+pruebas/*/capturas/
+# Archivos que se arman en el PC para aplicar y subir los cambios.
+yoye-entrega.patch
+aplicar-y-subir.bat

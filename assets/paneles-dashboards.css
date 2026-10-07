@@ -162,6 +162,15 @@
 .pd-svg-ref{font:800 8.5px var(--font-body,system-ui,sans-serif);text-anchor:middle;letter-spacing:.04em}
 .pd-svg-val{font:800 10.5px var(--font-body,system-ui,sans-serif);font-variant-numeric:tabular-nums;fill:var(--ink,#17352c)}
 .pd-svg-eje{font-variant-numeric:tabular-nums}
+/* Nombre de la serie al borde derecho del gráfico de tendencia. El texto va en
+   tinta -- el color lo lleva la rayita de al lado -- y con filete de papel para
+   que se lea aunque caiga sobre una línea. */
+.pd-svg-serie{font:800 10px var(--font-body,system-ui,sans-serif);font-variant-numeric:tabular-nums;
+  fill:var(--ink,#17352c);paint-order:stroke;stroke:var(--paper,#fffdf8);stroke-width:2.6px;stroke-linejoin:round}
+/* Los gráficos de tendencia se calculan al ancho exacto de la tarjeta: no se
+   estiran ni se encogen, para que el texto quede del tamaño que dice acá. */
+.pd-grafico.pd-ancho .pd-svg-wrap{overflow:visible}
+.pd-grafico.pd-ancho .pd-svg-wrap svg{min-width:0;max-width:100%}
 .pd-svg-wrap svg{overflow:visible}
 /* Barras: punta redondeada, base recta, y una escala rotulada abajo. */
 .pd-bar-track{height:12px;border-radius:3px}

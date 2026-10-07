@@ -1,15 +1,15 @@
-const CACHE='aforo-campo-v20261006-fert-graficos';
+const CACHE='aforo-campo-v20261007-tendencias';
 const SHELL=[
   './',
   './index.html',
   './manifest.webmanifest',
-  '../assets/yoye-theme.css?v=20261006-fert-graficos',
-  '../assets/private-app.css?v=20261006-fert-graficos',
-  '../assets/campos.css?v=20261006-fert-graficos',
-  '../assets/supabase.js?v=20261006-fert-graficos',
-  '../assets/shared-auth.js?v=20261006-fert-graficos',
-  '../assets/campos.js?v=20261006-fert-graficos',
-  '../assets/aforo.js?v=20261006-fert-graficos',
+  '../assets/yoye-theme.css?v=20261007-tendencias',
+  '../assets/private-app.css?v=20261007-tendencias',
+  '../assets/campos.css?v=20261007-tendencias',
+  '../assets/supabase.js?v=20261007-tendencias',
+  '../assets/shared-auth.js?v=20261007-tendencias',
+  '../assets/campos.js?v=20261007-tendencias',
+  '../assets/aforo.js?v=20261007-tendencias',
   '../assets/yoye-logo.png',
   '../assets/icons/favicon.svg',
   '../assets/icons/aforo-192.png',
