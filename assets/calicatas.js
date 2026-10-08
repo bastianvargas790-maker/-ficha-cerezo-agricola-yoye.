@@ -88,7 +88,24 @@ async function cacheQuarters(list,orgId){const scope=alcanceKey(orgId);await Pro
     if(mantenerCuartel&&cuartel)$('#cuartelId').value=cuartel;
     $('#fecha').value=localDate();$('#hora').value=localTime();seedDepths();$('#formState').textContent='Sin guardar';$('#saveCalicata').textContent='Guardar calicata';$('#reportCard')&&($('#reportCard').hidden=true);$('#registerView').hidden=false;currentReport=null;editingRecord=null}
   function delCampo(lista){const c=campoActivoId();return c?(lista||[]).filter(q=>!q.campo_id||q.campo_id===c):(lista||[])}
-  function fillQuarters(){quarters=delCampo(quarters);const rows=quarters.map(q=>`<option value="${esc(q.id)}">${esc(q.codigo||q.cuartel)} · ${esc(q.cultivo||'')} ${q.variedad?'· '+esc(q.variedad):''}</option>`).join('');$('#cuartelId').innerHTML='<option value="">Seleccionar cuartel…</option>'+rows;$('#historyQuarter').innerHTML='<option value="">Selecciona un cuartel</option>'+rows}
+  /* Rellenar la lista de cuarteles NO puede perder el que está elegido.
+     Esta función corre varias veces después de abrir el formulario: cuando
+     termina de cargar el perfil, cuando los campos avisan que están listos,
+     cuando vuelve la señal y la sesión se re-sincroniza. Cada vez volvía a
+     escribir las <option> y el cuartel marcado se perdía, incluso a mitad de
+     llenar la calicata: en terreno se veía como "al guardar se desmarca el
+     cuartel", pero pasaba en cualquier momento. Se guarda lo elegido y se
+     vuelve a poner, siempre que ese cuartel siga en la lista -- al cambiar de
+     campo no está, y ahí sí corresponde que quede vacío. */
+  function fillQuarters(){quarters=delCampo(quarters);
+    const elegido=$('#cuartelId')?.value||'', historial=$('#historyQuarter')?.value||'';
+    const rows=quarters.map(q=>`<option value="${esc(q.id)}">${esc(q.codigo||q.cuartel)} · ${esc(q.cultivo||'')} ${q.variedad?'· '+esc(q.variedad):''}</option>`).join('');
+    $('#cuartelId').innerHTML='<option value="">Seleccionar cuartel…</option>'+rows;
+    $('#historyQuarter').innerHTML='<option value="">Selecciona un cuartel</option>'+rows;
+    const sigue=id=>id&&quarters.some(q=>q.id===id);
+    if(sigue(elegido))$('#cuartelId').value=elegido;
+    if(sigue(historial))$('#historyQuarter').value=historial;
+  }
   async function loadProfile(){if(!db||!session)return false;try{const {data:p,error}=await db.from('perfiles').select('organizacion_id,nombre_completo,rol,estado').eq('id',session.user.id).maybeSingle();if(error)throw error;if(!p)throw new Error('Perfil no encontrado');profile=p;showProfile();await cacheProfile(p);const {data:q,error:qe}=await queryCuarteles(p.organizacion_id);if(qe)throw qe;quarters=Array.isArray(q)?q:[];await cacheQuarters(quarters,p.organizacion_id);fillQuarters();$('#retryProfile').hidden=true;
 /* Un campo sin cuarteles es un estado normal desde que la carga se acota por
    campo -- Rinconada Cerro y Mirador Cerro existen y todavia no tienen ninguno.

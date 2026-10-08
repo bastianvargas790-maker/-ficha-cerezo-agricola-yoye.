@@ -29,3 +29,28 @@ node pruebas/terreno/revisar-en-telefono.mjs http://localhost:8898
 ```
 
 Devuelve 0 si pasa todo y 1 si algo falla. Necesita Playwright con Chromium.
+
+## revisar-fertilizacion.mjs
+
+El registro de fertilizaciones y el cuartel que se desmarcaba en Calicatas.
+Abre la app de verdad en 390 px y hace lo que se hace en terreno: abrir la hoja
+"Registrar", anotar productos y kilos, guardar con y sin señal, corregir y
+descartar.
+
+```
+python3 -m http.server 8899        # desde la raíz del repositorio
+node pruebas/terreno/revisar-fertilizacion.mjs
+```
+
+Lo que cuida:
+
+- La hoja "Registrar" ya no ofrece riego y sí fertilización.
+- El catálogo de productos se carga y un producto líquido trae litros puesto.
+- Una fila cuenta sólo con producto y cantidad; lo que queda a medias se avisa.
+- Sin señal guarda igual en el teléfono y no intenta subir.
+- Tras guardar, el cuartel queda puesto y las cantidades se borran.
+- Lo del mismo cuartel y el mismo día es una sola tarjeta, no dos.
+- Descartar oculta con `activo=false`; nunca borra.
+- **El cuartel de la calicata sigue elegido** después de que la app recarga los
+  campos. Esta es la falla que motivó el archivo: no se perdía al guardar, se
+  perdía cuando volvía la señal y el formulario se repintaba debajo.

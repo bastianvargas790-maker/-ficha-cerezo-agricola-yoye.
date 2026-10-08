@@ -14,5 +14,5 @@ test('los campos de respaldo traen su id real (sin señal igual se filtra por ca
 
 test('Calicatas descarta cuarteles de otro campo antes de llenar el selector', () => {
   assert.match(cal, /select\('id,organizacion_id,campo_id,/);
-  assert.match(cal, /function fillQuarters\(\)\{quarters=delCampo\(quarters\)/);
+  assert.match(cal, /function fillQuarters\(\)\{quarters=delCampo\(quarters\);/);
 });

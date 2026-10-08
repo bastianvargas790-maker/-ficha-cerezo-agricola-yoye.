@@ -1,15 +1,15 @@
-const CACHE='aforo-campo-v20261007-tendencias';
+const CACHE='aforo-campo-v20261008-fertilizacion';
 const SHELL=[
   './',
   './index.html',
   './manifest.webmanifest',
-  '../assets/yoye-theme.css?v=20261007-tendencias',
-  '../assets/private-app.css?v=20261007-tendencias',
-  '../assets/campos.css?v=20261007-tendencias',
-  '../assets/supabase.js?v=20261007-tendencias',
-  '../assets/shared-auth.js?v=20261007-tendencias',
-  '../assets/campos.js?v=20261007-tendencias',
-  '../assets/aforo.js?v=20261007-tendencias',
+  '../assets/yoye-theme.css?v=20261008-fertilizacion',
+  '../assets/private-app.css?v=20261008-fertilizacion',
+  '../assets/campos.css?v=20261008-fertilizacion',
+  '../assets/supabase.js?v=20261008-fertilizacion',
+  '../assets/shared-auth.js?v=20261008-fertilizacion',
+  '../assets/campos.js?v=20261008-fertilizacion',
+  '../assets/aforo.js?v=20261008-fertilizacion','../assets/fertilizacion.js?v=20261008-fertilizacion',
   '../assets/yoye-logo.png',
   '../assets/icons/favicon.svg',
   '../assets/icons/aforo-192.png',

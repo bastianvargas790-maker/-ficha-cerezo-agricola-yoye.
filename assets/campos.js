@@ -264,10 +264,14 @@ function hojaCamposHtml(){
       </button>`).join('')}</div>
   </div></div>`;
 }
+/* Lo que se registra en terreno. El riego salió de acá: no se está llevando
+   registro de riegos y la opción sólo llevaba a elegir un cuartel. En su lugar
+   va la fertilización, que sí se anota todos los días y hasta ahora vivía en
+   una planilla por cuartel. */
 function registrosDisponibles(campo){
   const items=[];
-  if(tieneModulo(campo,'riego'))items.push({id:'riego',g:'💧',t:'Riego',d:'Elige el cuartel y registra el riego',href:root()+'cuarteles/lista.html'});
   items.push({id:'calicata',g:'🪨',t:'Calicata',d:'Perfiles H %, CE y T °C',href:root()+'calicatas/registro-v16.html'});
+  items.push({id:'fertilizacion',g:'🧪',t:'Fertilización',d:'Productos y kilos por cuartel',href:null});
   items.push({id:'aforo',g:'⌁',t:'Aforo',d:'Presiones y 16 emisores',href:null});
   return items;
 }
@@ -289,6 +293,7 @@ function bindHojaEvents(host){
   $$('[data-slug]',host).forEach(el=>el.onclick=()=>elegirCampo(el.dataset.slug,false));
   $$('[data-registro]',host).forEach(el=>el.onclick=()=>{
     if(el.dataset.registro==='aforo'){cerrarHoja();window.yoyeAbrirAforo?.();return}
+    if(el.dataset.registro==='fertilizacion'){cerrarHoja();window.yoyeAbrirFertilizacion?.();return}
     if(el.dataset.href){cerrarHoja();location.href=el.dataset.href}
   });
 }

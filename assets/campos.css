@@ -119,6 +119,22 @@ html.yoye-gate-open,html.yoye-gate-open body{overflow:hidden}
 .yoye-emisor-row input{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;padding:8px 8px;font-size:13px;background:var(--paper);color:var(--ink)}
 .yoye-emisor-row .yoye-emisor-caudal{font-size:11.5px;font-weight:700;color:var(--sage-700);text-align:right}
 
+/* ===== Fertilización: una fila por producto ===== */
+/* Cada producto es una tarjeta con su nombre, su cantidad y su unidad. En el
+   teléfono la cantidad y la unidad van lado a lado; el nombre, que es lo largo,
+   ocupa toda la fila. */
+.yoye-fert-fila{border:1px solid var(--line);border-radius:var(--radius-md);padding:10px;margin-bottom:9px;background:var(--paper)}
+.yoye-fert-fila .yoye-input{margin-bottom:7px}
+.yoye-fert-fila .yoye-input:last-child{margin-bottom:0}
+.yoye-fert-fila-cab{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
+.yoye-fert-fila-cab span{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--sage-700)}
+.yoye-fert-quitar{width:34px;height:34px;border:0;border-radius:50%;background:var(--cream);color:var(--text-secondary);font-size:15px;line-height:1;cursor:pointer}
+.yoye-fert-cantidad{display:grid;grid-template-columns:1fr 104px;gap:7px}
+.yoye-fert-cantidad .yoye-input{margin-bottom:0}
+/* El resumen de lo guardado: se queda en pantalla, que es lo que uno mira para
+   confirmar que lo anotado quedó. */
+.yoye-fert-aviso{display:block;margin-bottom:5px;font-size:13px;font-weight:700;color:var(--sage-700)}
+
 /* ===== Resultado ===== */
 .yoye-resultado-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .yoye-resultado-kpi{background:var(--paper);border:1px solid var(--line);border-top:3px solid var(--sage-600);border-radius:var(--radius-md);padding:11px 12px}
