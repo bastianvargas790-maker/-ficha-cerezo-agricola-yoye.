@@ -22,15 +22,24 @@ Planilla (Google Sheets)
 
 ## Instalación, una sola vez
 
-1. **Base de datos** — ejecutar en orden:
+1. **Base de datos** — ✅ ejecutado el 13-oct-2026:
    - `supabase/migrations/202610130001_programa_fertilizacion.sql`
-   - `supabase/migrations/202610130002_fert_hoja_cuartel.sql`
-2. **Edge Function** — desplegar `supabase/functions/programa-fertilizacion`
-   con `verify_jwt = false`: no la llama un usuario con sesión, la llama la
-   planilla con el secreto compartido `GOOGLE_SHEETS_SYNC_SECRET`, el mismo que
-   ya usan `sync-calicata` y `sync-aforo-rinconada`.
-3. **Planilla** — Extensiones → Apps Script, pegar `subir-programa.gs`, y en
-   Propiedades del script agregar `SUPABASE_FUNCION` y `SYNC_SECRET`.
+   - `supabase/migrations/202610130002_fert_hoja_cuartel.sql` (35 equivalencias
+     hoja → cuartel cargadas)
+2. **Edge Function** — ✅ desplegada: `programa-fertilizacion`, con
+   `verify_jwt = false`. No la llama un usuario con sesión, la llama la planilla
+   con el secreto compartido `GOOGLE_SHEETS_SYNC_SECRET`, el mismo que ya usan
+   `sync-calicata` y `sync-aforo-rinconada`. Como no la protege una sesión sino
+   ese secreto, la función lo compara en tiempo constante y no acepta nada más.
+3. **Planilla** — ⏳ pendiente: Extensiones → Apps Script, pegar
+   `subir-programa.gs`, y en Propiedades del script agregar `SUPABASE_FUNCION`
+   (`https://yfpjbjewehusimetwuyc.supabase.co/functions/v1/programa-fertilizacion`)
+   y `SYNC_SECRET`. Hasta que esto esté, `fert_plan` está vacía y la app no
+   tiene qué sugerir.
+
+> El camino completo planilla → función → base todavía no se ha recorrido una
+> vez: se prueba solo, y se ve, la primera vez que se aprieta el botón, porque
+> el Apps Script muestra cuántas líneas entraron y qué hojas quedaron fuera.
 
 ## Cómo se usa
 
