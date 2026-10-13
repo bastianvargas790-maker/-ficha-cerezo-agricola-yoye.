@@ -157,6 +157,40 @@
 /* Profundidades bajo la zona de raíces: se muestran, pero no compiten con lo que sí toma el árbol. */
 .pd-fuera{color:var(--text-secondary,#645c50);opacity:.85;border-bottom:1px dotted var(--line,#cfc8b6)}
 
+/* ---------- Todos los campos: una tarjeta por campo ----------
+   En el escritorio se acomodan de a cuatro y en el teléfono una abajo de otra.
+   Antes esto eran cuatro gráficos de barras apilados en una columna: para
+   saber cómo venía un campo había que leerlos todos. */
+.pd-campos-grid{display:grid;gap:12px;grid-template-columns:1fr}
+@media (min-width:560px){.pd-campos-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (min-width:1180px){.pd-campos-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.pd-campo-card{border:1px solid var(--line,#e2dbc8);border-radius:12px;padding:12px;background:var(--paper,#fffdf8);min-width:0}
+.pd-campo-cab{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:2px}
+.pd-campo-cab h3{font:800 1rem var(--font-heading,Georgia,serif);margin:0;color:var(--ink,#17352c)}
+.pd-campo-cab span{font-size:.8rem;font-weight:800;color:var(--text-secondary,#645c50);white-space:nowrap}
+.pd-campo-sub{margin:0 0 10px;font-size:.74rem;color:var(--text-secondary,#645c50)}
+.pd-campo-pie{margin:9px 0 0;font-size:.72rem;color:var(--text-secondary,#645c50);line-height:1.35}
+
+/* Medidor: cuánto de cuánto. El riel es un tono claro del mismo color, para
+   que el estado se lea a lo largo de toda la barra, y la cifra va en tinta. */
+.pd-medidores{display:grid;gap:9px;min-width:0}
+/* Sin esto, la fila del medidor no se encoge: en una reja, el hijo no baja de
+   su contenido salvo que se le diga, y el porcentaje -- que va al final --
+   quedaba fuera del borde de la tarjeta. Se veía "9" en vez de "92%". */
+.pd-medidores>*{min-width:0}
+.pd-medidor{min-width:0}
+.pd-medidor-cab{display:flex;align-items:baseline;gap:6px;margin-bottom:4px;font-size:.73rem;min-width:0}
+.pd-medidor-cab b{color:var(--ink,#17352c);font-weight:800;flex:0 0 auto}
+/* El detalle se encoge y el porcentaje NO: con la tarjeta angosta, el número
+   quedaba cortado por la mitad ("9" en vez de "92%"), que es justo el dato que
+   uno busca primero. */
+.pd-medidor-cab i{font-style:normal;color:var(--text-secondary,#645c50);flex:1 1 auto;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.pd-medidor-cab u{flex:0 0 auto;text-decoration:none;font-weight:800;color:var(--ink,#17352c);font-variant-numeric:tabular-nums}
+.pd-medidor-riel{display:block;height:9px;border-radius:999px;overflow:hidden}
+.pd-medidor-lleno{display:block;height:100%;border-radius:999px;transition:width .25s ease}
+.pd-medidor-vacio .pd-medidor-cab i{font-style:italic}
+
 /* ---------- Gráficos ---------- */
 .pd-grafico .pd-card-title{margin-bottom:.35em}
 .pd-svg-ref{font:800 8.5px var(--font-body,system-ui,sans-serif);text-anchor:middle;letter-spacing:.04em}

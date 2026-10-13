@@ -34,7 +34,7 @@ function kpi(label,valor,pie,tono,chico){
 const ESTADO_COLOR={ok:'#3f7a4f',atencion:'#a8752d',alerta:'#b1543a',critico:'#8e3d20',exceso:'#2a78d6'};
 const ESTADO_NOMBRE={ok:'Cómodo',atencion:'Consumiendo reserva',alerta:'Al límite',critico:'En déficit',exceso:'Sobre capacidad de campo'};
 
-function barras(titulo,kicker,filas,sufijo,pie){
+function barras(titulo,kicker,filas,sufijo,pie,ancho){
   if(!filas.length)return '';
   const max=Math.max(...filas.map(f=>f.valor),0)||1;
   /* La escala parte del máximo redondeado hacia arriba, y se rotula: una barra
@@ -42,7 +42,7 @@ function barras(titulo,kicker,filas,sufijo,pie){
   const marcas=marcasEje(0,max);
   const tope=Math.max(marcas[marcas.length-1],max);
   const estados=[...new Set(filas.map(f=>f.estado).filter(Boolean))];
-  return `<section class="pd-card">
+  return `<section class="pd-card${ancho?' pd-ancho':''}">
     <div class="pd-kicker">${esc(kicker)}</div>
     <h3 class="pd-card-title">${esc(titulo)}</h3>
     <div class="pd-bars">${filas.map(f=>`
@@ -530,6 +530,38 @@ function anillo(titulo,kicker,partes,pie){
     </div>
     ${pie?`<p class="pd-nota">${esc(pie)}</p>`:''}
   </section>`;
+}
+
+/* ---------- Medidor: una razón contra su total ----------
+   Avance de aforo, cobertura de calicatas, ácido aplicado: cada uno es "cuánto
+   de cuánto". Eso NO es un gráfico de barras comparando campos -- era lo que
+   había y obligaba a leer cuatro tarjetas para saber cómo venía un campo --
+   sino un medidor por campo, con su fracción escrita al lado.
+   El riel es un tono claro del mismo color, para que el estado se lea a lo
+   largo de toda la barra, y la cifra va en tinta, nunca en el color. */
+const MEDIDA={
+  aforo:    {nombre:'Aforo',     color:'#2a78d6', riel:'#d8e8fb'},
+  calicata: {nombre:'Calicatas', color:'#199e70', riel:'#d3efe4'},
+  acido:    {nombre:'Ácido',     color:'#eb6834', riel:'#fbe0d4'},
+  descole:  {nombre:'Descole',   color:'#a33b8f', riel:'#f2dcee'}
+};
+function medidor(clave,hechos,total,pie,sufijo){
+  const m=MEDIDA[clave];
+  /* Sin total no hay razón que mostrar: una barra en cero se lee como "cero
+     por ciento hecho" cuando en realidad es "todavía no hay nada que medir". */
+  if(!total)return `<div class="pd-medidor pd-medidor-vacio">
+      <span class="pd-medidor-cab"><b>${esc(m.nombre)}</b><i>${esc(hechos?pie:'sin registros')}</i></span>
+    </div>`;
+  const pct=Math.max(0,Math.min(100,hechos/total*100));
+  return `<div class="pd-medidor">
+    <span class="pd-medidor-cab"><b>${esc(m.nombre)}</b>
+      <i>${esc(pie)}</i>
+      <u>${n0(pct)}%</u></span>
+    <span class="pd-medidor-riel" style="background:${m.riel}" role="img"
+          aria-label="${esc(m.nombre)}: ${esc(pie)}, ${n0(pct)} por ciento">
+      <span class="pd-medidor-lleno" style="width:${pct.toFixed(1)}%;background:${m.color}"></span>
+    </span>
+  </div>`;
 }
 
 function tabla(titulo,kicker,cabeceras,filas,nota){
@@ -1145,12 +1177,12 @@ async function datosTodos(){
     db.from('cuarteles').select('id,campo_id,superficie_ha').eq('activo',true),
     db.from('sectores_aforo').select('id,campo_id').eq('activo',true),
     db.from('calicatas').select('id,cuartel_id,fecha').eq('activo',true),
-    db.from('aplicaciones_acido').select('campo_id,superficie_ha,litros_requeridos,litros_aplicados,estado_descole')
+    db.from('aplicaciones_acido').select('campo_id,superficie_ha,litros_requeridos,litros_aplicados,estado_aplicacion,estado_descole,fecha_aplicacion,actualizado_en')
   ]);
   const cuarteles=cu.data||[];
   let aforos=[];
   if(cuarteles.length){
-    const r=await db.from('aforos').select('cuartel_id,sector_aforo_id,coeficiente_uniformidad');
+    const r=await db.from('aforos').select('cuartel_id,sector_aforo_id,coeficiente_uniformidad,fecha_evaluacion,temporada').eq('activo',true);
     if(!r.error)aforos=r.data||[];
   }
   return {campos,cuarteles,sectores:se.data||[],calicatas:ca.data||[],acido:ac.data||[],aforos};
@@ -1174,6 +1206,13 @@ function pintarTodos(d){
     const misAcido=acido.filter(a=>a.campo_id===c.id);
     const req=misAcido.reduce((t,a)=>t+(Number(a.litros_requeridos)||0),0);
     const apl=misAcido.reduce((t,a)=>t+(Number(a.litros_aplicados)||0),0);
+    const haAcido=misAcido.reduce((t,a)=>t+(Number(a.superficie_ha)||0),0);
+    const haAplicada=misAcido.filter(a=>a.estado_aplicacion==='Aplicado')
+      .reduce((t,a)=>t+(Number(a.superficie_ha)||0),0);
+    const descolados=misAcido.filter(a=>a.estado_descole==='Descolado').length;
+    const misAforos=aforos.filter(a=>campoDeCuartel.get(a.cuartel_id)===c.id);
+    const cusCampo=misAforos.map(a=>Number(a.coeficiente_uniformidad)).filter(v=>Number.isFinite(v)&&v>0);
+    const ultima=f=>{const d=f.map(x=>String(x||'').slice(0,10)).filter(Boolean).sort();return d.length?d[d.length-1]:null};
     return {
       nombre:c.nombre, slug:c.slug,
       // La superficie sale de los cuarteles cuando está medida; si no, la del
@@ -1185,9 +1224,54 @@ function pintarTodos(d){
       avance: totalSectores?hechos/totalSectores*100:0,
       calicatas:misCalicatas.length,
       cuartelesConCalicata:new Set(misCalicatas.map(k=>k.cuartel_id)).size,
+      ultimaCalicata:ultima(misCalicatas.map(k=>k.fecha)),
+      ultimoAforo:ultima(misAforos.map(a=>a.fecha_evaluacion)),
+      cu: cusCampo.length?prom(cusCampo):null,
+      litrosReq:req, litrosApl:apl,
+      haAcido, haAplicada, acidoRegistros:misAcido.length, descolados,
       acidoAvance: req?apl/req*100:null
     };
   });
+
+  /* --- Una tarjeta por campo, con sus medidores ---
+     Antes había cuatro gráficos de barras apilados, uno por medida, y para
+     saber cómo venía UN campo había que leerlos todos y acordarse del orden.
+     Ahora cada campo es una tarjeta con sus cuatro medidores y las cifras al
+     lado: cuántos de cuántos, no solo el porcentaje. En el escritorio se
+     acomodan de a cuatro; en el teléfono, una abajo de otra. */
+  const tarjetaCampo=r=>{
+    const detalle=[
+      r.cu!==null?`CU promedio ${n1(r.cu)}%`:null,
+      r.ultimoAforo?`último aforo ${fecha(r.ultimoAforo)}`:null,
+      r.ultimaCalicata?`última calicata ${fecha(r.ultimaCalicata)}`:null
+    ].filter(Boolean).join(' · ');
+    return `<article class="pd-campo-card">
+      <header class="pd-campo-cab">
+        <h3>${esc(r.nombre)}</h3>
+        <span>${n2(r.superficie)} ha${r.superficieMedida?'':' *'}</span>
+      </header>
+      <p class="pd-campo-sub">${n0(r.cuarteles)} ${r.cuarteles===1?'cuartel':'cuarteles'} · ${n0(r.sectores)} ${r.sectores===1?'sector de riego':'sectores de riego'}</p>
+      <div class="pd-medidores">
+        ${medidor('aforo',r.aforos,r.sectores,
+          r.aforos?`${n0(r.aforos)} de ${n0(r.sectores)} sectores`:'sin aforos todavía')}
+        ${medidor('calicata',r.cuartelesConCalicata,r.cuarteles,
+          r.calicatas?`${n0(r.cuartelesConCalicata)} de ${n0(r.cuarteles)} cuarteles · ${n0(r.calicatas)} ${r.calicatas===1?'calicata':'calicatas'}`:'sin calicatas todavía')}
+        ${medidor('acido',r.haAplicada,r.haAcido,`${n1(r.haAplicada)} de ${n1(r.haAcido)} ha · ${n1(r.litrosApl)} L`)}
+        ${medidor('descole',r.descolados,r.acidoRegistros,`${n0(r.descolados)} de ${n0(r.acidoRegistros)} cuarteles`)}
+      </div>
+      ${detalle?`<p class="pd-campo-pie">${esc(detalle)}</p>`:'<p class="pd-campo-pie">Todavía sin evaluaciones registradas.</p>'}
+    </article>`;
+  };
+  const tarjetas=`<section class="pd-card pd-ancho">
+    <div class="pd-kicker">Campo por campo</div>
+    <h3 class="pd-card-title">Cómo viene cada uno</h3>
+    <div class="pd-campos-grid">${resumen.map(tarjetaCampo).join('')}</div>
+    <div class="pd-leyenda">
+      ${['aforo','calicata','acido','descole'].map(k=>
+        `<span class="pd-leyenda-item"><i style="background:${MEDIDA[k].color}"></i>${esc(MEDIDA[k].nombre)}</span>`).join('')}
+      <span class="pd-leyenda-nota">Cada barra es cuánto de cuánto, no una comparación entre campos.</span>
+    </div>
+  </section>`;
 
   const totCuarteles=resumen.reduce((t,r)=>t+r.cuarteles,0);
   const totSectores=resumen.reduce((t,r)=>t+r.sectores,0);
@@ -1195,22 +1279,30 @@ function pintarTodos(d){
   const totCalicatas=resumen.reduce((t,r)=>t+r.calicatas,0);
   const totSup=resumen.reduce((t,r)=>t+r.superficie,0);
 
+  const totConCalicata=resumen.reduce((t,r)=>t+r.cuartelesConCalicata,0);
+  const totHaAcido=resumen.reduce((t,r)=>t+r.haAcido,0);
+  const totHaApl=resumen.reduce((t,r)=>t+r.haAplicada,0);
+  const totLitros=resumen.reduce((t,r)=>t+r.litrosApl,0);
   const kpis=`<div class="pd-kpis">
-    ${kpi('Campos',n0(campos.length),'con acceso en tu cuenta','verde')}
-    ${kpi('Superficie total',`${n2(totSup)}<span class="pd-de">ha</span>`,'suma de los campos','verde')}
-    ${kpi('Cuarteles',n0(totCuarteles),`${n0(totSectores)} sectores de riego`,'azul')}
-    ${kpi('Avance del aforo',`${totSectores?n1(totAforos/totSectores*100):'0,0'}<span class="pd-de">%</span>`,`${n0(totAforos)} de ${n0(totSectores)} sectores`,'azul')}
-    ${kpi('Calicatas',n0(totCalicatas),cus.length?`CU promedio ${n1(prom(cus))}%`:'registradas en total','cafe')}
+    ${kpi('Superficie total',`${n2(totSup)}<span class="pd-de">ha</span>`,`${n0(campos.length)} campos · ${n0(totCuarteles)} cuarteles`,'verde')}
+    ${kpi('Avance del aforo',`${totSectores?n1(totAforos/totSectores*100):'0,0'}<span class="pd-de">%</span>`,
+      `${n0(totAforos)} de ${n0(totSectores)} sectores de riego`,'azul')}
+    ${cus.length?kpi('Uniformidad promedio',`${n1(prom(cus))}<span class="pd-de">%</span>`,
+      `de ${n0(cus.length)} ${cus.length===1?'aforo':'aforos'} · ${n0(cus.filter(v=>v<80).length)} bajo 80%`,'azul',true)
+      :kpi('Uniformidad promedio','Sin aforos','todavía no hay ninguno registrado','azul',true)}
+    ${kpi('Cuarteles con calicata',`${totCuarteles?n0(totConCalicata/totCuarteles*100):'0'}<span class="pd-de">%</span>`,
+      `${n0(totConCalicata)} de ${n0(totCuarteles)} · ${n0(totCalicatas)} calicatas`,'cafe',true)}
+    ${totHaAcido?kpi('Ácido aplicado',`${n1(totHaApl/totHaAcido*100)}<span class="pd-de">%</span>`,
+      `${n1(totHaApl)} de ${n1(totHaAcido)} ha · ${n1(totLitros)} L`,'terracota',true):''}
   </div>`;
 
-  const filaAvance=resumen.map(r=>({etiqueta:r.nombre,valor:r.avance,
-    texto:`${n0(r.aforos)}/${n0(r.sectores)} · ${n1(r.avance)}%`}));
-  const filaSup=resumen.map(r=>({etiqueta:r.nombre,valor:r.superficie,texto:`${n2(r.superficie)} ha`}))
+  /* Lo único que sigue siendo una comparación entre campos -- y por eso sigue
+     siendo barras -- es la superficie: ahí sí la pregunta es cuál es más
+     grande. El avance, la cobertura y el ácido son "cuánto de cuánto" de cada
+     campo, y eso vive en los medidores de su tarjeta. */
+  const filaSup=resumen.map(r=>({etiqueta:r.nombre,valor:r.superficie,
+    texto:`${n2(r.superficie)} ha${r.superficieMedida?'':' *'}`}))
     .sort((a,b)=>b.valor-a.valor);
-  const filaCal=resumen.filter(r=>r.cuarteles).map(r=>({etiqueta:r.nombre,
-    valor:r.cuarteles?r.cuartelesConCalicata/r.cuarteles*100:0,
-    texto:`${n0(r.cuartelesConCalicata)}/${n0(r.cuarteles)}`}));
-  const conAcido=resumen.filter(r=>r.acidoAvance!==null);
 
   const tabla=`<section class="pd-card pd-ancho"><div class="pd-kicker">Detalle</div>
     <h3 class="pd-card-title">Resumen por campo</h3>
@@ -1226,27 +1318,14 @@ function pintarTodos(d){
     ${resumen.some(r=>!r.superficieMedida)?'<p class="pd-nota">* Superficie de referencia del campo: todavía falta cargarla cuartel por cuartel.</p>':''}
   </section>`;
 
-  /* Cobertura del monitoreo: cuántos cuarteles tienen al menos una calicata.
-     Es parte de un todo real -- evaluado o no evaluado -- así que el anillo
-     dice algo; las barras con todo en cero, no. */
-  const evaluadosTot=resumen.reduce((t,r)=>t+r.cuartelesConCalicata,0);
-  const anilloCobertura=totCuarteles?anillo('Cobertura del monitoreo','Calicatas',[
-    {etiqueta:'Cuarteles con calicata',valor:evaluadosTot,color:'#2a78d6'},
-    {etiqueta:'Todavía sin evaluar',valor:Math.max(0,totCuarteles-evaluadosTot),color:'#cde2fb'}
-  ],'Sobre el total de cuarteles cargados en los campos que puedes ver.'):'';
-
-  /* El avance del aforo se dibuja solo cuando hay alguno: con todo en cero son
-     cuatro barras vacías que hacen parecer roto un panel que solo espera datos. */
   const hayAforos=resumen.some(r=>r.aforos>0);
 
-  return kpis+
-    (hayAforos?barras('Avance del aforo por campo','Comparación',filaAvance):'')+
-    barras('Superficie por campo','Comparación',filaSup)+
-    anilloCobertura+
-    (filaCal.some(f=>f.valor>0)?barras('Cuarteles con calicata','Comparación',filaCal):'')+
-    (conAcido.length?barras('Ácido peracético aplicado','Comparación',
-      conAcido.map(r=>({etiqueta:r.nombre,valor:r.acidoAvance,texto:`${n1(r.acidoAvance)}%`}))):'')+
-    (hayAforos?'':`<p class="pd-nota pd-ancho">Todavía no hay aforos registrados en ningún campo: por eso no aparece la comparación de avance. En cuanto se registre el primero, este panel la muestra.</p>`)+
+  return kpis+tarjetas+
+    barras('Superficie por campo','Comparación',filaSup,' ha',
+      resumen.some(r=>!r.superficieMedida)
+        ?'Las marcadas con * usan la superficie de referencia del campo: todavía falta cargarla cuartel por cuartel.':'',
+      true)+
+    (hayAforos?'':`<p class="pd-nota pd-ancho">Todavía no hay aforos registrados: los medidores de aforo aparecen en cuanto se registre el primero.</p>`)+
     tabla;
 }
 

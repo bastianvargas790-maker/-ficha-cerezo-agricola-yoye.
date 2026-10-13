@@ -35,3 +35,26 @@ se vuelven a generar cada vez.
   misma textura.
 - Al agrandar la ventana el gráfico se vuelve a dibujar al ancho nuevo.
 - Ningún error de JavaScript en toda la carga.
+
+## revisar-todos-los-campos.mjs
+
+El panel "Todos los campos": una tarjeta por campo con cuatro medidores (aforo,
+calicatas, ácido y descole).
+
+```
+python3 -m http.server 8899
+node pruebas/paneles/revisar-todos-los-campos.mjs
+```
+
+Lo que cuida:
+
+- Cada campo trae su tarjeta y sus cuatro medidores.
+- **El porcentaje cabe dentro de la tarjeta.** Esta es la falla que motivó la
+  revisión: sin `min-width:0` en los hijos de la reja, la fila no se encogía y
+  el número quedaba cortado por el borde — se leía "9" en vez de "92%", y el
+  archivo se veía perfecto.
+- En el escritorio las tarjetas se reparten de a cuatro; en el teléfono, una
+  abajo de otra.
+- Un campo sin datos dice "sin aforos todavía" en vez de dibujar una barra en
+  cero, que se lee como "cero por ciento hecho".
+- Los indicadores de arriba dicen cuántos de cuántos, no solo el porcentaje.

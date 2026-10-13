@@ -106,10 +106,14 @@ test('la app de Calicatas quedó solo para registrar', () => {
 });
 
 test('el resumen de campos no dibuja barras vacías', () => {
-  // Sin ningún aforo, cuatro barras en cero hacen parecer roto un panel que
-  // solo está esperando el primer registro.
+  // Sin ningún aforo, una barra en cero hace parecer roto un panel que solo
+  // está esperando el primer registro. El anillo de cobertura que cumplía este
+  // papel lo reemplazaron los medidores de cada tarjeta de campo, que dicen
+  // "sin aforos todavía" en vez de dibujar un cero.
   assert.match(js, /const hayAforos=resumen\.some\(r=>r\.aforos>0\)/);
-  assert.ok(js.includes('Cobertura del monitoreo'), 'la cobertura sí es parte de un todo');
+  assert.ok(js.includes("'sin aforos todavía'"), 'un campo sin datos lo dice');
+  assert.ok(js.includes("if(!total)return `<div class=\"pd-medidor pd-medidor-vacio\">"),
+    'el medidor sin total no dibuja barra');
 });
 
 test('el panel usa el mismo criterio agronómico que la app, no uno propio', () => {
