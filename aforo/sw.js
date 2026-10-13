@@ -1,15 +1,15 @@
-const CACHE='aforo-campo-v20261008-fertilizacion';
+const CACHE='aforo-campo-v20261013-programa';
 const SHELL=[
   './',
   './index.html',
   './manifest.webmanifest',
-  '../assets/yoye-theme.css?v=20261008-fertilizacion',
-  '../assets/private-app.css?v=20261008-fertilizacion',
-  '../assets/campos.css?v=20261008-fertilizacion',
-  '../assets/supabase.js?v=20261008-fertilizacion',
-  '../assets/shared-auth.js?v=20261008-fertilizacion',
-  '../assets/campos.js?v=20261008-fertilizacion',
-  '../assets/aforo.js?v=20261008-fertilizacion','../assets/fertilizacion.js?v=20261008-fertilizacion',
+  '../assets/yoye-theme.css?v=20261013-programa',
+  '../assets/private-app.css?v=20261013-programa',
+  '../assets/campos.css?v=20261013-programa',
+  '../assets/supabase.js?v=20261013-programa',
+  '../assets/shared-auth.js?v=20261013-programa',
+  '../assets/campos.js?v=20261013-programa',
+  '../assets/aforo.js?v=20261013-programa','../assets/fertilizacion.js?v=20261013-programa',
   '../assets/yoye-logo.png',
   '../assets/icons/favicon.svg',
   '../assets/icons/aforo-192.png',

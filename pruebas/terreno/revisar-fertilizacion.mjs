@@ -29,8 +29,22 @@ const stub = () => {
     { id: 'p3', nombre: 'Bioamino-L', clave: 'bioamino l', unidad: 'L', activo: true }
   ];
   const PERFIL = [{ id: 'u1', organizacion_id: 'org1', nombre_completo: 'Bastián Vargas', rol: 'administrador' }];
+  // El programa de la planilla: dos fechas de C-36, una cercana y otra después.
+  const hoy = new Date(); const dia = n => { const d = new Date(hoy); d.setDate(d.getDate() + n);
+    return d.toISOString().slice(0, 10) };
+  const PROGRAMA = [
+    { plan_id: 'pl1', cuartel_id: 'q2', producto_id: 'p1', producto: 'Nitrato de potasio', temporada: '2026-2027',
+      fecha: dia(1), cantidad_programada: 75, unidad: 'kg', aplicacion_id: null, estado: null },
+    { plan_id: 'pl2', cuartel_id: 'q2', producto_id: 'p2', producto: 'Urea', temporada: '2026-2027',
+      fecha: dia(1), cantidad_programada: 50, unidad: 'kg', aplicacion_id: null, estado: null },
+    { plan_id: 'pl3', cuartel_id: 'q2', producto_id: 'p3', producto: 'Bioamino-L', temporada: '2026-2027',
+      fecha: dia(1), cantidad_programada: 10, unidad: 'L', aplicacion_id: null, estado: null },
+    { plan_id: 'pl4', cuartel_id: 'q2', producto_id: 'p2', producto: 'Urea', temporada: '2026-2027',
+      fecha: dia(9), cantidad_programada: 50, unidad: 'kg', aplicacion_id: null, estado: null }
+  ];
+  window.__programa = PROGRAMA;
   window.__enviados = [];
-  const FILAS = { cuarteles: CUARTELES, perfiles: PERFIL, fert_productos: PRODUCTOS,
+  const FILAS = { cuarteles: CUARTELES, perfiles: PERFIL, fert_productos: PRODUCTOS, fert_programa_estado: PROGRAMA,
     fert_aplicaciones: [], calicatas: [], lecturas_calicata: [], observaciones_calicata: [],
     campos: [], sectores_aforo: [], aforos: [] };
   const tabla = n => { const filas = FILAS[n] || []; const o = {};
@@ -98,11 +112,19 @@ const campos = await p.evaluate(() => ({
 revisar(campos.cuarteles === 2, `el selector trae los cuarteles del campo (${campos.cuarteles})`);
 revisar(campos.productos.includes('Nitrato de potasio'), 'el catálogo de productos está cargado');
 revisar(campos.productos.includes('Otro producto…'), 'se puede escribir un producto que no está en la lista');
-revisar(campos.filas >= 2, `arranca con filas listas para escribir (${campos.filas})`);
+revisar(campos.filas >= 1, `arranca con una fila lista para escribir (${campos.filas})`);
 revisar(!!campos.fecha, `la fecha viene puesta en hoy (${campos.fecha})`);
 revisar(/2026-2027|2025-2026/.test(campos.temporada), `dice a qué temporada va (${campos.temporada.trim()})`);
 
 const llenarFila = async (i, producto, cantidad) => {
+  // Si la fila no existe todavía, se agrega: el formulario abre con una sola.
+  await p.evaluate(async i => {
+    while (document.querySelectorAll('[data-fila]').length <= i) {
+      document.querySelector('#yoyeFertAgregar').click();
+      await new Promise(r => setTimeout(r, 60));
+    }
+  }, i);
+  await p.waitForTimeout(150);
   await p.evaluate(({ i, producto }) => {
     const row = document.querySelectorAll('[data-fila]')[i];
     const sel = row.querySelector('[data-c="producto"]');
@@ -143,6 +165,68 @@ revisar(fila.cuartel_id === 'q2' && fila.cantidad === 120 && fila.unidad === 'kg
   `cada fila lleva cuartel, cantidad y unidad (${JSON.stringify({ c: fila.cuartel_id, k: fila.cantidad, u: fila.unidad })})`);
 revisar(!('u_n' in fila) && !('via' in fila), 'no se inventan unidades de nutriente ni la vía de aplicación');
 
+console.log('\n— El programa de la planilla —');
+await p.evaluate(() => { const s = document.querySelector('[data-f="cuartel_id"]'); s.value = 'q2';
+  s.dispatchEvent(new Event('change', { bubbles: true })) });
+await p.waitForTimeout(400);
+const prog = await p.evaluate(() => ({
+  titulo: document.querySelector('.yoye-prog-card h3')?.textContent || '',
+  pie: document.querySelector('.yoye-prog-card .yoye-hint')?.textContent.replace(/\s+/g, ' ').trim() || '',
+  filas: [...document.querySelectorAll('[data-prog]')].map(r => ({
+    nombre: r.querySelector('strong')?.textContent,
+    programado: r.querySelector('.yoye-prog-dato span')?.textContent,
+    botones: [...r.querySelectorAll('.yoye-prog-btn')].map(b => b.textContent) })),
+  fecha: document.querySelector('[data-f="fecha"]').value
+}));
+revisar(prog.filas.length === 3, `al elegir el cuartel aparece lo programado (${prog.filas.length} productos)`);
+revisar(/semana/i.test(prog.titulo), `el título dice mes, semana y día ("${prog.titulo}")`);
+revisar(/pendiente/i.test(prog.pie), `dice para cuándo es ("${prog.pie}")`);
+revisar(prog.filas.every(f => f.botones.join('|') === 'Igual|Cambié|No apliqué'), 'cada producto trae las tres respuestas');
+revisar(/75/.test(prog.filas[0].programado || ''), `muestra lo programado (${prog.filas[0].programado})`);
+// La fecha del formulario pasa a ser la del programa: eso es lo que se confirma.
+revisar(prog.fecha && prog.fecha !== new Date().toISOString().slice(0, 10),
+  `la fecha del formulario toma la del programa (${prog.fecha})`);
+// Solo la fecha más cercana, nunca dos juntas.
+revisar(!prog.filas.some((f, i, a) => a.findIndex(x => x.nombre === f.nombre) !== i) && prog.filas.length === 3,
+  'solo se ofrece la fecha más cercana, no todo el programa junto');
+
+const responder = async (i, resp) => {
+  await p.evaluate(({ i, resp }) => {
+    const r = document.querySelectorAll('[data-prog]')[i];
+    [...r.querySelectorAll('.yoye-prog-btn')].find(b => b.textContent.trim().startsWith(resp))?.click();
+  }, { i, resp });
+  await p.waitForTimeout(250);
+};
+await responder(0, 'Igual');
+await responder(1, 'Cambié');
+const abrioCantidad = await p.evaluate(() =>
+  !!document.querySelectorAll('[data-prog]')[1].querySelector('[data-c="cantidad"]'));
+revisar(abrioCantidad, '"Cambié" abre el número para escribir cuánto fue');
+await p.evaluate(() => { document.querySelectorAll('[data-prog]')[1].querySelector('[data-c="cantidad"]').value = '35' });
+await responder(2, 'No apliqué');
+const marcados = await p.evaluate(() => [...document.querySelectorAll('.yoye-prog-btn.is-activo')].map(b => b.textContent));
+revisar(marcados.length === 3, `las tres respuestas quedan marcadas (${marcados.join(', ')})`);
+
+const antesProg = await p.evaluate(() => window.__enviados.length);
+await p.evaluate(() => document.querySelector('#yoyeFertGuardar').click());
+await p.waitForTimeout(1000);
+const guardadoProg = await p.evaluate(a => ({
+  aviso: document.querySelector('#yoyeFertEstado')?.textContent || '',
+  enviados: window.__enviados.slice(a),
+  programaVisible: document.querySelectorAll('[data-prog]').length
+}), antesProg);
+const subidas2 = guardadoProg.enviados.filter(e => e.tabla === 'fert_aplicaciones' && e.op === 'upsert');
+const filasProg = subidas2[0]?.rows || [];
+revisar(filasProg.length === 3, `suben las tres respuestas (${filasProg.length})`);
+const porPlan = Object.fromEntries(filasProg.map(f => [f.plan_id, f]));
+revisar(porPlan.pl1?.cantidad === 75 && porPlan.pl1?.estado === 'aplicado', '"Igual" guarda los kilos del programa');
+revisar(porPlan.pl2?.cantidad === 35 && porPlan.pl2?.estado === 'aplicado', '"Cambié" guarda lo que escribiste');
+revisar(porPlan.pl3?.cantidad === 0 && porPlan.pl3?.estado === 'no_aplicado', '"No apliqué" queda registrado, no en blanco');
+revisar(filasProg.every(f => f.plan_id), 'cada línea queda amarrada a su línea del programa');
+revisar(/como el programa/.test(guardadoProg.aviso) && /sin aplicar/.test(guardadoProg.aviso),
+  `el aviso resume qué pasó ("${guardadoProg.aviso}")`);
+revisar(guardadoProg.programaVisible > 0, 'después de guardar aparece la siguiente fecha del programa');
+
 console.log('\n— Producto que no está en el catálogo —');
 await p.evaluate(() => { const s = document.querySelector('[data-f="cuartel_id"]'); s.value = 'q1' });
 await llenarFila(0, 'nuevo', '25');
@@ -152,6 +236,20 @@ await p.waitForTimeout(900);
 const nuevos = await p.evaluate(() => window.__enviados.filter(e => e.tabla === 'fert_productos'));
 revisar(!nuevos.some(e => e.op === 'insert'),
   'si el nombre escrito ya existe en el catálogo, no se crea un producto repetido');
+
+// Cambiar a un cuartel sin programa tiene que soltar la fecha del programa
+// anterior: si no, la aplicación queda con fecha de otro cuartel.
+await p.evaluate(() => { const s = document.querySelector('[data-f="cuartel_id"]'); s.value = 'q1';
+  s.dispatchEvent(new Event('change', { bubbles: true })) });
+await p.waitForTimeout(350);
+const sinPrograma = await p.evaluate(() => ({
+  fecha: document.querySelector('[data-f="fecha"]').value,
+  aviso: document.querySelector('.yoye-form-card h3')?.textContent || '',
+  filas: document.querySelectorAll('[data-prog]').length
+}));
+revisar(sinPrograma.filas === 0, 'un cuartel sin programa no muestra el del anterior');
+revisar(sinPrograma.fecha === new Date().toISOString().slice(0, 10),
+  `y la fecha vuelve a hoy (${sinPrograma.fecha})`);
 
 console.log('\n— Sin señal —');
 await ctx.setOffline(true);

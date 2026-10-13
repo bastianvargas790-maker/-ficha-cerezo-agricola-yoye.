@@ -85,3 +85,61 @@ test('rellenar la lista de cuarteles ya no desmarca el que está elegido', () =>
   assert.ok(f.includes("if(sigue(elegido))$('#cuartelId').value=elegido"));
   assert.ok(f.includes("if(sigue(historial))$('#historyQuarter').value=historial"));
 });
+
+/* ---------- Confirmar el programa de la planilla ---------- */
+const prog = readFileSync(new URL('../assets/fertilizacion.js', import.meta.url), 'utf8');
+const sql = readFileSync(new URL('../supabase/migrations/202610130001_programa_fertilizacion.sql', import.meta.url), 'utf8');
+const script = readFileSync(new URL('../docs/fertilizacion/subir-programa.gs', import.meta.url), 'utf8');
+const func = readFileSync(new URL('../supabase/functions/programa-fertilizacion/index.ts', import.meta.url), 'utf8');
+
+test('el programa se busca por fecha, no por número de semana', () => {
+  // Dos aplicaciones del mismo cuartel pueden caer en la misma semana del mes
+  // (23 y 28 de octubre): la semana solo sirve de rótulo.
+  assert.match(prog, /function programaDeCuartel\(cuartelId,hoy\)/);
+  assert.ok(prog.includes('Math.abs(diasEntre(a,hoy))-Math.abs(diasEntre(b,hoy))'),
+    'se elige la fecha programada más cercana a hoy');
+  assert.ok(prog.includes('!p.aplicacion_id'), 'solo lo que nadie confirmó todavía');
+  assert.match(prog, /function rotuloSemana\(fecha\)/);
+  assert.ok(prog.includes('semana ${semanaDelMes(f)}'), 'el rótulo usa la semana del mes, como la planilla');
+});
+
+test('las tres respuestas quedan registradas, incluida la de no aplicar', () => {
+  for (const r of ['igual', 'cambio', 'no']) assert.ok(prog.includes(`data-resp="${r}"`), `falta la respuesta ${r}`);
+  assert.ok(prog.includes("estado:f.respuesta==='no'?'no_aplicado':'aplicado'"));
+  assert.ok(prog.includes("cantidad:f.respuesta==='no'?0:num(f.cantidad)"));
+  assert.ok(prog.includes('plan_id:f.plan_id'), 'cada confirmación queda amarrada a su línea del programa');
+  // En la base: cantidad 0 solo se acepta cuando el estado lo explica.
+  assert.match(sql, /check \(cantidad >= 0 and \(estado = 'no_aplicado' or cantidad > 0\)\)/);
+  assert.match(sql, /where a\.activo and a\.estado = 'aplicado'/);
+});
+
+test('cambiar de cuartel no deja la fecha ni el programa del anterior', () => {
+  assert.ok(prog.includes('st.programaPara=st.cuartel_id'));
+  assert.ok(prog.includes('else if(st.fechaDelPrograma){st.fecha=localDate();st.fechaDelPrograma=false}'));
+  assert.ok(prog.includes('if(state.programaPara!==state.cuartel_id)aplicarPrograma(state)'));
+});
+
+test('el programa se puede volver a subir sin duplicar ni perder lo borrado', () => {
+  assert.match(sql, /create unique index if not exists fert_plan_fecha_idx\s+on public\.fert_plan \(cuartel_id, producto_id, fecha, temporada\);/);
+  assert.ok(func.includes('onConflict: "cuartel_id,producto_id,fecha,temporada"'));
+  assert.ok(func.includes('activo: false'), 'lo que se sacó de la planilla se da de baja');
+  assert.ok(!/\.delete\(\)/.test(func), 'la función nunca borra filas');
+  assert.ok(func.includes('iguales(enviado, syncSecret)'), 'el secreto se compara en tiempo constante');
+});
+
+test('la planilla sube el programa con su propio botón', () => {
+  assert.ok(script.includes("createMenu('Agrícola Yoye')"));
+  assert.ok(script.includes('X-Yoye-Sync-Secret'));
+  assert.ok(script.includes('function temporadaDe_'), 'la temporada sale de la fecha de cada columna');
+  assert.ok(script.includes('PRODUCTOS ADICIONALES'), 'el bloque de extras no se confunde con el programa');
+  assert.ok(script.includes('previsualizarPrograma'), 'se puede ver qué se va a subir antes de subirlo');
+});
+
+test('la equivalencia hoja → cuartel se guarda, no se adivina', () => {
+  const mapa = readFileSync(new URL('../supabase/migrations/202610130002_fert_hoja_cuartel.sql', import.meta.url), 'utf8');
+  assert.match(mapa, /create table if not exists public\.fert_hoja_cuartel/);
+  assert.ok(mapa.includes("['29','C-29 antiguo']"), 'los cuarteles duplicados necesitan la equivalencia explícita');
+  assert.ok(mapa.includes("['nogales 15','C-15']"));
+  assert.ok(func.includes('fert_hoja_cuartel'), 'la función lee la equivalencia de la base');
+  assert.ok(func.includes('sin_cuartel'), 'las hojas sin cuartel se avisan en vez de perderse');
+});

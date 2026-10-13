@@ -135,6 +135,23 @@ html.yoye-gate-open,html.yoye-gate-open body{overflow:hidden}
    confirmar que lo anotado quedó. */
 .yoye-fert-aviso{display:block;margin-bottom:5px;font-size:13px;font-weight:700;color:var(--sage-700)}
 
+/* ===== Programa de fertilización: confirmar en tres toques ===== */
+/* La fila trae el producto con lo programado y las tres respuestas. Los
+   botones son anchos y altos porque se tocan con el dedo, con guante y al sol:
+   44 px de alto es el mínimo que se acierta sin mirar. */
+.yoye-prog-card{border-color:var(--sage-600,#3f7a4f)}
+.yoye-prog-fila{border-top:1px solid var(--line);padding:11px 0}
+.yoye-prog-fila:first-of-type{border-top:0;padding-top:4px}
+.yoye-prog-dato{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:8px}
+.yoye-prog-dato strong{font-size:14px;color:var(--ink)}
+.yoye-prog-dato span{font-size:12px;color:var(--text-secondary);white-space:nowrap}
+.yoye-prog-botones{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.yoye-prog-btn{min-height:44px;padding:8px 6px;border:1px solid var(--line);border-radius:12px;
+  background:var(--paper,#fffdf8);color:var(--ink);font-size:13px;font-weight:800;cursor:pointer}
+.yoye-prog-btn.is-activo{background:var(--sage-600,#3f7a4f);border-color:var(--sage-600,#3f7a4f);color:#fff}
+.yoye-prog-cambio{display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px;margin-top:8px}
+.yoye-prog-unidad{font-size:13px;font-weight:800;color:var(--text-secondary)}
+
 /* ===== Resultado ===== */
 .yoye-resultado-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .yoye-resultado-kpi{background:var(--paper);border:1px solid var(--line);border-top:3px solid var(--sage-600);border-radius:var(--radius-md);padding:11px 12px}

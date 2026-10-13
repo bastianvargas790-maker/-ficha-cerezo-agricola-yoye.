@@ -33,6 +33,25 @@ function temporadaDe(fecha){
 const claveProducto=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
   .replace(/[^a-z0-9]+/g,' ').trim();
 
+const MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const DIAS=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+/* La semana del mes, como la escribe la planilla en el bloque de productos
+   adicionales: "Noviembre, semana 2". Es el rótulo con el que se conversa en
+   el campo. La app NO la usa para buscar el programa -- para eso está la fecha,
+   que es única -- porque dos aplicaciones del mismo cuartel pueden caer en la
+   misma semana del mes y se confundirían. */
+function semanaDelMes(fecha){
+  const f=String(fecha||'').slice(0,10), d=Number(f.slice(8,10));
+  return Math.ceil(d/7)||1;
+}
+function rotuloSemana(fecha){
+  const f=String(fecha||'').slice(0,10);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(f))return '';
+  const dt=new Date(f+'T12:00:00');
+  return `${MESES[dt.getMonth()]}, semana ${semanaDelMes(f)} · ${DIAS[dt.getDay()]} ${dt.getDate()}`;
+}
+const diasEntre=(a,b)=>Math.round((new Date(a+'T12:00:00')-new Date(b+'T12:00:00'))/86400000);
+
 /* ---------- Guardado local ---------- */
 const DB_NAME='yoye-fert-offline-v1',DB_VERSION=1,STORE='queue',STORE_CAT='catalogo';
 let localDb;
@@ -54,7 +73,7 @@ async function localGet(id,store=STORE){const d=await openLocalDb();return new P
 
 let db,session,profile;
 let cuartelesCache={},productos=[],syncRunning=false;
-let cuartelesActuales=[],recientes=[],state=null;
+let cuartelesActuales=[],recientes=[],state=null,programa=[];
 
 /* Cuarteles del campo activo, con copia local para seguir registrando sin
    señal. Mismo criterio que Aforo. */
@@ -90,11 +109,66 @@ async function cargarProductos(){
   return productos;
 }
 
+/* Programa de la temporada, como lo dejó el asesor en la planilla. Se guarda
+   copia local igual que los cuarteles: en terreno hay que poder confirmarlo sin
+   señal. */
+async function cargarPrograma(campo){
+  const key='programa:'+(campo.slug||campo.id);
+  if(programa.length)return programa;
+  let list=[];
+  const ids=cuartelesActuales.map(c=>c.id);
+  if(db&&ids.length){
+    try{
+      const r=await db.from('fert_programa_estado')
+        .select('plan_id,cuartel_id,producto_id,producto,temporada,fecha,cantidad_programada,unidad,aplicacion_id,estado')
+        .in('cuartel_id',ids).order('fecha');
+      if(!r.error&&Array.isArray(r.data)){list=r.data;try{await localPut({id:key,list},STORE_CAT)}catch{}}
+    }catch{}
+  }
+  if(!list.length){try{const c=await localGet(key,STORE_CAT);if(c?.list?.length)list=c.list}catch{}}
+  programa=list;
+  return programa;
+}
+/* Qué toca en este cuartel. Se elige la fecha programada MÁS CERCANA a hoy
+   entre las que todavía nadie confirmó: si hay una de esta semana se ofrece
+   esa, y si la semana no tiene nada se ofrece la próxima, que es lo que pidió
+   el jefe de riego. Nunca se mezclan dos fechas en una misma pantalla. */
+function programaDeCuartel(cuartelId,hoy){
+  const pendientes=programa.filter(p=>p.cuartel_id===cuartelId&&!p.aplicacion_id&&p.fecha);
+  if(!pendientes.length)return null;
+  const fechas=[...new Set(pendientes.map(p=>String(p.fecha).slice(0,10)))];
+  fechas.sort((a,b)=>Math.abs(diasEntre(a,hoy))-Math.abs(diasEntre(b,hoy))||a.localeCompare(b));
+  const fecha=fechas[0];
+  return {fecha,
+    filas:pendientes.filter(p=>String(p.fecha).slice(0,10)===fecha).map(p=>({
+      plan_id:p.plan_id,producto_id:p.producto_id,nombre:p.producto,
+      programado:Number(p.cantidad_programada),unidad:p.unidad||'kg',
+      respuesta:'',cantidad:String(p.cantidad_programada??'')}))};
+}
+
 /* ---------- Estado del formulario ---------- */
 const filaVacia=()=>({id:uuid(),producto_id:'',nombre_nuevo:'',cantidad:'',unidad:'kg'});
 function estadoInicial(cuartel){
-  return {cuartel_id:cuartel||'',fecha:localDate(),filas:[filaVacia(),filaVacia()],
-    filasBorradas:[],editando:null};
+  const st={cuartel_id:cuartel||'',fecha:localDate(),filas:[filaVacia()],
+    filasBorradas:[],editando:null,programa:null};
+  if(cuartel)aplicarPrograma(st);
+  return st;
+}
+/* Al elegir el cuartel se trae lo programado y la fecha del formulario pasa a
+   ser la del programa: lo que se confirma es ESA aplicación. Si no calza con la
+   realidad se cambia a mano, que para eso el campo sigue editable. */
+function aplicarPrograma(st){
+  st.programa=programaDeCuartel(st.cuartel_id,localDate());
+  st.programaPara=st.cuartel_id;
+  if(st.programa){st.fecha=st.programa.fecha;st.fechaDelPrograma=true}
+  /* Al pasar a un cuartel sin programa, la fecha vuelve a hoy: si se quedara
+     la del cuartel anterior se registraría una aplicación con fecha ajena, y
+     en pantalla no se nota. */
+  else if(st.fechaDelPrograma){st.fecha=localDate();st.fechaDelPrograma=false}
+  /* Con programa, las filas sueltas arrancan vacías: son "lo que se agregó
+     fuera del programa", no el modo normal de registrar. */
+  if(st.programa&&st.filas.every(f=>!filaEmpezada(f)))st.filas=[filaVacia()];
+  if(!st.programa&&!st.filas.length)st.filas=[filaVacia()];
 }
 function leerFormulario(host){
   const cab=$('#yoyeFertCab',host);
@@ -102,6 +176,12 @@ function leerFormulario(host){
     state.cuartel_id=$('[data-f="cuartel_id"]',cab)?.value||'';
     state.fecha=$('[data-f="fecha"]',cab)?.value||'';
   }
+  $$('[data-prog]',host).forEach(row=>{
+    const f=state.programa?.filas.find(x=>x.plan_id===row.dataset.prog);
+    if(!f)return;
+    const cant=$('[data-c="cantidad"]',row);
+    if(cant)f.cantidad=cant.value;
+  });
   $$('[data-fila]',host).forEach(row=>{
     const f=state.filas.find(x=>x.id===row.dataset.fila);
     if(!f)return;
@@ -110,6 +190,12 @@ function leerFormulario(host){
     f.cantidad=$('[data-c="cantidad"]',row)?.value||'';
     f.unidad=$('[data-c="unidad"]',row)?.value||'kg';
   });
+  /* Si el cuartel cambió sin pasar por su evento -- otra parte del código, o el
+     teléfono restaurando el formulario -- el programa se recalcula igual. Si
+     no, quedaba en pantalla el programa del cuartel anterior, con su fecha, que
+     es la peor forma de equivocarse: todo se ve correcto. Va al final, con las
+     filas ya leídas, para no borrar lo que se estaba escribiendo. */
+  if(state.programaPara!==state.cuartel_id)aplicarPrograma(state);
 }
 /* Una fila cuenta cuando tiene producto Y cantidad mayor que cero. Las filas a
    medias no se guardan y el aviso dice cuántas quedaron fuera: es el mismo
@@ -121,10 +207,18 @@ function filaCompleta(f){
 function filaEmpezada(f){
   return !!(f.producto_id||f.nombre_nuevo.trim()||String(f.cantidad).trim());
 }
+const programaRespondido=()=>(state.programa?.filas||[]).filter(f=>f.respuesta);
 function validar(){
   if(!state.cuartel_id)return 'Elige el cuartel.';
   if(!state.fecha)return 'Falta la fecha de la aplicación.';
-  if(!state.filas.some(filaCompleta))return 'Anota al menos un producto con sus kilos o litros.';
+  const conPrograma=programaRespondido();
+  const malCambio=conPrograma.find(f=>f.respuesta==='cambio'&&!(num(f.cantidad)>0));
+  if(malCambio)return `Escribe cuánto aplicaste de ${malCambio.nombre}.`;
+  if(conPrograma.length&&!state.filas.some(filaEmpezada))return '';
+  if(!state.filas.some(filaCompleta))
+    return state.programa
+      ? 'Responde al menos un producto del programa, o anota uno que hayas agregado.'
+      : 'Anota al menos un producto con sus kilos o litros.';
   const mal=state.filas.find(f=>f.producto_id==='nuevo'&&!f.nombre_nuevo.trim()&&num(f.cantidad)>0);
   if(mal)return 'Escribe el nombre del producto nuevo.';
   return '';
@@ -153,6 +247,45 @@ function filaHtml(f,i){
     </div>
   </div>`;
 }
+/* La tarjeta del programa: una fila por producto con las tres respuestas
+   posibles. Es lo único que hay que hacer en terreno cuando se siguió el
+   programa: tres toques y guardar. */
+function filaProgramaHtml(f){
+  const sel=r=>f.respuesta===r?' is-activo':'';
+  const unidad=f.unidad==='L'?'L':'kg';
+  return `<div class="yoye-prog-fila" data-prog="${esc(f.plan_id)}">
+    <div class="yoye-prog-dato">
+      <strong>${esc(f.nombre)}</strong>
+      <span>programado: ${fmt(f.programado)} ${esc(unidad)}</span>
+    </div>
+    <div class="yoye-prog-botones">
+      <button type="button" class="yoye-prog-btn${sel('igual')}" data-resp="igual" data-plan="${esc(f.plan_id)}">Igual</button>
+      <button type="button" class="yoye-prog-btn${sel('cambio')}" data-resp="cambio" data-plan="${esc(f.plan_id)}">Cambié</button>
+      <button type="button" class="yoye-prog-btn${sel('no')}" data-resp="no" data-plan="${esc(f.plan_id)}">No apliqué</button>
+    </div>
+    ${f.respuesta==='cambio'?`<div class="yoye-prog-cambio">
+      <div class="yoye-input"><input data-c="cantidad" type="text" inputmode="decimal" placeholder="Cuánto aplicaste" value="${esc(f.cantidad)}"></div>
+      <span class="yoye-prog-unidad">${esc(unidad)}</span></div>`:''}
+  </div>`;
+}
+function programaHtml(){
+  const pr=state.programa;
+  if(!state.cuartel_id)return '';
+  if(!pr)return `<div class="yoye-form-card">
+      <div class="yoye-af-head"><div><span class="yoye-af-paso">Programa</span><h3>Sin programa pendiente</h3></div></div>
+      <p class="yoye-hint">Este cuartel no tiene fechas pendientes en el programa de la planilla.
+      Anota abajo lo que hayas aplicado.</p>
+    </div>`;
+  const dias=diasEntre(pr.fecha,localDate());
+  const cuando=dias===0?'es para hoy':dias>0?`es en ${dias} ${dias===1?'día':'días'}`:`era hace ${-dias} ${dias===-1?'día':'días'}`;
+  return `<div class="yoye-form-card yoye-prog-card">
+      <div class="yoye-af-head"><div><span class="yoye-af-paso">Programa de la planilla</span>
+        <h3>${esc(rotuloSemana(pr.fecha))}</h3></div></div>
+      <p class="yoye-hint" style="margin:-4px 0 10px">Lo próximo pendiente de este cuartel: ${esc(cuando)}.
+        Confirma cada producto.</p>
+      ${pr.filas.map(filaProgramaHtml).join('')}
+    </div>`;
+}
 function cuerpoHtml(campo){
   const cuarteles=cuartelesActuales;
   return `<div class="yoye-form-card" id="yoyeFertCab">
@@ -163,8 +296,10 @@ function cuerpoHtml(campo){
       <div class="yoye-field"><label>Fecha de aplicación *</label><div class="yoye-input"><input data-f="fecha" type="date" value="${esc(state.fecha)}"></div>
         <p class="yoye-hint">Temporada ${esc(temporadaDe(state.fecha))}.</p></div>
     </div>
+    ${programaHtml()}
     <div class="yoye-form-card">
-      <div class="yoye-af-head"><div><span class="yoye-af-paso">Lo aplicado</span><h3>Productos y cantidad</h3></div></div>
+      <div class="yoye-af-head"><div><span class="yoye-af-paso">${state.programa?'Fuera del programa':'Lo aplicado'}</span>
+        <h3>${state.programa?'¿Agregaste algo más?':'Productos y cantidad'}</h3></div></div>
       <div id="yoyeFertFilas">${state.filas.map(filaHtml).join('')}</div>
       <button type="button" class="btn-secondary" id="yoyeFertAgregar">+ Agregar producto</button>
       ${productos.length?'':'<p class="yoye-hint">El catálogo de productos no se pudo cargar. Elige “Otro producto…” y escribe el nombre; se agrega al catálogo al subir.</p>'}
@@ -193,19 +328,52 @@ function renderCuerpo(host,campo){
     renderCuerpo(host,campo);
   });
   $('[data-f="fecha"]',body)?.addEventListener('change',()=>{leerFormulario(host);renderCuerpo(host,campo)});
+  /* Cambiar de cuartel trae el programa de ese cuartel: es el momento en que
+     la app pasa de "formulario en blanco" a "confirma esto". */
+  $('[data-f="cuartel_id"]',body)?.addEventListener('change',()=>{
+    leerFormulario(host);
+    aplicarPrograma(state);
+    renderCuerpo(host,campo);
+  });
+  $$('[data-resp]',body).forEach(b=>b.onclick=()=>{
+    leerFormulario(host);
+    const f=state.programa?.filas.find(x=>x.plan_id===b.dataset.plan);
+    if(!f)return;
+    const r=b.dataset.resp;
+    f.respuesta=f.respuesta===r?'':r;        // volver a tocar deshace la respuesta
+    if(f.respuesta==='igual')f.cantidad=String(f.programado);
+    if(f.respuesta==='no')f.cantidad='0';
+    if(f.respuesta==='cambio'&&String(f.cantidad)===String(f.programado))f.cantidad='';
+    renderCuerpo(host,campo);
+  });
 }
 
 /* ---------- Guardar ---------- */
 async function guardarAplicacion(host){
   const org=profile?.organizacion_id;
   const fecha=state.fecha, temporada=temporadaDe(fecha);
-  const filas=state.filas.filter(filaCompleta).map(f=>({
+  /* Las respuestas al programa y lo que se agregó aparte viajan juntas: son
+     aplicaciones del mismo cuartel y el mismo día. La diferencia es que las del
+     programa llevan plan_id -- así el panel puede decir "esto se siguió" -- y
+     que un "No apliqué" se guarda con cantidad 0 y estado no_aplicado, que es
+     un dato, no un vacío. */
+  const delPrograma=(state.programa?.filas||[]).filter(f=>f.respuesta).map(f=>({
+    id:f.aplicacion_id||uuid(), plan_id:f.plan_id,
+    producto_id:f.producto_id, producto_nombre:f.nombre,
+    cantidad:f.respuesta==='no'?0:num(f.cantidad),
+    unidad:f.unidad==='L'?'L':'kg',
+    estado:f.respuesta==='no'?'no_aplicado':'aplicado',
+    segun_programa:f.respuesta==='igual'
+  }));
+  const sueltas=state.filas.filter(filaCompleta).map(f=>({
     id:f.id,
     producto_id:f.producto_id==='nuevo'?null:f.producto_id,
     producto_nombre:f.producto_id==='nuevo'?f.nombre_nuevo.trim()
       :(productos.find(p=>p.id===f.producto_id)?.nombre||''),
-    cantidad:num(f.cantidad), unidad:f.unidad==='L'?'L':'kg'
+    cantidad:num(f.cantidad), unidad:f.unidad==='L'?'L':'kg',
+    estado:'aplicado', plan_id:null, segun_programa:false
   }));
+  const filas=[...delPrograma,...sueltas];
   const item={id:state.id||uuid(),status:'pending',attempts:0,nextAttemptAt:0,
     createdAt:state.editando?.createdAt||new Date().toISOString(),
     organizacion_id:org, cuartel_id:state.cuartel_id, fecha, temporada,
@@ -250,7 +418,7 @@ async function syncItem(item){
     f.producto_id=producto_id;            // queda resuelto por si hay reintento
     filas.push({id:f.id,organizacion_id:item.organizacion_id,cuartel_id:item.cuartel_id,
       producto_id,temporada:item.temporada,fecha:item.fecha,cantidad:f.cantidad,
-      unidad:f.unidad,activo:true,
+      unidad:f.unidad,activo:true,estado:f.estado||'aplicado',plan_id:f.plan_id||null,
       creado_por:item.creado_por,actualizado_por:session.user.id});
   }
   if(filas.length){
@@ -314,7 +482,8 @@ function agrupar(filas,nombreProducto){
     if(!grupos.has(k))grupos.set(k,{clave:k,cuartel_id:f.cuartel_id,fecha:String(f.fecha).slice(0,10),filas:[],local:null});
     grupos.get(k).filas.push({id:f.id,producto_id:f.producto_id,
       producto_nombre:f.producto_nombre||nombreProducto(f.producto_id),
-      cantidad:Number(f.cantidad),unidad:f.unidad});
+      cantidad:Number(f.cantidad),unidad:f.unidad,
+      estado:f.estado||'aplicado',plan_id:f.plan_id||null});
   });
   return [...grupos.values()];
 }
@@ -327,7 +496,7 @@ async function cargarRecientes(host,campo){
   if(db&&session&&navigator.onLine&&ids.size){
     try{
       const {data,error}=await db.from('fert_aplicaciones')
-        .select('id,cuartel_id,producto_id,fecha,cantidad,unidad,creado_en')
+        .select('id,cuartel_id,producto_id,fecha,cantidad,unidad,estado,plan_id,creado_en')
         .in('cuartel_id',[...ids]).eq('activo',true)
         .order('fecha',{ascending:false}).limit(120);
       if(error)throw error;
@@ -370,14 +539,18 @@ function renderRecientes(host,campo){
   if(!recientes.length){cont.innerHTML='<p class="yoye-af-nota">Todavía no hay fertilizaciones registradas en este campo.</p>';return}
   const nombre=id=>cuartelesActuales.find(c=>c.id===id)?.codigo||'—';
   cont.innerHTML=recientes.map(g=>{
-    const kg=g.filas.filter(f=>f.unidad!=='L').reduce((t,f)=>t+(Number(f.cantidad)||0),0);
-    const l=g.filas.filter(f=>f.unidad==='L').reduce((t,f)=>t+(Number(f.cantidad)||0),0);
+    const aplicadas=g.filas.filter(f=>f.estado!=='no_aplicado');
+    const kg=aplicadas.filter(f=>f.unidad!=='L').reduce((t,f)=>t+(Number(f.cantidad)||0),0);
+    const l=aplicadas.filter(f=>f.unidad==='L').reduce((t,f)=>t+(Number(f.cantidad)||0),0);
     const total=[kg?`${fmt(kg)} kg`:null,l?`${fmt(l)} L`:null].filter(Boolean).join(' · ')||'—';
     return `<div class="yoye-af-reciente">
       <div class="yoye-af-reciente-datos">
         <strong>${esc(nombre(g.cuartel_id))} · ${esc(fechaCorta(g.fecha))}</strong>
-        <span>${g.filas.length} ${g.filas.length===1?'producto':'productos'} · ${esc(total)}</span>
-        <small>${esc(g.filas.map(f=>`${f.producto_nombre} ${fmt(f.cantidad)} ${f.unidad}`).join(' · '))}</small>
+        <span>${g.filas.length} ${g.filas.length===1?'producto':'productos'} · ${esc(total)}${
+          g.filas.length>aplicadas.length?` · ${g.filas.length-aplicadas.length} sin aplicar`:''}</span>
+        <small>${esc(g.filas.map(f=>f.estado==='no_aplicado'
+          ?`${f.producto_nombre}: no se aplicó`
+          :`${f.producto_nombre} ${fmt(f.cantidad)} ${f.unidad}`).join(' · '))}</small>
         ${g.pendiente?'<small class="yoye-af-incompleto">Pendiente de subir</small>':''}
       </div>
       <div class="yoye-af-reciente-acciones">
@@ -465,8 +638,14 @@ async function abrir(){
     btn.disabled=true;
     try{
       const editaba=!!state.editando;
-      const guardadas=state.filas.filter(filaCompleta).length;
+      const resp=programaRespondido();
+      const confirmados=resp.filter(f=>f.respuesta==='igual').length;
+      const cambiados=resp.filter(f=>f.respuesta==='cambio').length;
+      const omitidos=resp.filter(f=>f.respuesta==='no').length;
+      const sueltas=state.filas.filter(filaCompleta).length;
+      const guardadas=resp.length+sueltas;
       const aMedias=state.filas.filter(f=>filaEmpezada(f)&&!filaCompleta(f)).length;
+      const sinResponder=(state.programa?.filas||[]).length-resp.length;
       const cuartel=state.cuartel_id;
       await guardarAplicacion(modal);
       /* La subida se espera antes de repintar la lista: si no, la tarjeta
@@ -474,9 +653,21 @@ async function abrir(){
          subido, y había que cerrar y abrir para verla bien. Sin señal la cola
          vuelve de inmediato y el aviso dice que quedó en el teléfono. */
       if(navigator.onLine)await syncQueue(modal);
+      /* El aviso dice exactamente qué quedó anotado: cuántos salieron como el
+         programa, cuántos cambiados y cuántos sin aplicar. Es lo que uno
+         necesita leer para saber que no se le quedó nada. */
+      const detalle=[confirmados?`${confirmados} como el programa`:null,
+        cambiados?`${cambiados} con otra cantidad`:null,
+        omitidos?`${omitidos} sin aplicar`:null,
+        sueltas?`${sueltas} fuera del programa`:null].filter(Boolean).join(' · ');
       avisoGuardado(modal,
-        `${editaba?'Cambios guardados':'Fertilización guardada'}: ${guardadas} ${guardadas===1?'producto':'productos'} en ${nombreCuartel(cuartel)}.`+
+        `${editaba?'Cambios guardados':'Fertilización guardada'} en ${nombreCuartel(cuartel)}: ${guardadas} ${guardadas===1?'producto':'productos'}`+
+        (detalle?` (${detalle}).`:'.')+
+        (sinResponder?` Quedan ${sinResponder} del programa sin responder.`:'')+
         (aMedias?` Quedó ${aMedias} ${aMedias===1?'fila a medias sin guardar':'filas a medias sin guardar'}.`:''));
+      /* Lo recién confirmado deja de estar pendiente en la copia local, para
+         que la app no lo vuelva a ofrecer antes de que la base responda. */
+      resp.forEach(f=>{const p=programa.find(x=>x.plan_id===f.plan_id);if(p)p.aplicacion_id=f.plan_id});
       /* El cuartel queda puesto: en terreno se fertiliza cuartel por cuartel y
          casi siempre viene otra carga del mismo. */
       state=estadoInicial(cuartel);
@@ -488,6 +679,7 @@ async function abrir(){
     }finally{btn.disabled=false}
   };
   [cuartelesActuales]=await Promise.all([cuartelesDeCampo(campo),cargarProductos()]);
+  await cargarPrograma(campo);
   renderCuerpo(modal,campo);
   cargarRecientes(modal,campo);
 }
@@ -502,8 +694,8 @@ addEventListener('yoye-auth-ready',async e=>{
   db=e.detail.client;session=e.detail.session;
   if(!session)return;
   try{const {data}=await db.from('perfiles').select('*').eq('id',session.user.id).maybeSingle();profile=data||null}catch{}
-  cuartelesCache={};productos=[];
+  cuartelesCache={};productos=[];programa=[];
   syncQueue(null);
 });
-document.addEventListener('yoye-campo-changed',()=>{cuartelesCache={}});
+document.addEventListener('yoye-campo-changed',()=>{cuartelesCache={};programa=[]});
 })();
