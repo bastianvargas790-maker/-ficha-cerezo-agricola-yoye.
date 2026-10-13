@@ -573,6 +573,42 @@ function tabla(titulo,kicker,cabeceras,filas,nota){
     ${nota?`<p class="pd-nota">${esc(nota)}</p>`:''}</section>`;
 }
 
+/* ---------- Hacia dónde va el cuartel ----------
+   Una calicata dice cómo está el suelo hoy. La pregunta del riego es otra:
+   ¿viene subiendo o bajando? Eso solo se contesta con TODAS las calicatas del
+   cuartel, no con una. Acá se compara la primera con la última y se cuenta
+   cuántas veces seguidas se movió en la misma dirección, que es la diferencia
+   entre una tendencia y un salto suelto. */
+function tendenciaDe(valores){
+  const v=valores.filter(x=>Number.isFinite(x));
+  if(v.length<2)return null;
+  const primero=v[0], ultimo=v[v.length-1], delta=ultimo-primero;
+  const pasos=v.slice(1).map((x,i)=>x-v[i]);
+  const suben=pasos.filter(p=>p>0).length, bajan=pasos.filter(p=>p<0).length;
+  return {primero,ultimo,delta,n:v.length,pasos:pasos.length,suben,bajan,
+    /* Sostenida = se movió siempre para el mismo lado. Con un solo paso no se
+       habla de tendencia: son dos mediciones, no una dirección. */
+    sostenida:pasos.length>1&&(suben===pasos.length||bajan===pasos.length)};
+}
+/* unidadDelta va aparte porque la diferencia entre dos porcentajes NO se mide
+   en porcentaje: de 26,7 % a 23,4 % hay 3,3 PUNTOS porcentuales, no 3,3 %.
+   Decirlo mal es el error clásico de estos resúmenes. */
+function frasesTendencia(t,etiqueta,unidad,f,subirEsMalo,unidadDelta){
+  if(!t)return null;
+  const ud=unidadDelta||unidad;
+  const sube=t.delta>0, plano=Math.abs(t.delta)<=(unidad===' %'?0.5:0.03);
+  const flecha=plano?'→':(sube?'↑':'↓');
+  const clave=plano?'ok':(subirEsMalo===sube?'atencion':'ok');
+  const mov=plano?'se mantiene'
+    :`${sube?'subió':'bajó'} ${f(Math.abs(t.delta))}${ud}`;
+  const respaldo=t.sostenida
+    ? `${sube?'subió':'bajó'} en las ${n0(t.pasos)} comparaciones seguidas`
+    : `${n0(t.suben)} ${t.suben===1?'subida':'subidas'} y ${n0(t.bajan)} ${t.bajan===1?'bajada':'bajadas'} entre medio`;
+  return {flecha,clave,
+    texto:`${etiqueta}: ${f(t.primero)} → ${f(t.ultimo)}${unidad}, ${mov}`,
+    pie:`${n0(t.n)} calicatas · ${respaldo}`};
+}
+
 /* ---------- Render del panel ---------- */
 function pintarCalicatas(d,campo){
   const {cuarteles,porCuartel,calicatas,lecturas,observaciones}=d;
@@ -587,6 +623,12 @@ function pintarCalicatas(d,campo){
 
   // --- Filtros: una sola fila que alcanza a todos los gráficos ---
   const cuartelDe=k=>porCuartel.get(k.cuartel_id)||{};
+  /* La última calicata de un cuartel se busca por fecha y hora, no se confía en
+     el orden en que vino la consulta: basta que alguien cambie el "order by"
+     para que el panel empiece a mostrar la más vieja como si fuera la de hoy, y
+     en pantalla no se nota. */
+  const masNueva=(a,b)=>String(b.fecha+(b.hora||'')).localeCompare(String(a.fecha+(a.hora||'')));
+  const ultimaDe=id=>sel.filter(k=>k.cuartel_id===id).slice().sort(masNueva)[0];
   const opciones=(campoNombre)=>[...new Set(calicatas.map(k=>cuartelDe(k)[campoNombre]).filter(Boolean))].sort();
   const pasa=k=>{const q=cuartelDe(k);
     return (!filtroCal.cuartel||q.codigo===filtroCal.cuartel)
@@ -617,7 +659,7 @@ function pintarCalicatas(d,campo){
 
   // --- Indicadores de la selección: hechos, no promedios entre cuarteles ---
   const cuartelesSel=new Set(sel.map(k=>k.cuartel_id));
-  const ultima=sel[0];
+  const ultima=sel.slice().sort(masNueva)[0];
   /* --- Lectura agronómica de cada calicata ---
      El criterio vive en assets/calicatas-analisis.js y es el mismo que usa la
      app al guardar: zona de raíces, uniformidad del bulbo, movimiento del agua
@@ -718,7 +760,7 @@ function pintarCalicatas(d,campo){
 
   // Con un cuartel elegido se ve el detalle; sin filtro, un perfil por cuartel
   // (su calicata más reciente) para poder compararlos de un vistazo.
-  const porCuartelUltima=[...cuartelesSel].map(id=>sel.find(k=>k.cuartel_id===id));
+  const porCuartelUltima=[...cuartelesSel].map(id=>ultimaDe(id));
   const detalle=filtroCal.cuartel||porCuartelUltima.length===1;
   const muestras=detalle?sel.slice(0,4):porCuartelUltima.slice(0,6);
 
@@ -779,7 +821,7 @@ function pintarCalicatas(d,campo){
 
   // --- Comparación entre cuarteles (no promedio del campo) ---
   const compara=[...cuartelesSel].map(id=>{
-    const cal=sel.find(k=>k.cuartel_id===id);
+    const cal=ultimaDe(id);
     const q=porCuartel.get(id)||{};
     const h=prof=>{const v=PUNTOS.map(p=>valorDe(cal,p.clave,prof,'humedad_pct')).filter(x=>x!==null);
       return v.length?prom(v):null};
@@ -916,7 +958,7 @@ function pintarCalicatas(d,campo){
      que uno entra al panel, y antes había que leer tres gráficos para saberlo. */
   const ranking=(()=>{
     const filas=[...cuartelesSel].map(id=>{
-      const cal=sel.find(k=>k.cuartel_id===id),r=leer(cal),q=porCuartel.get(id)||{};
+      const cal=ultimaDe(id),r=leer(cal),q=porCuartel.get(id)||{};
       if(!r||!esNum(r.zonaRaices.h))return null;
       const ref=r.zonaRaices.referencia;
       return {etiqueta:q.codigo||'—',valor:r.zonaRaices.h,
@@ -942,9 +984,27 @@ function pintarCalicatas(d,campo){
      Cada cuartel tiene su suelo, su cultivo y su historia: mezclarlos en un
      solo resumen no dice nada. Sin cuartel elegido, el panel ofrece la lista
      para entrar a uno; con cuartel elegido, muestra su ficha y su evolución. */
+  /* Cada tarjeta dice además hacia dónde va el cuartel: con dos o más
+     calicatas se compara la primera con la última y se muestra la flecha. Es
+     lo que convierte la lista en un tablero -- de un vistazo se ve quién viene
+     subiendo la CE -- sin tener que entrar cuartel por cuartel. */
+  const cronologiaDe=id=>sel.filter(k=>k.cuartel_id===id)
+    .slice().sort((a,b)=>String(a.fecha+(a.hora||'')).localeCompare(String(b.fecha+(b.hora||''))));
+  const tendenciaCuartelDe=(id,clave)=>tendenciaDe(cronologiaDe(id).map(k=>{
+    const r=leer(k);return r&&Number.isFinite(r.zonaRaices[clave])?r.zonaRaices[clave]:null
+  }).filter(x=>x!==null));
   const tarjetasCuartel=[...cuartelesSel].map(id=>{
-    const cal=sel.find(k=>k.cuartel_id===id),r=leer(cal),q=porCuartel.get(id)||{};
+    const cal=ultimaDe(id),r=leer(cal),q=porCuartel.get(id)||{};
     const n=sel.filter(k=>k.cuartel_id===id).length;
+    const tce=tendenciaCuartelDe(id,'ce'), th=tendenciaCuartelDe(id,'h');
+    const chipTend=(t,etq,u,f,subirEsMalo)=>{
+      if(!t)return '';
+      const plano=Math.abs(t.delta)<=(u==='%'?0.5:0.03);
+      const sube=t.delta>0;
+      const cl=plano?'plano':(subirEsMalo===sube?'ojo':'bien');
+      const ud=u==='%'?' pp':u;   // puntos, no porcentaje, al restar dos porcentajes
+      return `<span class="pd-tend-chip pd-tend-${cl}">${esc(etq)} ${plano?'→':(sube?'↑':'↓')} ${plano?'estable':f(Math.abs(t.delta))+ud}</span>`;
+    };
     const est=r&&r.zonaRaices.estado;
     const chip=est?`<span class="pd-chip pd-chip-${esc(est.clave)}">${esc(est.etiqueta)}</span>`
       :'<span class="pd-chip pd-chip-info">Sin textura</span>';
@@ -955,6 +1015,7 @@ function pintarCalicatas(d,campo){
       <span class="pd-cuartel-datos">
         <b>${r&&esNum(r.zonaRaices.h)?n1(r.zonaRaices.h)+' %':'—'}</b> en raíces ·
         <b>${r&&esNum(r.zonaRaices.ce)?n2(r.zonaRaices.ce):'—'}</b> mS/cm</span>
+      ${tce||th?`<span class="pd-cuartel-tend">${chipTend(th,'H','%',n1,false)}${chipTend(tce,'CE',' mS/cm',n2,true)}</span>`:''}
       <span class="pd-cuartel-pie">${fecha(cal.fecha)} · ${n0(n)} ${n===1?'calicata':'calicatas'}</span>
     </button>`;
   }).join('');
@@ -1019,6 +1080,32 @@ function pintarCalicatas(d,campo){
        <p class="pd-nota">Con una sola fecha se puede leer el perfil de hoy, pero no si el cuartel se está
        secando o salinizando. La comparación aparece sola cuando registres la siguiente.</p></section>`:'';
 
+  /* Tarjeta de tendencia del cuartel: lo que pasó entre la primera y la última
+     calicata, con el número y con cuántas veces se movió para el mismo lado.
+     Es la lectura "masiva" del cuartel; los perfiles de cada calicata siguen
+     más abajo, uno por uno. */
+  const serieZona=clave=>cronologia.map(k=>{const r=leer(k);
+    return r&&Number.isFinite(r.zonaRaices[clave])?r.zonaRaices[clave]:null})
+    .filter(x=>x!==null);
+  const tH=tendenciaDe(serieZona('h')), tCe=tendenciaDe(serieZona('ce'));
+  const lineasTend=[
+    frasesTendencia(tH,'Humedad en la zona de raíces',' %',n1,false,' pp'),
+    frasesTendencia(tCe,'CE en la zona de raíces',' mS/cm',n2,true)
+  ].filter(Boolean);
+  const dias=cronologia.length>1
+    ? Math.round((new Date(String(cronologia[cronologia.length-1].fecha).slice(0,10)+'T12:00:00')
+        -new Date(String(cronologia[0].fecha).slice(0,10)+'T12:00:00'))/86400000):0;
+  const tendenciaCuartel=lineasTend.length?`<section class="pd-card pd-ancho pd-tend">
+    <div class="pd-kicker">Hacia dónde va</div>
+    <h3 class="pd-card-title">Cómo viene cambiando ${esc(qSel.codigo||'el cuartel')}</h3>
+    <ul class="pd-tend-lista">${lineasTend.map(l=>`<li class="pd-tend-${esc(l.clave)}">
+      <span class="pd-tend-flecha" aria-hidden="true">${l.flecha}</span>
+      <span><b>${esc(l.texto)}</b><i>${esc(l.pie)}</i></span></li>`).join('')}</ul>
+    <p class="pd-nota">Entre la primera y la última calicata de este cuartel${dias?`, ${n0(dias)} días`:''}.
+      La CE de la sonda sirve para ver si sube o baja en el mismo punto; para compararla con el umbral
+      del cultivo hace falta un extracto de saturación.</p>
+  </section>`:'';
+
   const filasCuartel=delCuartel.map(cal=>{
     const r=leer(cal),z=r?r.zonaRaices:{};
     return [`<span title="${fecha(cal.fecha)}">${String(fecha(cal.fecha)).slice(0,5)}</span>`,
@@ -1059,7 +1146,7 @@ function pintarCalicatas(d,campo){
       rUlt.uniformidad.clave==='ok'?'verde':'terracota',true):''}
   </div>`;
 
-  return filtros+kpisCuartel+fichaCab+resumenAlertas+
+  return filtros+kpisCuartel+fichaCab+resumenAlertas+tendenciaCuartel+
     (serieHum||sinHistoria)+serieCe+
     tabla('Historia del cuartel','Calicata por calicata',
       ['Fecha','H raíces %','Cómo viene','CE','T °C','Raíces cm','Bulbos'],filasCuartel,

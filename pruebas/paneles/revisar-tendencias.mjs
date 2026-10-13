@@ -94,7 +94,12 @@ async function mirar(nombre, ancho, alto, hash) {
     const borde=Math.max(...[...cuerpo.querySelectorAll('*')]
       .filter(e=>!e.closest('.pd-tabla-wrap'))      // las tablas tienen su propio desplazamiento
       .map(e=>e.getBoundingClientRect().right));
-    return { cards, scrollW: Math.round(borde), clientW: document.documentElement.clientWidth,
+    const tc=document.querySelector('.pd-tend');
+    const tendencia=tc?{titulo:tc.querySelector('.pd-card-title')?.textContent||'',
+      lineas:[...tc.querySelectorAll('.pd-tend-lista b')].map(x=>x.textContent.trim()),
+      pies:[...tc.querySelectorAll('.pd-tend-lista i')].map(x=>x.textContent.trim()),
+      }:null;
+    return { cards, tendencia, chips:document.querySelectorAll('.pd-tend-chip').length, scrollW: Math.round(borde), clientW: document.documentElement.clientWidth,
       textos: [...document.querySelectorAll('.pd-card-title')].map(t => t.textContent.trim()) };
   });
   await p.screenshot({ path: `${SALIDA}/${nombre}.png`, fullPage: true });
@@ -139,6 +144,18 @@ revisar(tendencias(selMovil)[0].series.length === 0, 'móvil: sin nombres al bor
 revisar(tendencias(sel)[0].ref.some(t => /suelo medio/.test(t)),
   'pc: la referencia del suelo aparece cuando todos los cuarteles tienen la misma textura');
 revisar(sel.textos.includes('Evolución por fecha'), 'la tabla con los mismos datos acompaña a los gráficos');
+// Lectura masiva del cuartel: subió o bajó, con el número.
+const tend = await mirar('ficha-tendencia', 1440, 1200, '#panel-calicatas:C-5');
+const lectura = tend.tendencia || {};
+revisar(/Cómo viene cambiando/.test(lectura.titulo || ''), `la ficha dice hacia dónde va el cuartel ("${lectura.titulo || ''}")`);
+revisar((lectura.lineas || []).length === 2, `una línea para la humedad y otra para la CE (${(lectura.lineas || []).length})`);
+revisar((lectura.lineas || []).every(l => /→/.test(l) && /(subió|bajó|se mantiene)/.test(l)),
+  `cada línea dice de cuánto a cuánto y para dónde (${(lectura.lineas || [])[0] || ''})`);
+revisar((lectura.lineas || []).some(l => / pp/.test(l)),
+  'la diferencia entre dos porcentajes se dice en puntos, no en porcentaje');
+revisar((lectura.pies || []).every(p => /calicatas/.test(p)),
+  `cada línea dice sobre cuántas calicatas se calculó (${(lectura.pies || [])[0] || ''})`);
+revisar(sel.chips >= 2, `en la lista, cada cuartel lleva su flecha con el número (${sel.chips} chips)`);
 revisar(ficha.cards.some(c => /Humedad por fecha/.test(c.titulo)) && ficha.cards.some(c => /CE por fecha/.test(c.titulo)),
   'la ficha del cuartel conserva su evolución por profundidad');
 revisar(!erroresJs.length, 'sin errores de JavaScript' + (erroresJs.length ? ': ' + erroresJs.join(' · ') : ''));

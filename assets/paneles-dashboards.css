@@ -140,7 +140,10 @@
 .pd-cuartel{display:grid;gap:4px;text-align:left;cursor:pointer;min-height:44px;
   background:var(--surface-alt,#f5f1e6);border:1px solid var(--line,#e2dbc8);border-radius:12px;padding:11px 12px;font:inherit;color:inherit}
 .pd-cuartel:hover{border-color:var(--ink,#17352c)}
-.pd-cuartel-cab{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.pd-cuartel-cab{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap}
+/* El código del cuartel no se parte: con la etiqueta de estado al lado, "C-26"
+   quedaba en dos líneas. Si no cabe, la etiqueta baja. */
+.pd-cuartel-cab strong{white-space:nowrap}
 .pd-cuartel-cab strong{font:800 1.05rem var(--font-heading,Georgia,serif)}
 .pd-cuartel-ctx{font-size:.78rem;color:var(--text-secondary,#645c50)}
 .pd-cuartel-datos{font-size:.84rem;color:var(--text-secondary,#645c50)}
@@ -190,6 +193,25 @@
 .pd-medidor-riel{display:block;height:9px;border-radius:999px;overflow:hidden}
 .pd-medidor-lleno{display:block;height:100%;border-radius:999px;transition:width .25s ease}
 .pd-medidor-vacio .pd-medidor-cab i{font-style:italic}
+
+/* ---------- Hacia dónde va el cuartel ---------- */
+/* La flecha es un apoyo, no el dato: el número y la palabra ("subió 0,33
+   mS/cm") van siempre escritos, porque una flecha sola no dice cuánto. */
+.pd-tend-lista{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.pd-tend-lista li{display:grid;grid-template-columns:28px 1fr;align-items:start;gap:9px;
+  padding:9px 10px;border-radius:12px;background:var(--surface-alt,#efe9dc)}
+.pd-tend-lista b{display:block;font-size:.88rem;color:var(--ink,#17352c);line-height:1.35}
+.pd-tend-lista i{display:block;margin-top:2px;font-style:normal;font-size:.75rem;color:var(--text-secondary,#645c50)}
+.pd-tend-flecha{font-size:1.15rem;font-weight:800;line-height:1.2;text-align:center;color:var(--text-secondary,#645c50)}
+.pd-tend-atencion{background:#fbeee7}
+.pd-tend-atencion .pd-tend-flecha{color:#b1543a}
+.pd-tend-ok .pd-tend-flecha{color:#3f7a4f}
+/* Chips de la lista de cuarteles: la misma lectura, en una línea. */
+.pd-cuartel-tend{display:flex;flex-wrap:wrap;gap:5px;margin:4px 0 2px}
+.pd-tend-chip{font-size:.68rem;font-weight:800;padding:2px 7px;border-radius:999px;
+  background:var(--surface-alt,#efe9dc);color:var(--text-secondary,#645c50);white-space:nowrap}
+.pd-tend-ojo{background:#fbeee7;color:#8e3d20}
+.pd-tend-bien{background:#e4f0e7;color:#2f5e3d}
 
 /* ---------- Gráficos ---------- */
 .pd-grafico .pd-card-title{margin-bottom:.35em}

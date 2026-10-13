@@ -58,3 +58,18 @@ Lo que cuida:
 - Un campo sin datos dice "sin aforos todavía" en vez de dibujar una barra en
   cero, que se lee como "cero por ciento hecho".
 - Los indicadores de arriba dicen cuántos de cuántos, no solo el porcentaje.
+
+## retratos.mjs
+
+No comprueba nada: abre cada panel con datos de prueba y guarda una imagen, en
+escritorio (1440 px) y en teléfono (390 px). Es para **mirar**, que es el paso
+que ninguna prueba reemplaza.
+
+```
+python3 -m http.server 8899
+node pruebas/paneles/retratos.mjs [carpeta]
+```
+
+Retrata los siete: Todos los campos, Calicatas (lista y ficha de un cuartel),
+Aforos, Ácido, Descole y Fertilización. Imprime además el alto de cada panel y
+avisa si alguno lanzó un error de JavaScript.

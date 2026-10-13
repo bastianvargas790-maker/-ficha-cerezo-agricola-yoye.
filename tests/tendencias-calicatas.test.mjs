@@ -60,3 +60,38 @@ test('la identidad no depende solo del color', () => {
   assert.ok(!/class="pd-svg-serie" fill="\$\{/.test(serie), 'el texto no se pinta del color de la serie');
   assert.match(css, /\.pd-svg-serie\{font:800 10px/);
 });
+
+/* ---------- Hacia dónde va el cuartel ---------- */
+test('el cuartel dice si subió o bajó, con el número y con cuántas veces', () => {
+  const t = js.slice(js.indexOf('function tendenciaDe('), js.indexOf('/* ---------- Render del panel'));
+  assert.match(t, /sostenida:pasos\.length>1&&\(suben===pasos\.length\|\|bajan===pasos\.length\)/,
+    'una sola comparación no es una tendencia');
+  assert.ok(t.includes("`${sube?'subió':'bajó'} ${f(Math.abs(t.delta))}${ud}`"));
+  assert.ok(t.includes("comparaciones seguidas"), 'hay que decir si el movimiento fue sostenido');
+  // La resta de dos porcentajes son PUNTOS, no porcentaje.
+  assert.ok(t.includes('unidadDelta'), 'la unidad del cambio se pasa aparte');
+  assert.ok(bloque.includes("frasesTendencia(tH,'Humedad en la zona de raíces',' %',n1,false,' pp')"));
+});
+
+test('la lectura masiva del cuartel va junto a los perfiles de cada calicata', () => {
+  assert.ok(bloque.includes('const tendenciaCuartel='), 'falta la tarjeta de tendencia del cuartel');
+  assert.ok(bloque.includes('return filtros+kpisCuartel+fichaCab+resumenAlertas+tendenciaCuartel+'),
+    'la tendencia va arriba, antes de los gráficos');
+  // Y los perfiles de cada calicata siguen estando: se ven las dos cosas.
+  assert.ok(bloque.includes('<div class="pd-perfiles">${perfiles}</div>'));
+  assert.ok(bloque.includes('const serieZona=clave=>cronologia.map'), 'la serie sale de la zona de raíces');
+});
+
+test('cada cuartel de la lista muestra hacia dónde va', () => {
+  assert.ok(bloque.includes('const tendenciaCuartelDe=(id,clave)=>'), 'falta la tendencia por cuartel');
+  assert.ok(bloque.includes('pd-cuartel-tend'), 'los chips van en la tarjeta del cuartel');
+  assert.match(css, /\.pd-tend-chip\{/);
+  // Nunca la flecha sola: el número va escrito al lado.
+  assert.ok(bloque.includes("f(Math.abs(t.delta))+ud"), 'el chip lleva el número');
+});
+
+test('la última calicata de un cuartel se busca por fecha, no por el orden de la consulta', () => {
+  assert.ok(bloque.includes('const ultimaDe=id=>sel.filter(k=>k.cuartel_id===id).slice().sort(masNueva)[0]'));
+  assert.ok(!bloque.includes('sel.find(k=>k.cuartel_id===id)'), 'ya no se confía en el orden que vino');
+  assert.ok(bloque.includes('const ultima=sel.slice().sort(masNueva)[0]'));
+});
