@@ -503,7 +503,7 @@ function barrasDivergentes(titulo,kicker,filas,nota){
 
 /* Anillo: solo para parte-de-un-todo con pocas porciones, nunca para comparar
    valores parecidos (para eso están las barras). */
-function anillo(titulo,kicker,partes,pie){
+function anillo(titulo,kicker,partes,pie,centro,cifras,ancho){
   const total=partes.reduce((t,p)=>t+p.valor,0);
   if(!total)return '';
   const r=46,c=2*Math.PI*r; let acum=0;
@@ -515,19 +515,23 @@ function anillo(titulo,kicker,partes,pie){
     acum+=frac; return el;
   }).join('');
   const mayor=[...partes].sort((a,b)=>b.valor-a.valor)[0];
-  return `<section class="pd-card">
+  return `<section class="pd-card${ancho?' pd-ancho pd-anillo-ancho':''}">
     <div class="pd-kicker">${esc(kicker)}</div>
     <h3 class="pd-card-title">${esc(titulo)}</h3>
+    ${ancho?'<div class="pd-anillo-cuerpo">':''}
     <div class="pd-anillo-fila">
       <svg viewBox="0 0 120 120" class="pd-anillo" role="img" aria-label="${esc(titulo)}">
         <circle cx="60" cy="60" r="${r}" fill="none" stroke="var(--surface-alt,#efe9dc)" stroke-width="15"></circle>
         ${arcos}
-        <text x="60" y="57" text-anchor="middle" class="pd-anillo-num">${n0(mayor.valor)}</text>
-        <text x="60" y="73" text-anchor="middle" class="pd-anillo-de">de ${n0(total)}</text>
+        <text x="60" y="57" text-anchor="middle" class="pd-anillo-num">${centro?esc(centro.num):n0(mayor.valor)}</text>
+        <text x="60" y="73" text-anchor="middle" class="pd-anillo-de">${centro?esc(centro.de):`de ${n0(total)}`}</text>
       </svg>
       <ul class="pd-leyenda-lista">${partes.filter(p=>p.valor>0).map(p=>`
         <li><i style="background:${p.color}"></i><span>${esc(p.etiqueta)}</span><b>${n0(p.valor)}</b></li>`).join('')}</ul>
     </div>
+    ${cifras&&cifras.length?`<div class="pd-cifras">${cifras.map(c=>`
+      <div><b>${esc(c.valor)}</b><span>${esc(c.etiqueta)}</span></div>`).join('')}</div>`:''}
+    ${ancho?'</div>':''}
     ${pie?`<p class="pd-nota">${esc(pie)}</p>`:''}
   </section>`;
 }
@@ -571,6 +575,68 @@ function tabla(titulo,kicker,cabeceras,filas,nota){
     <div class="pd-tabla-wrap"><table class="pd-tabla"><thead><tr>${cabeceras.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
     <tbody>${filas.map(f=>`<tr>${f.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
     ${nota?`<p class="pd-nota">${esc(nota)}</p>`:''}</section>`;
+}
+
+/* ---------- Profundidad: rampa secuencial, no colores sueltos ----------
+   La profundidad es una magnitud ordenada, así que se pinta como tal: un solo
+   tono de azul, claro arriba y oscuro abajo. Antes reusaba los colores de
+   Centro/Izquierda/Derecha, que son identidades distintas; coincidían tres
+   colores con tres profundidades por casualidad y el ojo leía "centro" donde
+   decía "30 cm". Los tres pasos están validados: separación 16,7 entre
+   contiguos y contraste sobre el fondo por encima de 3:1. */
+const PROF_RAMPA=['#4a92e4','#20629f','#0f2f52'];
+const colorProf=(prof,profs)=>{
+  const i=profs.indexOf(prof);
+  if(i<0||profs.length<2)return PROF_RAMPA[PROF_RAMPA.length-1];
+  const paso=Math.round(i*(PROF_RAMPA.length-1)/(profs.length-1));
+  return PROF_RAMPA[Math.min(PROF_RAMPA.length-1,Math.max(0,paso))];
+};
+
+/* ---------- Resumen de todas las mediciones ----------
+   Toma un conjunto de calicatas y arma, por profundidad, la serie fecha a
+   fecha y el resumen numérico. Cuando hay varias calicatas en la misma fecha
+   (el caso del campo completo, con cuarteles distintos) se promedian: el punto
+   del gráfico es esa fecha, no una calicata. */
+function resumenPorProfundidad(calicatas,valorDe,profs){
+  const porFecha=new Map();
+  calicatas.forEach(k=>{
+    const dia=String(k.fecha).slice(0,10);
+    if(!porFecha.has(dia))porFecha.set(dia,[]);
+    porFecha.get(dia).push(k);
+  });
+  const dias=[...porFecha.keys()].sort();
+  const series=profs.map(pr=>{
+    const valores=dias.map(dia=>{
+      const v=porFecha.get(dia).map(k=>valorDe(k,pr)).filter(Number.isFinite);
+      return v.length?v.reduce((a,b)=>a+b,0)/v.length:null;
+    });
+    const hay=valores.filter(Number.isFinite);
+    return {prof:pr,valores,
+      n:hay.length,
+      max:hay.length?Math.max(...hay):null,
+      prom:hay.length?hay.reduce((a,b)=>a+b,0)/hay.length:null,
+      min:hay.length?Math.min(...hay):null,
+      ultimo:hay.length?[...valores].reverse().find(Number.isFinite):null};
+  }).filter(s=>s.n>0);
+  return {dias,series,
+    tiempos:dias.map(d=>Date.parse(d+'T12:00:00')),
+    rotulos:dias.map(d=>String(fecha(d)).slice(0,5)),
+    mediciones:calicatas.length};
+}
+
+/* La tabla que acompaña al gráfico: es la que convierte el contraste bajo de
+   la línea más clara en algo legible, así que no es opcional. */
+function tablaResumenProf(res,unidad,f,titulo,kicker,nota){
+  if(!res.series.length)return '';
+  const filas=res.series.map(s=>[
+    `<span class="pd-punto" style="background:${colorProf(s.prof,res.series.map(x=>x.prof))}"></span> ${n0(s.prof)} cm`,
+    s.max===null?'—':f(s.max),
+    s.prom===null?'—':`<strong>${f(s.prom)}</strong>`,
+    s.min===null?'—':f(s.min),
+    s.ultimo===null?'—':f(s.ultimo),
+    n0(s.n)
+  ]);
+  return tabla(titulo,kicker,['Profundidad',`Máx ${unidad}`,`Prom ${unidad}`,`Mín ${unidad}`,`Último ${unidad}`,'Fechas'],filas,nota);
 }
 
 /* ---------- Hacia dónde va el cuartel ----------
@@ -674,6 +740,10 @@ function pintarCalicatas(d,campo){
       textura:texturaDe(cal),raicesCm:cal.profundidad_efectiva_raices_cm,
       unionBulbos:cal.union_bulbos,cultivo:cuartelDe(cal).cultivo}));
     return cacheAgro.get(cal.id);
+  };
+  const valorProf=(cal,prof,clave)=>{
+    const r=leer(cal);const x=r&&r.porProfundidad.find(y=>y.prof===prof);
+    return x&&Number.isFinite(x[clave])?x[clave]:null;
   };
   const totalesDe=cal=>{
     const r=leer(cal);
@@ -859,67 +929,56 @@ function pintarCalicatas(d,campo){
       return [esc(q.codigo||'—'),fecha(k.fecha),h(sup),h(fondo),c(fondo)];
     })),'Cada fila es una calicata completa; los valores son el promedio de los tres puntos de ESA calicata.'):'';
 
-  /* --- Resumen de tendencias de la selección: una línea por cuartel ---
-     Es el gráfico con el que se revisa la semana: cómo se viene moviendo la
-     humedad y la CE en la zona de raíces de cada cuartel, calicata a calicata.
-     No se promedian cuarteles -- cada línea es un cuartel, con su suelo y su
-     cultivo -- y la humedad y la CE van en dos gráficos porque no comparten
-     escala: en uno solo con dos ejes se puede hacer que digan cualquier cosa.
-     La paleta es fija y está validada para daltonismo sobre el papel de la app
-     (ΔE 8,4 en protanopía entre cualquier par; todos sobre 3:1 de contraste). */
-  const PALETA_CUARTEL=['#2a78d6','#eb6834','#199e70','#a33b8f','#8e3d20'];
-  const MAX_LINEAS=PALETA_CUARTEL.length;
-  const orden=k=>String(k.fecha)+(k.hora||'');
-  const tendElegidos=conHistoria
-    .map(([id,ks])=>({id,codigo:(porCuartel.get(id)||{}).codigo||'—',
-      ks:ks.slice().sort((a,b)=>orden(a).localeCompare(orden(b)))}))
-    /* Con más cuarteles que colores se dibujan los de medición más reciente y
-       se dice cuántos quedaron fuera: una línea de un color repetido se lee
-       como si fuera otro cuartel. El resto sale con los filtros de arriba. */
-    .sort((a,b)=>String(b.ks[b.ks.length-1].fecha).localeCompare(String(a.ks[a.ks.length-1].fecha)))
-    .slice(0,MAX_LINEAS)
-    /* El color se asigna por código, no por el orden de arriba: así un cuartel
-       conserva su color aunque cambie el filtro o aparezca una calicata nueva. */
-    .sort((a,b)=>String(a.codigo).localeCompare(String(b.codigo),'es',{numeric:true}));
-  const tendFechas=[...new Set(tendElegidos.flatMap(e=>e.ks.map(k=>String(k.fecha).slice(0,10))))].sort();
-  const tendTiempos=tendFechas.map(f=>Date.parse(f+'T12:00:00'));
-  const tendRotulos=tendFechas.map(f=>String(fecha(f)).slice(0,5));
-  const tendSerie=clave=>tendElegidos.map((e,i)=>({
-    nombre:e.codigo, color:PALETA_CUARTEL[i], unidad:clave==='h'?' %':' mS/cm',
-    valores:tendFechas.map(f=>{
-      // Dos calicatas del mismo cuartel el mismo día: se promedian entre ellas.
-      const v=e.ks.filter(k=>String(k.fecha).slice(0,10)===f)
-        .map(k=>{const r=leer(k);return r&&Number.isFinite(r.zonaRaices[clave])?r.zonaRaices[clave]:null})
-        .filter(x=>x!==null);
-      return v.length?prom(v):null;
-    })
-  }));
-  /* La referencia de humedad depende de la textura, así que solo se dibuja
-     cuando todos los cuarteles dibujados tienen el mismo tipo de suelo. */
-  const tendRef=(()=>{
-    const gs=tendElegidos.map(e=>{const r=leer(e.ks[e.ks.length-1]);
-      return r&&r.zonaRaices.referencia&&r.zonaRaices.referencia.bien!=null?r.zonaRaices.referencia:null});
-    if(!gs.length||gs.some(g=>!g)||new Set(gs.map(g=>g.bien)).size>1)return null;
-    return {valor:gs[0].bien,etiqueta:`suelo ${gs[0].etiqueta} ≈ ${n0(gs[0].bien)} %`,color:'#3f7a4f'};
-  })();
-  /* Con un cuartel elegido manda su ficha, que trae su propia evolución por
-     profundidad: no hace falta armar el resumen de la selección. */
-  const tendGraficos=filtroCal.cuartel?'':tendElegidos.length
-    ? serieTiempo('Humedad en la zona de raíces, fecha a fecha','Resumen de tendencias',
-        tendRotulos,tendSerie('h'),
-        ['Cada línea es un cuartel: el promedio de las profundidades que caen dentro de su zona de raíces, calicata a calicata.',
-         'Las fechas van a escala de calendario, así tres semanas sin medir se ven como tres semanas.',
-         conHistoria.length>MAX_LINEAS?`Se dibujan ${n0(tendElegidos.length)} de ${n0(conHistoria.length)} cuarteles con dos o más fechas, los de medición más reciente; filtra por caseta, equipo o cultivo para ver los demás.`:null,
-         tendRef?null:'Los cuarteles dibujados no tienen la misma textura, así que no se dibuja una referencia común: cada suelo se compara con la suya en la ficha del cuartel.'
-        ].filter(Boolean).join(' '),null,1,{tiempos:tendTiempos,referenciaLinea:tendRef})
-      +serieTiempo('CE en la zona de raíces, fecha a fecha','Resumen de tendencias',
-        tendRotulos,tendSerie('ce'),
-        'La sonda mide CE aparente: sirve para ver si sube o baja en el mismo punto, no para compararla con el umbral de laboratorio del cultivo. Si sube fecha a fecha en el mismo cuartel, hay sales acumulándose.',
-        null,2,{tiempos:tendTiempos})
-    : `<section class="pd-card pd-ancho"><div class="pd-kicker">Resumen de tendencias</div>
-       <h3 class="pd-card-title">Todavía no hay dos fechas que comparar</h3>
-       <p class="pd-nota">La tendencia aparece sola cuando un cuartel tenga su segunda calicata: con una sola fecha
-       se lee el perfil de hoy, pero no si el cuartel se está secando o salinizando.</p></section>`;
+  /* --- Cobertura del campo: cuántos cuarteles tienen calicata ---
+     Es la pregunta de gestión antes que la agronómica: con 36 cuarteles y 14
+     revisados, el promedio del campo todavía habla de un tercio del campo.
+     Por eso la dona va primero y el resto se lee sabiendo eso. */
+  const conCalicata=new Set(calicatas.map(k=>k.cuartel_id));
+  const revisados=cuarteles.filter(q=>conCalicata.has(q.id)).length;
+  const pendientes=Math.max(0,cuarteles.length-revisados);
+  const raicesCampo=calicatas.map(k=>Number(k.profundidad_efectiva_raices_cm)).filter(Number.isFinite);
+  const promRaices=raicesCampo.length?raicesCampo.reduce((a,b)=>a+b,0)/raicesCampo.length:null;
+  const dona=cuarteles.length?anillo(
+    'Cuarteles revisados con calicata','Cobertura de '+campo.nombre,
+    [{etiqueta:'Con calicata',valor:revisados,color:'#2a78d6'},
+     {etiqueta:'Sin calicata todavía',valor:pendientes,color:'#c9d6e4'}],
+    'Cuenta cualquier calicata registrada, sin importar la fecha. Un cuartel sin calicata no tiene lectura de suelo: lo que se riega ahí va a ciegas.',
+    {num:n0(100*revisados/cuarteles.length)+'%',de:`${n0(revisados)} de ${n0(cuarteles.length)}`},
+    [{valor:n0(calicatas.length),etiqueta:calicatas.length===1?'calicata registrada':'calicatas registradas'},
+     {valor:promRaices===null?'—':n0(promRaices)+' cm',etiqueta:'raíces efectivas, promedio'}],true):'';
+
+  /* --- Resumen de todas las mediciones, por profundidad ---
+     Una línea por profundidad con TODAS las calicatas de la selección: cuando
+     hay varias en la misma fecha se promedian, así el punto es la fecha y no
+     una calicata suelta. La tabla de al lado es la que deja leer la línea más
+     clara, que sobre fondo claro tiene poco contraste. */
+  const resumenProf=(clave)=>resumenPorProfundidad(sel,(k,pr)=>valorProf(k,pr,clave),profsSel);
+  const resH=resumenProf('h'), resCe=resumenProf('ce');
+  const alcance=filtroCal.cuartel
+    ? `las ${n0(sel.length)} ${sel.length===1?'calicata':'calicatas'} de este cuartel`
+    : `las ${n0(sel.length)} ${sel.length===1?'calicata':'calicatas'} de ${n0(cuartelesSel.size)} ${cuartelesSel.size===1?'cuartel':'cuarteles'}`;
+  const graficoResumen=resH.dias.length>1
+    ? serieTiempo('Humedad por profundidad, fecha a fecha','Resumen de todas las mediciones',
+        resH.rotulos,
+        resH.series.map(x=>({nombre:`${n0(x.prof)} cm`,color:colorProf(x.prof,resH.series.map(y=>y.prof)),
+          unidad:' %',valores:x.valores})),
+        `Cada línea es una profundidad, promediando ${alcance}. Las fechas van a escala de calendario, así tres semanas sin medir se ven como tres semanas.`,
+        null,1,{tiempos:resH.tiempos})
+      +tablaResumenProf(resH,'%',n1,'Humedad: máximo, promedio, mínimo y último','Resumen de todas las mediciones',
+        `Sobre ${alcance}. "Último" es la fecha más reciente que midió esa profundidad; "Fechas" es en cuántas se midió.`)
+      +serieTiempo('CE por profundidad, fecha a fecha','Resumen de todas las mediciones',
+        resCe.rotulos,
+        resCe.series.map(x=>({nombre:`${n0(x.prof)} cm`,color:colorProf(x.prof,resCe.series.map(y=>y.prof)),
+          unidad:' mS/cm',valores:x.valores})),
+        'La sonda mide CE aparente: sirve para ver si sube o baja en el mismo punto, no para compararla con el umbral de laboratorio del cultivo.',
+        null,2,{tiempos:resCe.tiempos})
+      +tablaResumenProf(resCe,'mS/cm',n2,'CE: máximo, promedio, mínimo y último','Resumen de todas las mediciones',
+        `Sobre ${alcance}. Si el promedio sube con la profundidad, las sales se están acumulando abajo.`)
+    : `<section class="pd-card pd-ancho"><div class="pd-kicker">Resumen de todas las mediciones</div>
+       <h3 class="pd-card-title">Falta una segunda fecha</h3>
+       <p class="pd-nota">El resumen por profundidad compara fechas. Con una sola fecha se lee el perfil de
+       hoy, pero no si el suelo se está secando o salinizando.</p></section>`;
+  const tendGraficos=filtroCal.cuartel?'':dona+graficoResumen;
 
   // --- Anillo: unión de bulbos, que sí es parte de un todo ---
   const unionCuenta=new Map();
@@ -1035,10 +1094,12 @@ function pintarCalicatas(d,campo){
   /* --- Ficha del cuartel elegido --- */
   const delCuartel=sel.slice().sort((a,b)=>String(b.fecha+(b.hora||'')).localeCompare(String(a.fecha+(a.hora||''))));
   const qSel=cuartelDe(delCuartel[0]),rUlt=leer(delCuartel[0]);
+  const raicesCuartel=delCuartel.map(k=>Number(k.profundidad_efectiva_raices_cm)).filter(Number.isFinite);
   const fichaCab=`<section class="pd-card pd-ancho pd-ficha"><div class="pd-kicker">Cuartel</div>
     <h3 class="pd-card-title">${esc(qSel.codigo||'—')}</h3>
     <p class="pd-nota" style="margin:0">${esc([qSel.cultivo,qSel.variedad,qSel.caseta?`Caseta ${qSel.caseta}`:null,qSel.equipo].filter(Boolean).join(' · ')||'Sin datos del cuartel')}
       · ${n0(delCuartel.length)} ${delCuartel.length===1?'calicata registrada':'calicatas registradas'}
+      ${raicesCuartel.length?`· raíces efectivas ${n0(prom(raicesCuartel))} cm en promedio${raicesCuartel.length>1&&n0(Math.min(...raicesCuartel))!==n0(Math.max(...raicesCuartel))?` (${n0(Math.min(...raicesCuartel))}–${n0(Math.max(...raicesCuartel))})`:''}`:''}
       ${rUlt&&rUlt.referenciaCultivo?`· ${esc(rUlt.referenciaCultivo.etiqueta)}: umbral de sales ${n1(rUlt.referenciaCultivo.umbral)} dS/m (CEe)`:''}</p>
     <button type="button" class="pd-filtro-limpiar" data-cal-filtro="limpiar" style="margin-top:10px">Ver otro cuartel</button></section>`;
 
@@ -1051,9 +1112,6 @@ function pintarCalicatas(d,campo){
     const repetida=a.some((o,j)=>j!==i&&o.fecha===k.fecha);
     return repetida&&k.hora?`${d} ${String(k.hora).slice(0,5)}`:d;
   });
-  const valorProf=(cal,prof,clave)=>{const r=leer(cal);const x=r&&r.porProfundidad.find(y=>y.prof===prof);
-    return x&&Number.isFinite(x[clave])?x[clave]:null};
-  const COLORES=[PUNTOS[0].color,PUNTOS[1].color,PUNTOS[2].color,'#8c6847','#39798a'];
   /* Las fechas se ubican a escala de calendario: dos calicatas seguidas y otra
      tres semanas después no pueden quedar a la misma distancia. */
   const tiempoDe=k=>{const t=Date.parse(String(k.fecha).slice(0,10)+'T'+String(k.hora||'12:00').slice(0,5)+':00');
@@ -1065,12 +1123,12 @@ function pintarCalicatas(d,campo){
   const refSuelo=refUlt&&refUlt.bien!=null
     ? {valor:refUlt.bien,etiqueta:`suelo ${refUlt.etiqueta} ≈ ${n0(refUlt.bien)} %`,color:'#3f7a4f'}:null;
   const serieHum=serieTiempo('Humedad por fecha','Evolución del cuartel',fechasSerie,
-    profsSel.map((pr,i)=>({nombre:`${n0(pr)} cm`,color:COLORES[i%COLORES.length],unidad:' %',
+    profsSel.map(pr=>({nombre:`${n0(pr)} cm`,color:colorProf(pr,profsSel),unidad:' %',
       valores:cronologia.map(k=>valorProf(k,pr,'h'))})),
     'Cada línea es una profundidad, promediando los tres puntos de esa calicata.',
     null,1,{tiempos:tiemposCuartel,referenciaLinea:refSuelo});
   const serieCe=serieTiempo('CE por fecha','Evolución del cuartel',fechasSerie,
-    profsSel.map((pr,i)=>({nombre:`${n0(pr)} cm`,color:COLORES[i%COLORES.length],unidad:' mS/cm',
+    profsSel.map(pr=>({nombre:`${n0(pr)} cm`,color:colorProf(pr,profsSel),unidad:' mS/cm',
       valores:cronologia.map(k=>valorProf(k,pr,'ce'))})),
     'Si la CE sube fecha a fecha en la misma profundidad, hay sales acumulándose; conviene confirmarlo con extracto de saturación.',
     null,2,{tiempos:tiemposCuartel});
@@ -1147,7 +1205,12 @@ function pintarCalicatas(d,campo){
   </div>`;
 
   return filtros+kpisCuartel+fichaCab+resumenAlertas+tendenciaCuartel+
-    (serieHum||sinHistoria)+serieCe+
+    (serieHum||sinHistoria)
+    +tablaResumenProf(resH,'%',n1,'Humedad: máximo, promedio, mínimo y último','Resumen de todas las mediciones',
+      `Sobre las ${n0(delCuartel.length)} ${delCuartel.length===1?'calicata':'calicatas'} de este cuartel. "Último" es la fecha más reciente que midió esa profundidad; "Fechas" es en cuántas se midió.`)
+    +serieCe
+    +tablaResumenProf(resCe,'mS/cm',n2,'CE: máximo, promedio, mínimo y último','Resumen de todas las mediciones',
+      'Sobre todas las calicatas de este cuartel. Si el promedio sube con la profundidad, las sales se están acumulando abajo.')+
     tabla('Historia del cuartel','Calicata por calicata',
       ['Fecha','H raíces %','Cómo viene','CE','T °C','Raíces cm','Bulbos'],filasCuartel,
       'Cada fila es una calicata completa de este cuartel. La humedad de raíces se mide solo hasta la profundidad de raíces declarada ese día, y se lee contra la referencia de ese suelo.')+

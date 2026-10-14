@@ -10,6 +10,9 @@ import { mkdirSync } from 'node:fs';
 
 const BASE = 'http://localhost:8899';
 const SALIDA = process.argv[2] || (new URL('.', import.meta.url).pathname + 'capturas');
+/* Tercer argumento: retrata solo los paneles cuyo nombre lo contenga, para no
+   esperar los catorce cuando se está iterando sobre uno. */
+const SOLO = process.argv[3] || '';
 
 const stub = () => {
   const CAMPO = '80aceca7-e61a-441a-b803-d60496a3d36f';
@@ -22,9 +25,16 @@ const stub = () => {
   const CUARTELES = COD.map((codigo, i) => ({ id: 'q' + i, codigo, cuartel: codigo,
     cultivo: i % 2 ? 'Ciruelo' : 'Cerezo', variedad: 'Santina', caseta: 'Caseta ' + (1 + i % 2),
     equipo: 'E' + (1 + i % 3), superficie_ha: 2 + i / 10, campo_id: CAMPO, organizacion_id: 'org1', activo: true }));
+  /* Cuarteles sin ninguna calicata: son los que hacen que la dona de cobertura
+     diga algo. En Rinconada Plano la proporción real es 14 de 36. */
+  const SIN_CALICATA = Array.from({ length: 11 }, (_, i) => ({ id: 'qs' + i, codigo: 'C-' + (50 + i),
+    cuartel: 'C-' + (50 + i), cultivo: i % 2 ? 'Nogal' : 'Nectarino', variedad: '—',
+    caseta: 'Caseta ' + (1 + i % 2), equipo: 'E' + (1 + i % 3), superficie_ha: 2, campo_id: CAMPO,
+    organizacion_id: 'org1', activo: true }));
+  CUARTELES.push(...SIN_CALICATA);
   const FECHAS = ['2026-08-10', '2026-08-28', '2026-09-14', '2026-09-28'];
   const CAL = [], LECT = [], OBS = [];
-  CUARTELES.forEach((q, i) => {
+  CUARTELES.filter(q => !String(q.id).startsWith('qs')).forEach((q, i) => {
     const fechas = i === COD.length - 1 ? FECHAS.slice(0, 1) : FECHAS.slice(i % 2);
     fechas.forEach((f, j) => {
       const id = `${q.id}-${j}`;
@@ -95,7 +105,10 @@ const nav = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1
 for (const [tam, w, h] of [['pc', 1440, 1000], ['movil', 390, 844]]) {
   const ctx = await nav.newContext({ viewport: { width: w, height: h }, locale: 'es-CL', deviceScaleFactor: 1 });
   await ctx.addInitScript(stub);
-  for (const [nombre, hash, titulo] of PANELES) {
+  /* Nada de red hacia afuera: el stub ya reemplaza a Supabase, y esperar a que
+     caiga cada CDN hacía que los retratos tardaran minutos. */
+  await ctx.route('**/*', r => r.request().url().startsWith(BASE) ? r.continue() : r.abort());
+  for (const [nombre, hash, titulo] of PANELES.filter(([n]) => !SOLO || n.includes(SOLO))) {
     const p = await ctx.newPage();
     const errs = [];
     p.on('pageerror', e => errs.push(e.message.slice(0, 120)));

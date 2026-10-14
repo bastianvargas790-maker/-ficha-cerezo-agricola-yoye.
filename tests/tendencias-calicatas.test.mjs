@@ -12,32 +12,57 @@ const bloque = js.slice(js.indexOf('function pintarCalicatas'), js.indexOf('/* -
 const serie = js.slice(js.indexOf('function serieTiempo'), js.indexOf('function barrasDivergentes'));
 
 test('la humedad y la CE van en dos gráficos, nunca en dos ejes del mismo', () => {
-  assert.ok(bloque.includes("serieTiempo('Humedad en la zona de raíces, fecha a fecha'"));
-  assert.ok(bloque.includes("serieTiempo('CE en la zona de raíces, fecha a fecha'"));
+  assert.ok(bloque.includes("serieTiempo('Humedad por profundidad, fecha a fecha'"));
+  assert.ok(bloque.includes("serieTiempo('CE por profundidad, fecha a fecha'"));
   // Un solo eje de valores por dibujo: la humedad va en % y la CE en mS/cm.
   assert.equal((serie.match(/const marcas=marcasEje\(/g) || []).length, 1, 'un gráfico, una escala');
   assert.ok(!/ejeDerecho|eje secundario|escalaDerecha/.test(serie), 'nada de un segundo eje');
 });
 
-test('cada línea es un cuartel y conserva su color al filtrar', () => {
-  assert.match(bloque, /const PALETA_CUARTEL=\['#2a78d6','#eb6834','#199e70','#a33b8f','#8e3d20'\]/);
-  // El color se asigna después de elegir, ordenando por código: si se asignara
-  // en el orden de la selección, filtrar repintaría los cuarteles que quedan.
-  const i = bloque.indexOf('.slice(0,MAX_LINEAS)');
-  assert.ok(bloque.slice(i, i + 320).includes("localeCompare(String(b.codigo),'es',{numeric:true})"),
-    'el color sale del código del cuartel, no del orden de la lista');
-  assert.ok(bloque.includes('color:PALETA_CUARTEL[i]'));
+test('la profundidad se pinta como magnitud ordenada, no con colores sueltos', () => {
+  // 30 cm claro, 90 cm oscuro: un solo tono. Antes reusaba los colores de
+  // Centro/Izquierda/Derecha, que son otra identidad.
+  assert.match(js, /const PROF_RAMPA=\['#4a92e4','#20629f','#0f2f52'\]/);
+  assert.ok(!bloque.includes('COLORES[i%COLORES.length]'), 'ya no se reusa la paleta de los puntos');
+  assert.ok(bloque.includes('color:colorProf(pr,profsSel)'), 'la ficha del cuartel usa la rampa');
+  assert.ok(bloque.includes('color:colorProf(x.prof,'), 'el resumen también');
+  // El paso se calcula desde la posición de la profundidad, así 60 cm es
+  // siempre el tono del medio aunque falte el de 30.
+  assert.match(js, /const paso=Math\.round\(i\*\(PROF_RAMPA\.length-1\)\/\(profs\.length-1\)\)/);
 });
 
-test('no se dibujan más cuarteles que colores, y se dice cuántos quedaron fuera', () => {
-  assert.match(bloque, /const MAX_LINEAS=PALETA_CUARTEL\.length/);
-  assert.ok(bloque.includes('conHistoria.length>MAX_LINEAS?`Se dibujan '), 'hay que avisar cuántos se ven');
-  assert.ok(bloque.includes('Todavía no hay dos fechas que comparar'), 'con una sola fecha no se dibuja una línea de un punto');
+test('la cobertura del campo es una dona, y cuenta cuarteles sin calicata', () => {
+  assert.ok(bloque.includes("anillo(\n    'Cuarteles revisados con calicata'"), 'falta la dona');
+  assert.ok(bloque.includes('const revisados=cuarteles.filter(q=>conCalicata.has(q.id)).length'));
+  // El denominador son TODOS los cuarteles del campo, no los que tienen calicata.
+  assert.ok(bloque.includes('const pendientes=Math.max(0,cuarteles.length-revisados)'));
+  assert.ok(bloque.includes("{num:n0(100*revisados/cuarteles.length)+'%'"), 'el centro muestra el porcentaje');
+  assert.ok(bloque.includes("etiqueta:'raíces efectivas, promedio'"), 'falta el promedio de raíces');
+});
+
+test('el resumen promedia por fecha, no mezcla calicatas sueltas en un punto', () => {
+  const r = js.slice(js.indexOf('function resumenPorProfundidad'), js.indexOf('function tablaResumenProf'));
+  assert.ok(r.includes('const dia=String(k.fecha).slice(0,10)'), 'se agrupa por día');
+  assert.ok(r.includes('v.length?v.reduce((a,b)=>a+b,0)/v.length:null'), 'varias calicatas del día se promedian');
+  // Sin medición, hueco: nunca un cero que el gráfico leería como suelo seco.
+  assert.ok(r.includes(':null;'), 'la fecha sin dato queda vacía');
+  assert.ok(r.includes("tiempos:dias.map(d=>Date.parse(d+'T12:00:00'))"), 'escala de calendario');
+});
+
+test('la tabla de resumen acompaña a cada gráfico y ata fila con línea', () => {
+  const t = js.slice(js.indexOf('function tablaResumenProf'), js.indexOf('/* ---------- Hacia dónde va el cuartel'));
+  assert.ok(t.includes("['Profundidad',`Máx ${unidad}`,`Prom ${unidad}`,`Mín ${unidad}`,`Último ${unidad}`,'Fechas']"));
+  // El contraste de la línea más clara se apoya en la tabla: no es opcional.
+  assert.ok(t.includes('class="pd-punto"'), 'cada fila lleva el color de su línea');
+  assert.ok(!/<td[^>]*color:\$\{/.test(t), 'el texto de la tabla no se pinta del color de la serie');
+  assert.match(css, /\.pd-punto\{display:inline-block/);
+  assert.ok(bloque.includes("tablaResumenProf(resH,'%',n1,"), 'la humedad lleva su tabla');
+  assert.ok(bloque.includes("tablaResumenProf(resCe,'mS/cm',n2,"), 'la CE también');
 });
 
 test('las fechas van a escala de calendario y el eje se ajusta a los datos', () => {
   assert.match(serie, /const parte=i=>ts&&t1>t0\?\(ts\[i\]-t0\)\/\(t1-t0\)/);
-  assert.ok(bloque.includes('const tendTiempos=tendFechas.map(f=>Date.parse(f'), 'hay que pasarle los tiempos');
+  assert.ok(bloque.includes('{tiempos:resH.tiempos}'), 'hay que pasarle los tiempos');
   assert.ok(!serie.includes('marcasEje(Math.min(0,'), 'el eje de una línea no tiene por qué partir en cero');
   assert.match(serie, /const marcaEje=v=>entero\?n0\(v\):paso>=0\.1\?n1\(v\):n2\(v\)/);
 });

@@ -25,8 +25,15 @@ const stub = () => {
   const CUARTELES = CODIGOS.map((codigo, i) => ({ id: 'q' + i, codigo, cuartel: codigo,
     cultivo: i % 2 ? 'Ciruelo' : 'Duraznero', variedad: 'DAgen', caseta: 'Caseta ' + (1 + i % 2),
     equipo: 'E' + (1 + i % 3), superficie_ha: 2 + i / 10, campo_id: CAMPO, activo: true }));
+  /* Cuarteles sin ninguna calicata: son el denominador de la dona de
+     cobertura. Sin ellos la dona marcaría 100% siempre y la prueba no
+     distinguiría "todos los cuarteles" de "los que tienen calicata". */
+  const MEDIDOS = CUARTELES.length;
+  for (let i = 0; i < 11; i++) CUARTELES.push({ id: 'qs' + i, codigo: 'C-' + (50 + i),
+    cuartel: 'C-' + (50 + i), cultivo: 'Nogal', variedad: '—', caseta: 'Caseta 1',
+    equipo: 'E1', superficie_ha: 2, campo_id: CAMPO, activo: true });
   const CAL = [], LECT = [], OBS = [];
-  CUARTELES.forEach((q, i) => {
+  CUARTELES.slice(0, MEDIDOS).forEach((q, i) => {
     // El último cuartel queda con una sola fecha: así se prueba que no se
     // dibuja una línea de un punto.
     const fechas = i === CODIGOS.length - 1 ? FECHAS.slice(0, 1) : FECHAS.slice(i % 2);
@@ -99,7 +106,12 @@ async function mirar(nombre, ancho, alto, hash) {
       lineas:[...tc.querySelectorAll('.pd-tend-lista b')].map(x=>x.textContent.trim()),
       pies:[...tc.querySelectorAll('.pd-tend-lista i')].map(x=>x.textContent.trim()),
       }:null;
-    return { cards, tendencia, chips:document.querySelectorAll('.pd-tend-chip').length, scrollW: Math.round(borde), clientW: document.documentElement.clientWidth,
+    /* Las tarjetas que no son gráficos -- la dona, las tablas de resumen --
+       se revisan por su texto. */
+    const secciones = [...document.querySelectorAll('.pd-card')].map(c => ({
+      titulo: (c.querySelector('.pd-card-title') || {}).textContent?.trim() || '',
+      texto: c.textContent.replace(/\s+/g, ' ').trim() }));
+    return { cards, secciones, tendencia, chips:document.querySelectorAll('.pd-tend-chip').length, scrollW: Math.round(borde), clientW: document.documentElement.clientWidth,
       textos: [...document.querySelectorAll('.pd-card-title')].map(t => t.textContent.trim()) };
   });
   await p.screenshot({ path: `${SALIDA}/${nombre}.png`, fullPage: true });
@@ -114,10 +126,13 @@ const ficha = await mirar('ficha-pc', 1440, 1200, '#panel-calicatas:C-5');
 const fichaMovil = await mirar('ficha-movil', 390, 844, '#panel-calicatas:C-5');
 
 const tendencias = d => d.cards.filter(c => /fecha a fecha/.test(c.titulo));
-for (const [nombre, d, maxLineas] of [['pc', sel, 5], ['móvil', selMovil, 5]]) {
+/* Los de la ficha del cuartel se llaman distinto: "Humedad por fecha". */
+const porFecha = d => d.cards.filter(c => /^(Humedad|CE) por fecha$/.test(c.titulo));
+for (const [nombre, d, maxLineas] of [['pc', sel, 4], ['móvil', selMovil, 4]]) {
   const t = tendencias(d);
   revisar(t.length === 2, `${nombre}: están los dos gráficos de tendencia (humedad y CE) y no uno con dos ejes`);
-  revisar(t.every(c => c.lineas >= 2 && c.lineas <= maxLineas), `${nombre}: entre 2 y ${maxLineas} líneas por gráfico (${t.map(c => c.lineas)})`);
+  // Una línea por profundidad medida: 30, 60 y 90 cm. Nunca una por calicata.
+  revisar(t.every(c => c.lineas >= 2 && c.lineas <= maxLineas), `${nombre}: entre 2 y ${maxLineas} líneas por gráfico, una por profundidad (${t.map(c => c.lineas)})`);
   revisar(t.every(c => c.leyenda.length === c.lineas), `${nombre}: la leyenda nombra todas las series`);
   revisar(d.scrollW <= d.clientW + 1, `${nombre}: nada del panel se sale de la pantalla (${d.scrollW} ≤ ${d.clientW})`);
   // Rótulos del eje de fechas: ninguno encima de otro.
@@ -139,10 +154,31 @@ for (const [nombre, d] of [['pc', sel], ['móvil', selMovil], ['ficha pc', ficha
 revisar(tendencias(sel).every(c => c.vbH >= 330), `pc: los gráficos van grandes (alto ${tendencias(sel).map(c => c.vbH)})`);
 revisar(tendencias(selMovil).every(c => c.vbH <= 290), `móvil: tamaño normal (alto ${tendencias(selMovil).map(c => c.vbH)})`);
 revisar(tendencias(sel)[0].series.length === tendencias(sel)[0].lineas,
-  'pc: cada línea lleva su cuartel y su último valor escrito al borde');
+  'pc: cada línea lleva su profundidad y su último valor escrito al borde');
 revisar(tendencias(selMovil)[0].series.length === 0, 'móvil: sin nombres al borde, que no caben; la leyenda los lleva');
-revisar(tendencias(sel)[0].ref.some(t => /suelo medio/.test(t)),
-  'pc: la referencia del suelo aparece cuando todos los cuarteles tienen la misma textura');
+/* La referencia de suelo vive donde hay UNA textura: la ficha del cuartel. El
+   resumen del campo mezcla cuarteles de suelos distintos, así que ahí no se
+   dibuja ninguna línea estimada. */
+revisar(porFecha(ficha)[0].ref.some(t => /suelo medio/.test(t)),
+  'la referencia del suelo aparece en la ficha del cuartel, que tiene una sola textura');
+revisar(tendencias(sel).every(c => !c.ref.length),
+  'el resumen del campo no dibuja referencia: mezcla suelos distintos');
+
+/* --- La dona de cobertura: el dato de gestión antes del agronómico --- */
+for (const [nombre, d] of [['pc', sel], ['móvil', selMovil]]) {
+  const dona = d.secciones.find(c => /Cuarteles revisados con calicata/.test(c.titulo));
+  revisar(!!dona, `${nombre}: está la dona de cuarteles revisados`);
+  // El denominador son todos los cuarteles del campo, no solo los medidos.
+  // 7 cuarteles con calicata de 18 en el campo: el denominador son los 18.
+  revisar(dona && /39\s*%/.test(dona.texto) && /7\s*de\s*18/.test(dona.texto),
+    `${nombre}: la dona dice el porcentaje y sobre cuántos (${dona ? dona.texto.slice(0, 190) : '—'})`);
+  revisar(dona && /raíces efectivas, promedio/.test(dona.texto),
+    `${nombre}: la dona trae el promedio de raíces efectivas`);
+  const tablas = d.secciones.filter(c => /máximo, promedio, mínimo y último/.test(c.titulo));
+  revisar(tablas.length === 2, `${nombre}: cada gráfico lleva su tabla de resumen (${tablas.length})`);
+  revisar(tablas.every(c => /30 cm/.test(c.texto) && /60 cm/.test(c.texto) && /90 cm/.test(c.texto)),
+    `${nombre}: la tabla lista las tres profundidades`);
+}
 revisar(sel.textos.includes('Evolución por fecha'), 'la tabla con los mismos datos acompaña a los gráficos');
 // Lectura masiva del cuartel: subió o bajó, con el número.
 const tend = await mirar('ficha-tendencia', 1440, 1200, '#panel-calicatas:C-5');

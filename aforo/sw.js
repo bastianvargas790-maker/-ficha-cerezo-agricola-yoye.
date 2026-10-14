@@ -1,15 +1,15 @@
-const CACHE='aforo-campo-v20261013-tendencia';
+const CACHE='aforo-campo-v20261014-dona';
 const SHELL=[
   './',
   './index.html',
   './manifest.webmanifest',
-  '../assets/yoye-theme.css?v=20261013-tendencia',
-  '../assets/private-app.css?v=20261013-tendencia',
-  '../assets/campos.css?v=20261013-tendencia',
-  '../assets/supabase.js?v=20261013-tendencia',
-  '../assets/shared-auth.js?v=20261013-tendencia',
-  '../assets/campos.js?v=20261013-tendencia',
-  '../assets/aforo.js?v=20261013-tendencia','../assets/fertilizacion.js?v=20261013-tendencia',
+  '../assets/yoye-theme.css?v=20261014-dona',
+  '../assets/private-app.css?v=20261014-dona',
+  '../assets/campos.css?v=20261014-dona',
+  '../assets/supabase.js?v=20261014-dona',
+  '../assets/shared-auth.js?v=20261014-dona',
+  '../assets/campos.js?v=20261014-dona',
+  '../assets/aforo.js?v=20261014-dona','../assets/fertilizacion.js?v=20261014-dona',
   '../assets/yoye-logo.png',
   '../assets/icons/favicon.svg',
   '../assets/icons/aforo-192.png',

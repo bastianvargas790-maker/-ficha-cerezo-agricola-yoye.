@@ -262,3 +262,26 @@
 .pd-filtro select{min-height:44px;padding:8px 10px;border:1px solid var(--line);border-radius:12px;
   background:var(--paper,#fffdf8);font-size:.88rem;color:var(--ink);width:100%}
 .pd-filtros .pd-abrir{align-self:flex-end}
+
+/* Cifras bajo la dona de cobertura: el dato que no es parte del todo
+   (calicatas registradas, raíces efectivas) no puede ir como porción. */
+.pd-cifras{display:flex;flex-wrap:wrap;gap:18px;margin:14px 0 0;padding-top:12px;
+  border-top:1px solid var(--line,#e6ddcc)}
+.pd-cifras>div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.pd-cifras b{font-size:1.25rem;line-height:1.1;color:var(--ink,#2f2a24);font-variant-numeric:tabular-nums}
+.pd-cifras span{font-size:.78rem;color:var(--ink-3,#7d7467)}
+
+/* Punto de color en la tabla de resumen: ata cada fila a su línea del gráfico
+   sin teñir el texto, que se queda en tinta. */
+.pd-punto{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;
+  vertical-align:baseline;flex:none}
+
+/* La dona de cobertura ocupa la fila entera: sola en media tarjeta dejaba un
+   hueco del mismo tamaño al lado. En el teléfono vuelve a apilarse. */
+.pd-anillo-ancho .pd-anillo-fila{align-items:center}
+@media (min-width:760px){
+  .pd-anillo-cuerpo{display:grid;grid-template-columns:minmax(260px,420px) 1fr;gap:30px;align-items:center}
+  .pd-anillo-ancho .pd-cifras{margin:0;padding:0 0 0 30px;border-top:0;
+    border-left:1px solid var(--line,#e6ddcc);gap:36px}
+  .pd-anillo-ancho .pd-cifras b{font-size:1.7rem}
+}
